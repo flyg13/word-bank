@@ -162,6 +162,7 @@
   <div class="tabs">
     <div class="tab active" data-tab="practice">Practice</div>
     <div class="tab" data-tab="sentences">Sentences</div>
+    <div class="tab" data-tab="reading">Reading</div>
     <div class="tab" data-tab="write">Free Write</div>
     <div class="tab" data-tab="bank">Word Bank</div>
   </div>
@@ -238,6 +239,45 @@
         <button class="btn btn-outline btn-sm" id="prevSentence">← Previous</button>
         <span id="sentenceCounter">1 / 24</span>
         <button class="btn btn-outline btn-sm" id="nextSentence">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- READING PASSAGE TAB -->
+  <div id="tab-reading" style="display:none;">
+    <div class="card" id="readingSetupCard">
+      <p class="sub" style="margin-bottom:14px;">Paste a page from her actual book — anything she's reading for school works better than made-up sentences, since it's already familiar to her.</p>
+      <div class="output-label" style="margin-top:0;">Passage text</div>
+      <textarea id="readingPassageInput" style="width:100%;min-height:110px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:12px;font-size:15px;font-family:inherit;resize:vertical;" placeholder="Paste a page or a few sentences here…"></textarea>
+      <div style="text-align:right;margin-top:10px;">
+        <button class="btn btn-primary btn-sm" id="saveReadingBtn">Save passage</button>
+      </div>
+    </div>
+
+    <div class="card" id="readingPracticeCard" style="display:none;">
+      <div class="sentence-text" id="readingTargetSentence">—</div>
+      <div style="text-align:center; margin-top:8px;">
+        <button class="speak-btn" id="speakReadingBtn" title="Hear this line" style="display:inline-flex;">
+          <svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12z"/></svg>
+        </button>
+      </div>
+      <div class="clean-dots" id="readingCleanDots"></div>
+
+      <button class="mic-btn" id="readingMic">
+        <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+      </button>
+      <div class="mic-label" id="readingMicLabel">Tap to listen</div>
+
+      <div class="output-label">She said — tap a red word to fix it</div>
+      <div id="readingOutput"><span style="color:var(--ink-dim);">Nothing yet.</span></div>
+
+      <div class="sentence-nav">
+        <button class="btn btn-outline btn-sm" id="prevReading">← Previous</button>
+        <span id="readingCounter">1 / 1</span>
+        <button class="btn btn-outline btn-sm" id="nextReading">Next →</button>
+      </div>
+      <div style="text-align:center; margin-top:14px;">
+        <button class="btn btn-outline btn-sm" id="editReadingBtn">Paste a different passage</button>
       </div>
     </div>
   </div>
@@ -380,10 +420,15 @@ async function initFirebase(){
       sessionLog = data.session_log || [];
       sentenceProgress = data.sentence_progress || {};
       sentenceIndex = data.sentence_index || 0;
+      readingPassage = data.reading_passage || '';
+      readingSentences = readingPassage ? parseReadingPassage(readingPassage) : [];
+      readingProgress = data.reading_progress || {};
+      readingIndex = data.reading_index || 0;
       buildQueue();
       updateProgressUI();
       renderPracticeWord();
       renderSentence();
+      renderReadingUI();
       renderCorrectedOutput(document.getElementById('rawInput') ? document.getElementById('rawInput').value : '');
       renderBankList();
       renderSessionLog();
@@ -459,11 +504,12 @@ document.querySelectorAll('.tab').forEach(t=>{
   t.addEventListener('click', ()=>{
     document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
     t.classList.add('active');
-    ['practice','sentences','write','bank'].forEach(name=>{
+    ['practice','sentences','reading','write','bank'].forEach(name=>{
       document.getElementById('tab-'+name).style.display = (name===t.dataset.tab) ? 'block' : 'none';
     });
     if(t.dataset.tab === 'bank'){ renderBankList(); renderSessionLog(); }
     if(t.dataset.tab === 'sentences'){ renderSentence(); }
+    if(t.dataset.tab === 'reading'){ renderReadingUI(); }
   });
 });
 
@@ -712,6 +758,130 @@ async function handleSentenceResult(heard){
   }
 }
 
+// ---------- READING PASSAGE MODE ----------
+let readingPassage = '';
+let readingSentences = [];
+let readingProgress = {};
+let readingIndex = 0;
+
+function parseReadingPassage(text){
+  return text.split(/(?<=[.!?])\s+/).map(s=>s.trim()).filter(s=>s.length>0);
+}
+
+function renderReadingUI(){
+  const setupCard = document.getElementById('readingSetupCard');
+  const practiceCard = document.getElementById('readingPracticeCard');
+  if(!readingPassage || readingSentences.length===0){
+    setupCard.style.display = 'block';
+    practiceCard.style.display = 'none';
+    return;
+  }
+  setupCard.style.display = 'none';
+  practiceCard.style.display = 'block';
+  renderReadingSentence();
+}
+
+function renderReadingSentence(){
+  const s = readingSentences[readingIndex];
+  document.getElementById('readingTargetSentence').textContent = s;
+  document.getElementById('readingCounter').textContent = (readingIndex+1) + ' / ' + readingSentences.length;
+  const clean = readingProgress[readingIndex] || 0;
+  const dotsEl = document.getElementById('readingCleanDots');
+  dotsEl.innerHTML = '';
+  for(let i=0;i<SENTENCE_MASTERY;i++){
+    const d = document.createElement('div');
+    d.className = 'repeat-dot' + (i < clean ? ' filled' : '');
+    dotsEl.appendChild(d);
+  }
+  document.getElementById('readingOutput').innerHTML = '<span style="color:var(--ink-dim);">Nothing yet.</span>';
+}
+
+document.getElementById('saveReadingBtn').addEventListener('click', async ()=>{
+  const text = document.getElementById('readingPassageInput').value.trim();
+  if(!text) return;
+  readingPassage = text;
+  readingSentences = parseReadingPassage(text);
+  readingProgress = {};
+  readingIndex = 0;
+  await saveJSON('reading_passage', readingPassage);
+  await saveJSON('reading_progress', readingProgress);
+  await saveJSON('reading_index', readingIndex);
+  renderReadingUI();
+});
+
+document.getElementById('editReadingBtn').addEventListener('click', ()=>{
+  document.getElementById('readingPassageInput').value = readingPassage;
+  document.getElementById('readingSetupCard').style.display = 'block';
+  document.getElementById('readingPracticeCard').style.display = 'none';
+});
+
+document.getElementById('speakReadingBtn').addEventListener('click', ()=>{
+  if(readingSentences[readingIndex]) speak(readingSentences[readingIndex]);
+});
+document.getElementById('prevReading').addEventListener('click', ()=>{
+  readingIndex = (readingIndex - 1 + readingSentences.length) % readingSentences.length;
+  saveJSON('reading_index', readingIndex);
+  renderReadingSentence();
+});
+document.getElementById('nextReading').addEventListener('click', ()=>{
+  readingIndex = (readingIndex + 1) % readingSentences.length;
+  saveJSON('reading_index', readingIndex);
+  renderReadingSentence();
+});
+
+document.getElementById('readingMic').addEventListener('click', ()=>{
+  if(!recognizer || readingSentences.length===0) return;
+  const btn = document.getElementById('readingMic');
+  btn.classList.add('listening');
+  document.getElementById('readingMicLabel').textContent = 'Listening…';
+  recognizer.onresult = (e)=>{
+    const heard = e.results[0][0].transcript.trim();
+    handleReadingResult(heard);
+  };
+  recognizer.onerror = ()=>{ btn.classList.remove('listening'); document.getElementById('readingMicLabel').textContent = "Didn't catch that — tap to try again"; };
+  recognizer.onend = ()=>{ btn.classList.remove('listening'); };
+  try{ recognizer.start(); }catch(e){}
+});
+
+async function handleReadingResult(heard){
+  const expectedWords = readingSentences[readingIndex].replace(/[.,!?]/g,'').split(/\s+/);
+  const heardWords = heard.replace(/[.,!?]/g,'').split(/\s+/);
+  const out = document.getElementById('readingOutput');
+  out.innerHTML = '';
+  let allMatch = heardWords.length === expectedWords.length;
+
+  expectedWords.forEach((expectedRaw, i)=>{
+    const heardRaw = heardWords[i] || '';
+    const corrected = applyBankToWord(heardRaw);
+    const isMatch = normalize(corrected) === normalize(expectedRaw) && heardRaw !== '';
+    if(!isMatch) allMatch = false;
+    const span = document.createElement('span');
+    span.className = 'wtok ' + (isMatch ? 'match' : 'mismatch');
+    span.textContent = heardRaw || '(missing)';
+    span.dataset.rawKey = normalize(heardRaw);
+    span.dataset.expected = expectedRaw;
+    span.addEventListener('click', ()=> openFixPanel(span, true));
+    out.appendChild(span);
+    out.appendChild(document.createTextNode(' '));
+  });
+
+  if(allMatch){
+    readingProgress[readingIndex] = (readingProgress[readingIndex]||0) + 1;
+    await saveJSON('reading_progress', readingProgress);
+    const banner = document.createElement('div');
+    banner.style.cssText = 'margin-top:10px;color:var(--sage);font-size:13px;font-weight:600;';
+    banner.textContent = '✓ Clean read (' + Math.min(readingProgress[readingIndex],SENTENCE_MASTERY) + '/' + SENTENCE_MASTERY + ')';
+    out.appendChild(banner);
+    const dotsEl = document.getElementById('readingCleanDots');
+    dotsEl.innerHTML = '';
+    for(let i=0;i<SENTENCE_MASTERY;i++){
+      const d = document.createElement('div');
+      d.className = 'repeat-dot' + (i < readingProgress[readingIndex] ? ' filled' : '');
+      dotsEl.appendChild(d);
+    }
+  }
+}
+
 // ---------- FREE WRITE MODE ----------
 function applyBankToText(text){
   const tokens = text.split(/(\s+)/);
@@ -827,7 +997,7 @@ document.getElementById('manualAddBtn').addEventListener('click', async ()=>{
 });
 
 document.getElementById('exportBtn').addEventListener('click', ()=>{
-  const blob = new Blob([JSON.stringify({word_bank: wordBank, verified_words: verifiedWords, confirm_counts: confirmCounts, sentence_progress: sentenceProgress}, null, 2)], {type:'application/json'});
+  const blob = new Blob([JSON.stringify({word_bank: wordBank, verified_words: verifiedWords, confirm_counts: confirmCounts, sentence_progress: sentenceProgress, reading_passage: readingPassage, reading_progress: readingProgress}, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'word-bank-export.json';
@@ -844,7 +1014,9 @@ document.getElementById('importFile').addEventListener('change', (e)=>{
       if(data.verified_words){ verifiedWords = [...new Set([...verifiedWords, ...data.verified_words])]; await saveJSON('verified_words', verifiedWords); }
       if(data.confirm_counts){ confirmCounts = {...confirmCounts, ...data.confirm_counts}; await saveJSON('confirm_counts', confirmCounts); }
       if(data.sentence_progress){ sentenceProgress = {...sentenceProgress, ...data.sentence_progress}; await saveJSON('sentence_progress', sentenceProgress); }
-      buildQueue(); updateProgressUI(); renderBankList(); renderPracticeWord();
+      if(data.reading_passage){ readingPassage = data.reading_passage; readingSentences = parseReadingPassage(readingPassage); await saveJSON('reading_passage', readingPassage); }
+      if(data.reading_progress){ readingProgress = {...readingProgress, ...data.reading_progress}; await saveJSON('reading_progress', readingProgress); }
+      buildQueue(); updateProgressUI(); renderBankList(); renderPracticeWord(); renderReadingUI();
       alert('Imported successfully.');
     }catch(err){ alert('That file could not be read.'); }
   };
@@ -859,6 +1031,7 @@ document.getElementById('importFile').addEventListener('change', (e)=>{
   updateProgressUI();
   renderPracticeWord();
   renderSentence();
+  renderReadingUI();
   renderCorrectedOutput('');
   refreshSessionUI();
 
