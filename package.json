@@ -1,0 +1,23 @@
+{
+  "name": "word-bank",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "Harlie's Word Bank \u2014 a personal speech-to-text trainer that learns her voice.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "node e2e/smoke.mjs"
+  },
+  "dependencies": {
+    "firebase": "^12.18.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
+  }
+}

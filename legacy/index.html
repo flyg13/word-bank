@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Harlie's Word Bank</title>
+<!-- CLOUD-SYNCED VERSION. Requires a free Firebase project. See setup steps in chat. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg:#132821;
+    --surface:#1c342c;
+    --surface-2:#224035;
+    --ink:#f3ede0;
+    --ink-dim:#b9c9c1;
+    --amber:#e8a33d;
+    --amber-dim:#8a662a;
+    --coral:#d9654f;
+    --sage:#6fae8c;
+    --line:#2c4a3e;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:transparent;}
+  body{
+    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    padding:22px 18px 60px;
+    max-width:760px;
+    margin:0 auto;
+  }
+  h1{ font-size:26px; letter-spacing:0.01em; margin:4px 0 2px; display:flex; align-items:baseline; gap:10px; }
+  h1 .seed{color:var(--amber); font-size:20px;}
+  .sub{color:var(--ink-dim); font-size:14.5px; margin:0 0 20px; line-height:1.5;}
+
+  .tabs{display:flex; gap:5px; margin-bottom:18px; background:var(--surface); padding:5px; border-radius:12px; overflow-x:auto;}
+  .tab{
+    flex:1; text-align:center; padding:10px 6px; border-radius:8px; cursor:pointer;
+    font-size:13.5px; font-weight:600; color:var(--ink-dim); transition:all .15s ease;
+    user-select:none; white-space:nowrap;
+  }
+  .tab.active{background:var(--amber); color:#20180a;}
+
+  .card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px; margin-bottom:16px; }
+
+  .garden-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;}
+  .garden-head .count{font-size:26px; font-weight:700; color:var(--amber);}
+  .garden-head .count span{font-size:14px; color:var(--ink-dim); font-weight:400;}
+  .bar-track{height:9px; background:var(--surface-2); border-radius:6px; overflow:hidden; margin-bottom:2px;}
+  .bar-fill{height:100%; background:linear-gradient(90deg,var(--amber-dim),var(--amber)); border-radius:6px; transition:width .4s ease;}
+  .bar-track.small{height:6px; margin-top:6px;}
+
+  .session-bar{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  .session-stat{font-size:13px; color:var(--ink-dim);}
+  .session-stat b{color:var(--ink); font-size:15px;}
+
+  .practice-word{ text-align:center; padding:28px 10px 20px; }
+  .practice-word .word-row{ display:flex; align-items:center; justify-content:center; gap:10px; }
+  .practice-word .word{ font-size:42px; font-weight:800; letter-spacing:0.01em; color:var(--ink); }
+  .speak-btn{
+    background:var(--surface-2); border:1px solid var(--line); border-radius:50%;
+    width:38px; height:38px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .speak-btn svg{ width:18px; height:18px; fill:var(--amber); }
+  .practice-word .hint{color:var(--ink-dim); font-size:13px; margin-top:6px;}
+  .repeat-dots{ display:flex; gap:5px; justify-content:center; margin-top:10px; }
+  .repeat-dot{ width:8px; height:8px; border-radius:50%; background:var(--surface-2); border:1px solid var(--line); }
+  .repeat-dot.filled{ background:var(--sage); border-color:var(--sage); }
+
+  .mic-btn{
+    display:block; margin:18px auto 0; width:84px; height:84px; border-radius:50%;
+    background:var(--coral); border:none; cursor:pointer; position:relative; transition:transform .1s ease;
+  }
+  .mic-btn.listening{ background:var(--sage); animation:pulse 1.2s infinite; }
+  .mic-btn:active{ transform:scale(0.96); }
+  .mic-btn svg{ width:32px; height:32px; fill:#fff; }
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(111,174,140,.55);}
+    70%{box-shadow:0 0 0 18px rgba(111,174,140,0);}
+    100%{box-shadow:0 0 0 0 rgba(111,174,140,0);}
+  }
+  .mic-label{text-align:center; margin-top:8px; font-size:13px; color:var(--ink-dim);}
+
+  .heard-box{ margin-top:18px; background:var(--surface-2); border-radius:10px; padding:16px; text-align:center; display:none; }
+  .heard-box.show{display:block;}
+  .heard-box .label{font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-dim); margin-bottom:4px;}
+  .heard-box .heard-text{font-size:19px; font-weight:600;}
+  .match-yes{color:var(--sage);}
+  .match-no{color:var(--coral);}
+  .action-row{display:flex; gap:8px; margin-top:14px; justify-content:center; flex-wrap:wrap;}
+  .btn{ border:none; border-radius:9px; padding:10px 15px; font-size:13.5px; font-weight:600; cursor:pointer; color:var(--ink); }
+  .btn-primary{background:var(--amber); color:#20180a;}
+  .btn-ghost{background:var(--surface-2); color:var(--ink);}
+  .btn-outline{background:transparent; border:1px solid var(--line); color:var(--ink-dim);}
+  .btn:disabled{opacity:.4; cursor:not-allowed;}
+  .btn-sm{padding:7px 12px; font-size:12.5px;}
+
+  textarea#rawInput{
+    width:100%; min-height:70px; background:var(--surface-2); border:1px solid var(--line);
+    border-radius:10px; color:var(--ink); padding:12px; font-size:15px; resize:vertical; font-family:inherit;
+  }
+  .output-label{font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-dim); margin:16px 0 8px;}
+  #correctedOutput, #sentenceOutput{ background:var(--surface-2); border-radius:10px; padding:14px; min-height:50px; font-size:16px; line-height:1.7; }
+  .wtok{ cursor:pointer; border-bottom:1px dashed transparent; padding:1px 1px; border-radius:3px; }
+  .wtok:hover{ background:rgba(232,163,61,.18); border-bottom-color:var(--amber); }
+  .wtok.fixed{ color:var(--sage); }
+  .wtok.match{ color:var(--sage); }
+  .wtok.mismatch{ color:var(--coral); border-bottom-color:var(--coral); }
+
+  .fix-panel{ display:none; margin-top:14px; background:var(--surface-2); padding:14px; border-radius:10px; }
+  .fix-panel.show{ display:block; }
+  .fix-panel input{ width:100%; padding:10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:15px; margin:8px 0; }
+  .fix-panel .row{display:flex; gap:8px;}
+
+  .bank-controls{display:flex; gap:8px; margin-bottom:14px;}
+  .bank-controls input[type=text]{ flex:1; padding:10px 12px; border-radius:8px; border:1px solid var(--line); background:var(--surface-2); color:var(--ink); font-size:14px; }
+  .bank-row{ display:flex; justify-content:space-between; align-items:center; padding:10px 4px; border-bottom:1px solid var(--line); font-size:14px; }
+  .bank-row:last-child{border-bottom:none;}
+  .bank-row .pair{ color:var(--ink-dim); }
+  .bank-row .pair b{ color:var(--ink); font-weight:600; }
+  .del-btn{ background:none; border:none; color:var(--coral); cursor:pointer; font-size:12.5px; }
+  .empty-note{ color:var(--ink-dim); font-size:14px; text-align:center; padding:20px 0; }
+
+  .manual-add{ display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+  .manual-add input{ flex:1; min-width:110px; padding:10px; border-radius:8px; border:1px solid var(--line); background:var(--surface-2); color:var(--ink); font-size:14px; }
+
+  .footer-row{display:flex; gap:8px; margin-top:6px;}
+  .banner{ background:var(--surface-2); border-left:3px solid var(--amber); border-radius:8px; padding:10px 12px; font-size:13px; color:var(--ink-dim); margin-bottom:16px; display:none; }
+  .banner.show{display:block;}
+  .banner.setup-needed{ border-left-color:var(--coral); }
+  .sync-status{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-dim); margin-bottom:14px; }
+  .sync-dot{ width:8px; height:8px; border-radius:50%; background:var(--ink-dim); }
+  .sync-dot.connected{ background:var(--sage); }
+  .sync-dot.error{ background:var(--coral); }
+
+  .sentence-text{ font-size:20px; font-weight:600; text-align:center; padding:10px 4px 4px; line-height:1.5; }
+  .sentence-nav{ display:flex; justify-content:space-between; align-items:center; margin-top:12px; font-size:12.5px; color:var(--ink-dim); }
+  .clean-dots{ display:flex; gap:5px; justify-content:center; margin-top:10px; }
+
+  .session-summary{ text-align:center; padding:10px 0; }
+  .session-summary .big{ font-size:32px; font-weight:800; color:var(--amber); }
+  .session-log{ font-size:12.5px; color:var(--ink-dim); margin-top:10px; }
+  .session-log div{ padding:3px 0; }
+</style>
+</head>
+<body>
+
+  <h1>Harlie's Word Bank <span class="seed">🌱</span></h1>
+  <p class="sub">A personal speech-to-text trainer that learns her voice, one correction at a time.</p>
+
+  <div id="setupBanner" class="banner setup-needed">
+    <b>Setup needed:</b> open this file in a text editor and paste your Firebase config into <code>FIREBASE_CONFIG</code> near the top of the script (see setup steps provided separately). Until then, nothing will save.
+  </div>
+  <div id="unsupportedBanner" class="banner">
+    Speech recognition needs Chrome, Edge, or Safari (used directly in the browser tab — not installed to the home screen) with a microphone. You can still add corrections manually below.
+  </div>
+  <div class="sync-status"><div class="sync-dot" id="syncDot"></div><span id="syncLabel">Connecting…</span></div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="practice">Practice</div>
+    <div class="tab" data-tab="sentences">Sentences</div>
+    <div class="tab" data-tab="reading">Reading</div>
+    <div class="tab" data-tab="write">Free Write</div>
+    <div class="tab" data-tab="bank">Word Bank</div>
+  </div>
+
+  <div class="card">
+    <div class="garden-head">
+      <div class="count" id="bankCount">0 <span id="bankCountLabel">/ 250 words mastered</span></div>
+    </div>
+    <div class="bar-track"><div class="bar-fill" id="barFill" style="width:0%"></div></div>
+  </div>
+
+  <!-- PRACTICE TAB -->
+  <div id="tab-practice">
+    <div class="card">
+      <div class="session-bar">
+        <div class="session-stat">Session: <b id="sessionAttemptedStat">0</b> attempted, <b id="sessionMasteredStat">0</b> newly mastered</div>
+        <div>
+          <button class="btn btn-primary btn-sm" id="startSessionBtn">Start session</button>
+          <button class="btn btn-outline btn-sm" id="endSessionBtn" style="display:none;">End session</button>
+        </div>
+      </div>
+      <div id="sessionSummary" class="session-summary" style="display:none;"></div>
+    </div>
+
+    <div class="card practice-word">
+      <div class="word-row">
+        <div class="word" id="targetWord">—</div>
+        <button class="speak-btn" id="speakWordBtn" title="Hear the word">
+          <svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12z"/></svg>
+        </button>
+      </div>
+      <div class="hint">Say the word after you hear it</div>
+      <div class="repeat-dots" id="repeatDots"></div>
+
+      <button class="mic-btn" id="practiceMic">
+        <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+      </button>
+      <div class="mic-label" id="practiceMicLabel">Tap to listen</div>
+
+      <div class="heard-box" id="heardBox">
+        <div class="label">Heard</div>
+        <div class="heard-text" id="heardText">—</div>
+        <div class="action-row" id="matchActions"></div>
+      </div>
+    </div>
+
+    <div class="card" style="text-align:center;">
+      <button class="btn btn-outline btn-sm" id="skipWord">Skip this word</button>
+      <button class="btn btn-outline btn-sm" id="resetProgress">Reset practice progress</button>
+    </div>
+  </div>
+
+  <!-- SENTENCES TAB -->
+  <div id="tab-sentences" style="display:none;">
+    <div class="card">
+      <p class="sub" style="margin-bottom:14px;">Words said in a sentence often come out differently than words said alone. These use her already-familiar words in short, natural sentences.</p>
+      <div class="sentence-text" id="targetSentence">—</div>
+      <div style="text-align:center; margin-top:8px;">
+        <button class="speak-btn" id="speakSentenceBtn" title="Hear the sentence" style="display:inline-flex;">
+          <svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12z"/></svg>
+        </button>
+      </div>
+      <div class="clean-dots" id="cleanDots"></div>
+
+      <button class="mic-btn" id="sentenceMic">
+        <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+      </button>
+      <div class="mic-label" id="sentenceMicLabel">Tap to listen</div>
+
+      <div class="output-label">She said — tap a red word to fix it</div>
+      <div id="sentenceOutput"><span style="color:var(--ink-dim);">Nothing yet.</span></div>
+
+      <div class="sentence-nav">
+        <button class="btn btn-outline btn-sm" id="prevSentence">← Previous</button>
+        <span id="sentenceCounter">1 / 24</span>
+        <button class="btn btn-outline btn-sm" id="nextSentence">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- READING PASSAGE TAB -->
+  <div id="tab-reading" style="display:none;">
+    <div class="card" id="readingSetupCard">
+      <p class="sub" style="margin-bottom:14px;">Paste a page from her actual book — anything she's reading for school works better than made-up sentences, since it's already familiar to her.</p>
+      <div class="output-label" style="margin-top:0;">Passage text</div>
+      <textarea id="readingPassageInput" style="width:100%;min-height:110px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:12px;font-size:15px;font-family:inherit;resize:vertical;" placeholder="Paste a page or a few sentences here…"></textarea>
+      <div style="text-align:right;margin-top:10px;">
+        <button class="btn btn-primary btn-sm" id="saveReadingBtn">Save passage</button>
+      </div>
+    </div>
+
+    <div class="card" id="readingPracticeCard" style="display:none;">
+      <div class="sentence-text" id="readingTargetSentence">—</div>
+      <div style="text-align:center; margin-top:8px;">
+        <button class="speak-btn" id="speakReadingBtn" title="Hear this line" style="display:inline-flex;">
+          <svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12z"/></svg>
+        </button>
+      </div>
+      <div class="clean-dots" id="readingCleanDots"></div>
+
+      <button class="mic-btn" id="readingMic">
+        <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+      </button>
+      <div class="mic-label" id="readingMicLabel">Tap to listen</div>
+
+      <div class="output-label">She said — tap a red word to fix it</div>
+      <div id="readingOutput"><span style="color:var(--ink-dim);">Nothing yet.</span></div>
+
+      <div class="sentence-nav">
+        <button class="btn btn-outline btn-sm" id="prevReading">← Previous</button>
+        <span id="readingCounter">1 / 1</span>
+        <button class="btn btn-outline btn-sm" id="nextReading">Next →</button>
+      </div>
+      <div style="text-align:center; margin-top:14px;">
+        <button class="btn btn-outline btn-sm" id="editReadingBtn">Paste a different passage</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FREE WRITE TAB -->
+  <div id="tab-write" style="display:none;">
+    <div class="card">
+      <div class="output-label">Say a sentence, or type it here to test corrections</div>
+      <textarea id="rawInput" placeholder="Tap the mic, or type here…"></textarea>
+      <div style="text-align:center; margin-top:12px;">
+        <button class="mic-btn" id="writeMic" style="width:60px;height:60px;">
+          <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+        </button>
+      </div>
+
+      <div class="output-label">Corrected — tap any word to fix it</div>
+      <div id="correctedOutput"><span style="color:var(--ink-dim);">Nothing here yet.</span></div>
+
+      <div class="fix-panel" id="fixPanel">
+        <div class="output-label" style="margin-top:0;">Fixing: <span id="fixingWord" style="color:var(--ink);"></span></div>
+        <input type="text" id="fixInput" placeholder="What word should this be?">
+        <div class="row">
+          <button class="btn btn-primary" id="saveFix">Save correction</button>
+          <button class="btn btn-ghost" id="cancelFix">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BANK TAB -->
+  <div id="tab-bank" style="display:none;">
+    <div class="card">
+      <div class="bank-controls"><input type="text" id="bankSearch" placeholder="Search her word bank…"></div>
+      <div id="bankList"></div>
+    </div>
+    <div class="card">
+      <div class="output-label" style="margin-top:0;">Recurring sounds not yet in her bank</div>
+      <p class="sub" style="margin-bottom:14px;">When the same word gets misheard the same way more than once during Practice, it shows up here — even before you've confirmed a correction for it.</p>
+      <div id="attemptLogList"></div>
+    </div>
+    <div class="card">
+      <div class="output-label" style="margin-top:0;">Add a correction manually</div>
+      <div class="manual-add">
+        <input type="text" id="manualRaw" placeholder="What the app hears">
+        <input type="text" id="manualCorrect" placeholder="What it should say">
+        <button class="btn btn-primary" id="manualAddBtn">Add</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="output-label" style="margin-top:0;">Recent sessions</div>
+      <div class="session-log" id="sessionLogView"><span class="empty-note">No sessions logged yet.</span></div>
+    </div>
+    <div class="card footer-row">
+      <button class="btn btn-outline" id="exportBtn">Export bank (.json)</button>
+      <label class="btn btn-outline" style="cursor:pointer;">
+        Import
+        <input type="file" id="importFile" accept="application/json" style="display:none;">
+      </label>
+    </div>
+  </div>
+
+<script>
+const MASTERY_THRESHOLD = 3;
+const REQUEUE_GAP = 4;
+
+const PRACTICE_WORDS = ("the,and,said,you,he,it,in,was,her,that,they,on,at,with,all,we,can,are,up,had,my,but,not,what,so,out,as,have,is,his,go,me,do,like,this,one,by,here,she,then,them,now,day,big,when,come,little,down,how,did,could,were,about,got,run,going,jump,eat,play,help,look,made,make,want,over,put,use,water,way,who,will,your,after,again,any,ask,because,before,best,better,both,call,came,change,does,every,found,give,goes,good,great,know,laugh,left,let,live,many,may,most,much,must,name,never,old,only,open,own,people,pretty,pull,read,round,shall,show,six,small,start,take,thank,think,walk,warm,work,world,years,young,above,across,ahead,almost,alone,along,also,although,always,among,animal,another,answer,area,around,arrive,become,began,begin,behind,being,below,beside,between,beyond,body,book,bring,brother,brought,build,carry,catch,children,clean,close,cold,color,cook,cool,corner,country,course,cover,cried,different,doctor,dream,during,early,earth,easy,eight,either,else,end,enough,even,ever,everyone,everything,eyes,face,family,father,fast,feel,feet,few,fine,first,five,fly,follow,food,foot,friend,front,full,funny,garden,girl,glass,gone,grow,hand,happen,happy,hard,head,heard,heart,hold,hope,horse,house,however,idea,important,inside,instead,keep,kind,late,learn,leave,letter,light,long,longer,love,mean,might,mind,minute,money,morning,mother,mountain,move,music,near,need,news,night,north,nothing,notice,number,often,once,outside,paper,part,party,pass,person,picture,place,plant,point,poor,quick,quiet,quite,rain,ready,real,remember,ring,river,room,school,second,seem,sentence,several,shoe,short,should,side,sign,since,sister,sleep,slow,snow,soon,sound,south,special,spell,spring,star,stay,still,stop,story,street,strong,study,sudden,summer,sure,table,talk,teach,teacher,tell,than,thing,third,those,though,thought,three,through,today,together,told,tomorrow,tonight,tree,trouble,true,turn,under,until,upon,visit,voice,wait,wash,watch,week,while,white,window,winter,without,woman,word,worry,worse,would,year,yellow,yes,yesterday").split(",");
+
+const SENTENCES = [
+ "The cat sat on the mat.",
+ "I can see a big dog.",
+ "She has a red hat.",
+ "We go to the park.",
+ "He likes to play ball.",
+ "The sun is up now.",
+ "Look at the little bird.",
+ "I want to eat lunch.",
+ "My mom made a cake.",
+ "The dog ran to me.",
+ "Can you help me now.",
+ "We had fun today.",
+ "She likes her new book.",
+ "The boy is very happy.",
+ "I see three big trees.",
+ "He came home late.",
+ "The water is very cold.",
+ "Let us go outside now.",
+ "My friend has a toy.",
+ "The girl can read well.",
+ "I will try my best.",
+ "We walk to school fast.",
+ "The baby likes to sleep.",
+ "Please put your shoes on."
+];
+const SENTENCE_MASTERY = 2;
+
+// ---------- Firebase config ----------
+// Paste the config object from Firebase console > Project settings > Your apps > Web app.
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyA03iZfP-uupMcnO7ZgGwu5qTqXvHDk26E",
+  authDomain: "wordbank-fg13.firebaseapp.com",
+  projectId: "wordbank-fg13",
+  storageBucket: "wordbank-fg13.firebasestorage.app",
+  messagingSenderId: "67559322147",
+  appId: "1:67559322147:web:1fc04bcb87488e931b3796"
+};
+
+let db = null;
+let familyDocRef = null;
+let firstSnapshotReceived = false;
+
+function setSyncStatus(state, label){
+  const dot = document.getElementById('syncDot');
+  const lbl = document.getElementById('syncLabel');
+  dot.className = 'sync-dot' + (state ? ' '+state : '');
+  lbl.textContent = label;
+}
+
+function getFamilyCode(){
+  let code = localStorage.getItem('word_bank_family_code');
+  if(!code){
+    code = window.prompt("Set up her shared code (make one up, then type this exact same code on every device — Mac, iPad, etc). Letters and numbers only:");
+    if(code){ code = code.trim().toLowerCase().replace(/[^a-z0-9-]/g,'-'); localStorage.setItem('word_bank_family_code', code); }
+  }
+  return code;
+}
+
+async function initFirebase(){
+  if(FIREBASE_CONFIG.apiKey === "PASTE_YOUR_API_KEY"){
+    document.getElementById('setupBanner').classList.add('show');
+    setSyncStatus('error', 'Not connected — setup needed');
+    return false;
+  }
+  try{
+    firebase.initializeApp(FIREBASE_CONFIG);
+    await firebase.auth().signInAnonymously();
+    db = firebase.firestore();
+    const code = getFamilyCode();
+    if(!code){ setSyncStatus('error', 'No family code set'); return false; }
+    familyDocRef = db.collection('families').doc(code);
+    familyDocRef.onSnapshot(snap => {
+      const data = snap.data() || {};
+      wordBank = data.word_bank || {};
+      verifiedWords = data.verified_words || [];
+      confirmCounts = data.confirm_counts || {};
+      sessionLog = data.session_log || [];
+      sentenceProgress = data.sentence_progress || {};
+      sentenceIndex = data.sentence_index || 0;
+      readingPassage = data.reading_passage || '';
+      readingSentences = readingPassage ? parseReadingPassage(readingPassage) : [];
+      readingProgress = data.reading_progress || {};
+      readingIndex = data.reading_index || 0;
+      attemptLog = data.attempt_log || {};
+      if(!firstSnapshotReceived){
+        buildQueue();
+      }else{
+        reconcileQueue();
+      }
+      updateProgressUI();
+      renderPracticeWord();
+      renderSentence();
+      renderReadingUI();
+      renderCorrectedOutput(document.getElementById('rawInput') ? document.getElementById('rawInput').value : '');
+      renderBankList();
+      renderAttemptLog();
+      renderSessionLog();
+      refreshSessionUI();
+      firstSnapshotReceived = true;
+      setSyncStatus('connected', 'Synced — code "'+code+'"');
+    }, err => {
+      console.error(err);
+      setSyncStatus('error', 'Sync error — check Firestore rules');
+    });
+    return true;
+  }catch(e){
+    console.error(e);
+    setSyncStatus('error', 'Could not connect to Firebase');
+    return false;
+  }
+}
+
+async function saveJSON(key, val){
+  if(!familyDocRef){ return; }
+  try{ await familyDocRef.set({ [key]: val }, { merge: true }); }
+  catch(e){ console.error(key,'save failed',e); setSyncStatus('error', 'Save failed — check connection'); }
+}
+
+let wordBank = {};
+let verifiedWords = [];
+let confirmCounts = {};
+let sessionLog = [];
+let sentenceProgress = {};
+let sentenceIndex = 0;
+
+let practiceQueue = [];
+let sessionActive = false;
+let sessionAttempted = 0;
+let sessionMasteredStart = 0;
+
+function normalize(w){ return (w||'').toLowerCase().replace(/[^a-z']/g,''); }
+
+function totalMastered(){ return verifiedWords.length; }
+
+function updateProgressUI(){
+  const n = totalMastered();
+  document.getElementById('bankCount').firstChild.textContent = n + ' ';
+  document.getElementById('bankCountLabel').textContent = '/ ' + PRACTICE_WORDS.length + ' words mastered';
+  const pct = Math.min(100, Math.round((n/PRACTICE_WORDS.length)*100));
+  document.getElementById('barFill').style.width = pct + '%';
+}
+
+function speak(text){
+  if(!('speechSynthesis' in window)) return;
+  try{
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.9;
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+
+// ---------- Speech recognition ----------
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognizer = null;
+if(SR){
+  recognizer = new SR();
+  recognizer.continuous = false;
+  recognizer.interimResults = false;
+  recognizer.lang = 'en-US';
+}else{
+  document.getElementById('unsupportedBanner').classList.add('show');
+}
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    ['practice','sentences','reading','write','bank'].forEach(name=>{
+      document.getElementById('tab-'+name).style.display = (name===t.dataset.tab) ? 'block' : 'none';
+    });
+    if(t.dataset.tab === 'bank'){ renderBankList(); renderAttemptLog(); renderSessionLog(); }
+    if(t.dataset.tab === 'sentences'){ renderSentence(); }
+    if(t.dataset.tab === 'reading'){ renderReadingUI(); }
+  });
+});
+
+// ---------- SESSION ----------
+function refreshSessionUI(){
+  document.getElementById('startSessionBtn').style.display = sessionActive ? 'none' : 'inline-block';
+  document.getElementById('endSessionBtn').style.display = sessionActive ? 'inline-block' : 'none';
+  document.getElementById('sessionAttemptedStat').textContent = sessionAttempted;
+  document.getElementById('sessionMasteredStat').textContent = Math.max(0, totalMastered() - sessionMasteredStart);
+}
+document.getElementById('startSessionBtn').addEventListener('click', ()=>{
+  sessionActive = true; sessionAttempted = 0; sessionMasteredStart = totalMastered();
+  document.getElementById('sessionSummary').style.display = 'none';
+  refreshSessionUI();
+});
+document.getElementById('endSessionBtn').addEventListener('click', async ()=>{
+  const newlyMastered = Math.max(0, totalMastered() - sessionMasteredStart);
+  sessionLog.unshift({date: new Date().toLocaleDateString(), attempted: sessionAttempted, mastered: newlyMastered});
+  sessionLog = sessionLog.slice(0,8);
+  await saveJSON('session_log', sessionLog);
+  sessionActive = false;
+  const box = document.getElementById('sessionSummary');
+  box.style.display = 'block';
+  box.innerHTML = '<div class="big">'+newlyMastered+'</div><div style="color:var(--ink-dim);font-size:13px;">newly mastered this session ('+sessionAttempted+' words attempted)</div>';
+  refreshSessionUI();
+});
+
+function renderSessionLog(){
+  const el = document.getElementById('sessionLogView');
+  if(!sessionLog.length){ el.innerHTML = '<span class="empty-note">No sessions logged yet.</span>'; return; }
+  el.innerHTML = sessionLog.map(s => '<div>'+s.date+' — '+s.attempted+' attempted, '+s.mastered+' newly mastered</div>').join('');
+}
+
+// ---------- PRACTICE MODE ----------
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+function buildQueue(){
+  practiceQueue = shuffle(PRACTICE_WORDS.filter(w => !verifiedWords.map(normalize).includes(normalize(w))));
+}
+
+// Live sync means a Firestore update fires after every attempt (including our
+// own). Rebuilding the queue from scratch each time would discard the
+// spaced-repeat positions set below — this just drops newly-mastered words
+// without disturbing the order, so a word requeued a few turns out actually
+// stays a few turns out.
+function reconcileQueue(){
+  const masteredSet = new Set(verifiedWords.map(normalize));
+  practiceQueue = practiceQueue.filter(w => !masteredSet.has(normalize(w)));
+  const inQueue = new Set(practiceQueue.map(normalize));
+  PRACTICE_WORDS.forEach(w=>{
+    if(!masteredSet.has(normalize(w)) && !inQueue.has(normalize(w))) practiceQueue.push(w);
+  });
+}
+
+function renderPracticeWord(){
+  const heardBox = document.getElementById('heardBox');
+  heardBox.classList.remove('show');
+  if(practiceQueue.length === 0){
+    document.getElementById('targetWord').textContent = '🎉 All done!';
+    document.getElementById('practiceMic').style.display = 'none';
+    document.getElementById('speakWordBtn').style.display = 'none';
+    document.getElementById('practiceMicLabel').textContent = 'Every word has been mastered.';
+    document.getElementById('repeatDots').innerHTML = '';
+    return;
+  }
+  document.getElementById('practiceMic').style.display = 'block';
+  document.getElementById('speakWordBtn').style.display = 'flex';
+  document.getElementById('practiceMicLabel').textContent = 'Tap to listen';
+  const word = practiceQueue[0];
+  document.getElementById('targetWord').textContent = word;
+  renderRepeatDots(word);
+}
+
+function renderRepeatDots(word){
+  const count = confirmCounts[normalize(word)] || 0;
+  const el = document.getElementById('repeatDots');
+  el.innerHTML = '';
+  for(let i=0;i<MASTERY_THRESHOLD;i++){
+    const d = document.createElement('div');
+    d.className = 'repeat-dot' + (i < count ? ' filled' : '');
+    el.appendChild(d);
+  }
+}
+
+document.getElementById('speakWordBtn').addEventListener('click', ()=>{
+  const w = practiceQueue[0];
+  if(w) speak(w);
+});
+
+function registerConfirm(word, wasNew){
+  const key = normalize(word);
+  confirmCounts[key] = (confirmCounts[key]||0) + 1;
+  sessionAttempted++;
+  let justMastered = false;
+  if(confirmCounts[key] >= MASTERY_THRESHOLD){
+    if(!verifiedWords.map(normalize).includes(key)){
+      verifiedWords.push(word);
+      justMastered = true;
+    }
+    practiceQueue.shift();
+  }else{
+    const w = practiceQueue.shift();
+    const insertAt = Math.min(REQUEUE_GAP, practiceQueue.length);
+    practiceQueue.splice(insertAt, 0, w);
+  }
+  // Update the screen immediately — don't make her wait on a network
+  // round-trip before she can see (or hear) the next word.
+  updateProgressUI();
+  refreshSessionUI();
+  renderPracticeWord();
+  // Persist in the background.
+  saveJSON('confirm_counts', confirmCounts);
+  if(justMastered) saveJSON('verified_words', verifiedWords);
+}
+
+document.getElementById('practiceMic').addEventListener('click', ()=>{
+  if(!recognizer || practiceQueue.length===0) return;
+  const btn = document.getElementById('practiceMic');
+  btn.classList.add('listening');
+  document.getElementById('practiceMicLabel').textContent = 'Listening…';
+  recognizer.onresult = (e)=>{
+    const heard = e.results[0][0].transcript.trim();
+    handlePracticeResult(heard);
+  };
+  recognizer.onerror = ()=>{ btn.classList.remove('listening'); document.getElementById('practiceMicLabel').textContent = "Didn't catch that — tap to try again"; };
+  recognizer.onend = ()=>{ btn.classList.remove('listening'); };
+  try{ recognizer.start(); }catch(e){}
+});
+
+// A freshly banked correction starts PENDING — seen once, not yet trusted.
+// It only becomes ACTIVE (auto-applied everywhere) once the same heard→correct
+// pairing shows up a second time, whether that's a retry in Practice or a
+// matching correction made in Sentences/Reading/Free Write. This stops a
+// single noisy mishearing from silently rewriting every future correct
+// instance of a common word.
+function getBankEntry(key){
+  const v = wordBank[key];
+  if(!v) return null;
+  if(typeof v === 'string') return { correct: v, count: MASTERY_THRESHOLD, active: true }; // legacy entries stay trusted
+  return v;
+}
+function recordBankObservation(key, target){
+  const existing = getBankEntry(key);
+  if(existing && normalize(existing.correct) === normalize(target)){
+    const newCount = (existing.count||1) + 1;
+    wordBank[key] = { correct: target, count: newCount, active: existing.active || newCount >= 2 };
+  }else{
+    wordBank[key] = { correct: target, count: 1, active: false };
+  }
+}
+
+let attemptLog = {}; // key: "target|||heard" -> {target, heard, count, lastSeen}
+
+function attemptKey(target, heard){ return normalize(target) + '|||' + normalize(heard); }
+
+async function logAttempt(target, heard){
+  const key = attemptKey(target, heard);
+  const existing = attemptLog[key];
+  attemptLog[key] = {
+    target: target,
+    heard: heard,
+    count: (existing ? existing.count : 0) + 1,
+    lastSeen: new Date().toISOString()
+  };
+  const keys = Object.keys(attemptLog);
+  if(keys.length > 150){
+    keys.sort((a,b)=> new Date(attemptLog[a].lastSeen) - new Date(attemptLog[b].lastSeen));
+    delete attemptLog[keys[0]];
+  }
+  await saveJSON('attempt_log', attemptLog);
+}
+
+function handlePracticeResult(heard){
+  const target = practiceQueue[0];
+  if(!target) return;
+  const heardKey = normalize(heard);
+  const targetKey = normalize(target);
+  const entry = getBankEntry(heardKey);
+  const isDirectMatch = heardKey === targetKey;
+  const isKnownConsistent = entry && entry.active && normalize(entry.correct) === targetKey;
+
+  document.getElementById('heardBox').classList.add('show');
+  const heardTextEl = document.getElementById('heardText');
+  heardTextEl.textContent = '"' + heard + '"';
+  heardTextEl.className = 'heard-text ' + ((isDirectMatch||isKnownConsistent) ? 'match-yes' : 'match-no');
+
+  const actions = document.getElementById('matchActions');
+  actions.innerHTML = '';
+
+  if(isDirectMatch || isKnownConsistent){
+    heardTextEl.textContent += isDirectMatch ? '  ✓ matched' : '  ✓ matches her known pronunciation';
+    setTimeout(()=>{ registerConfirm(target, false); }, 700);
+  }else{
+    logAttempt(target, heard);
+    renderAttemptLog();
+    const bankBtn = document.createElement('button');
+    bankBtn.className = 'btn btn-primary';
+    bankBtn.textContent = entry && !entry.active ? "Yes, that's her word again — confirm it" : "That's her word — bank it";
+    bankBtn.onclick = async ()=>{
+      recordBankObservation(heardKey, target);
+      await saveJSON('word_bank', wordBank);
+      delete attemptLog[attemptKey(target, heard)];
+      await saveJSON('attempt_log', attemptLog);
+      registerConfirm(target, true);
+    };
+    const retryBtn = document.createElement('button');
+    retryBtn.className = 'btn btn-ghost';
+    retryBtn.textContent = 'Try again';
+    retryBtn.onclick = ()=>{ document.getElementById('heardBox').classList.remove('show'); };
+    const skipBtn = document.createElement('button');
+    skipBtn.className = 'btn btn-outline';
+    skipBtn.textContent = 'Skip';
+    skipBtn.onclick = ()=>{ practiceQueue.push(practiceQueue.shift()); renderPracticeWord(); };
+    actions.appendChild(bankBtn);
+    actions.appendChild(retryBtn);
+    actions.appendChild(skipBtn);
+  }
+}
+
+document.getElementById('skipWord').addEventListener('click', ()=>{
+  if(practiceQueue.length){ practiceQueue.push(practiceQueue.shift()); renderPracticeWord(); }
+});
+document.getElementById('resetProgress').addEventListener('click', async ()=>{
+  if(!confirm("Reset practice queue order? This won't remove mastered words or her bank.")) return;
+  buildQueue();
+  renderPracticeWord();
+});
+
+// ---------- SENTENCES MODE ----------
+function applyBankToWord(w){
+  const key = normalize(w);
+  const entry = getBankEntry(key);
+  return (entry && entry.active) ? entry.correct : w;
+}
+function renderSentence(){
+  const s = SENTENCES[sentenceIndex];
+  document.getElementById('targetSentence').textContent = s;
+  document.getElementById('sentenceCounter').textContent = (sentenceIndex+1) + ' / ' + SENTENCES.length;
+  const clean = sentenceProgress[sentenceIndex] || 0;
+  const dotsEl = document.getElementById('cleanDots');
+  dotsEl.innerHTML = '';
+  for(let i=0;i<SENTENCE_MASTERY;i++){
+    const d = document.createElement('div');
+    d.className = 'repeat-dot' + (i < clean ? ' filled' : '');
+    dotsEl.appendChild(d);
+  }
+  document.getElementById('sentenceOutput').innerHTML = '<span style="color:var(--ink-dim);">Nothing yet.</span>';
+}
+document.getElementById('speakSentenceBtn').addEventListener('click', ()=> speak(SENTENCES[sentenceIndex]));
+document.getElementById('prevSentence').addEventListener('click', ()=>{
+  sentenceIndex = (sentenceIndex - 1 + SENTENCES.length) % SENTENCES.length;
+  saveJSON('sentence_index', sentenceIndex);
+  renderSentence();
+});
+document.getElementById('nextSentence').addEventListener('click', ()=>{
+  sentenceIndex = (sentenceIndex + 1) % SENTENCES.length;
+  saveJSON('sentence_index', sentenceIndex);
+  renderSentence();
+});
+
+document.getElementById('sentenceMic').addEventListener('click', ()=>{
+  if(!recognizer) return;
+  const btn = document.getElementById('sentenceMic');
+  btn.classList.add('listening');
+  document.getElementById('sentenceMicLabel').textContent = 'Listening…';
+  recognizer.onresult = (e)=>{
+    const heard = e.results[0][0].transcript.trim();
+    handleSentenceResult(heard);
+  };
+  recognizer.onerror = ()=>{ btn.classList.remove('listening'); document.getElementById('sentenceMicLabel').textContent = "Didn't catch that — tap to try again"; };
+  recognizer.onend = ()=>{ btn.classList.remove('listening'); };
+  try{ recognizer.start(); }catch(e){}
+});
+
+async function handleSentenceResult(heard){
+  const expectedWords = SENTENCES[sentenceIndex].replace(/[.,!?]/g,'').split(/\s+/);
+  const heardWords = heard.replace(/[.,!?]/g,'').split(/\s+/);
+  const out = document.getElementById('sentenceOutput');
+  out.innerHTML = '';
+  let allMatch = heardWords.length === expectedWords.length;
+
+  expectedWords.forEach((expectedRaw, i)=>{
+    const heardRaw = heardWords[i] || '';
+    const corrected = applyBankToWord(heardRaw);
+    const isMatch = normalize(corrected) === normalize(expectedRaw) && heardRaw !== '';
+    if(!isMatch) allMatch = false;
+    const span = document.createElement('span');
+    span.className = 'wtok ' + (isMatch ? 'match' : 'mismatch');
+    span.textContent = heardRaw || '(missing)';
+    span.dataset.rawKey = normalize(heardRaw);
+    span.dataset.expected = expectedRaw;
+    span.addEventListener('click', ()=> openFixPanel(span, true));
+    out.appendChild(span);
+    out.appendChild(document.createTextNode(' '));
+  });
+
+  if(allMatch){
+    sentenceProgress[sentenceIndex] = (sentenceProgress[sentenceIndex]||0) + 1;
+    await saveJSON('sentence_progress', sentenceProgress);
+    const banner = document.createElement('div');
+    banner.style.cssText = 'margin-top:10px;color:var(--sage);font-size:13px;font-weight:600;';
+    banner.textContent = '✓ Clean read (' + Math.min(sentenceProgress[sentenceIndex],SENTENCE_MASTERY) + '/' + SENTENCE_MASTERY + ')';
+    out.appendChild(banner);
+    renderSentence();
+    if(sentenceProgress[sentenceIndex] < SENTENCE_MASTERY){
+      // keep dots visible by re-showing progress after redraw
+      const dotsEl = document.getElementById('cleanDots');
+      dotsEl.innerHTML = '';
+      for(let i=0;i<SENTENCE_MASTERY;i++){
+        const d = document.createElement('div');
+        d.className = 'repeat-dot' + (i < sentenceProgress[sentenceIndex] ? ' filled' : '');
+        dotsEl.appendChild(d);
+      }
+    }
+  }
+}
+
+// ---------- READING PASSAGE MODE ----------
+let readingPassage = '';
+let readingSentences = [];
+let readingProgress = {};
+let readingIndex = 0;
+
+function parseReadingPassage(text){
+  return text.split(/(?<=[.!?])\s+/).map(s=>s.trim()).filter(s=>s.length>0);
+}
+
+function renderReadingUI(){
+  const setupCard = document.getElementById('readingSetupCard');
+  const practiceCard = document.getElementById('readingPracticeCard');
+  if(!readingPassage || readingSentences.length===0){
+    setupCard.style.display = 'block';
+    practiceCard.style.display = 'none';
+    return;
+  }
+  setupCard.style.display = 'none';
+  practiceCard.style.display = 'block';
+  renderReadingSentence();
+}
+
+function renderReadingSentence(){
+  const s = readingSentences[readingIndex];
+  document.getElementById('readingTargetSentence').textContent = s;
+  document.getElementById('readingCounter').textContent = (readingIndex+1) + ' / ' + readingSentences.length;
+  const clean = readingProgress[readingIndex] || 0;
+  const dotsEl = document.getElementById('readingCleanDots');
+  dotsEl.innerHTML = '';
+  for(let i=0;i<SENTENCE_MASTERY;i++){
+    const d = document.createElement('div');
+    d.className = 'repeat-dot' + (i < clean ? ' filled' : '');
+    dotsEl.appendChild(d);
+  }
+  document.getElementById('readingOutput').innerHTML = '<span style="color:var(--ink-dim);">Nothing yet.</span>';
+}
+
+document.getElementById('saveReadingBtn').addEventListener('click', async ()=>{
+  const text = document.getElementById('readingPassageInput').value.trim();
+  if(!text) return;
+  readingPassage = text;
+  readingSentences = parseReadingPassage(text);
+  readingProgress = {};
+  readingIndex = 0;
+  await saveJSON('reading_passage', readingPassage);
+  await saveJSON('reading_progress', readingProgress);
+  await saveJSON('reading_index', readingIndex);
+  renderReadingUI();
+});
+
+document.getElementById('editReadingBtn').addEventListener('click', ()=>{
+  document.getElementById('readingPassageInput').value = readingPassage;
+  document.getElementById('readingSetupCard').style.display = 'block';
+  document.getElementById('readingPracticeCard').style.display = 'none';
+});
+
+document.getElementById('speakReadingBtn').addEventListener('click', ()=>{
+  if(readingSentences[readingIndex]) speak(readingSentences[readingIndex]);
+});
+document.getElementById('prevReading').addEventListener('click', ()=>{
+  readingIndex = (readingIndex - 1 + readingSentences.length) % readingSentences.length;
+  saveJSON('reading_index', readingIndex);
+  renderReadingSentence();
+});
+document.getElementById('nextReading').addEventListener('click', ()=>{
+  readingIndex = (readingIndex + 1) % readingSentences.length;
+  saveJSON('reading_index', readingIndex);
+  renderReadingSentence();
+});
+
+document.getElementById('readingMic').addEventListener('click', ()=>{
+  if(!recognizer || readingSentences.length===0) return;
+  const btn = document.getElementById('readingMic');
+  btn.classList.add('listening');
+  document.getElementById('readingMicLabel').textContent = 'Listening…';
+  recognizer.onresult = (e)=>{
+    const heard = e.results[0][0].transcript.trim();
+    handleReadingResult(heard);
+  };
+  recognizer.onerror = ()=>{ btn.classList.remove('listening'); document.getElementById('readingMicLabel').textContent = "Didn't catch that — tap to try again"; };
+  recognizer.onend = ()=>{ btn.classList.remove('listening'); };
+  try{ recognizer.start(); }catch(e){}
+});
+
+async function handleReadingResult(heard){
+  const expectedWords = readingSentences[readingIndex].replace(/[.,!?]/g,'').split(/\s+/);
+  const heardWords = heard.replace(/[.,!?]/g,'').split(/\s+/);
+  const out = document.getElementById('readingOutput');
+  out.innerHTML = '';
+  let allMatch = heardWords.length === expectedWords.length;
+
+  expectedWords.forEach((expectedRaw, i)=>{
+    const heardRaw = heardWords[i] || '';
+    const corrected = applyBankToWord(heardRaw);
+    const isMatch = normalize(corrected) === normalize(expectedRaw) && heardRaw !== '';
+    if(!isMatch) allMatch = false;
+    const span = document.createElement('span');
+    span.className = 'wtok ' + (isMatch ? 'match' : 'mismatch');
+    span.textContent = heardRaw || '(missing)';
+    span.dataset.rawKey = normalize(heardRaw);
+    span.dataset.expected = expectedRaw;
+    span.addEventListener('click', ()=> openFixPanel(span, true));
+    out.appendChild(span);
+    out.appendChild(document.createTextNode(' '));
+  });
+
+  if(allMatch){
+    readingProgress[readingIndex] = (readingProgress[readingIndex]||0) + 1;
+    await saveJSON('reading_progress', readingProgress);
+    const banner = document.createElement('div');
+    banner.style.cssText = 'margin-top:10px;color:var(--sage);font-size:13px;font-weight:600;';
+    banner.textContent = '✓ Clean read (' + Math.min(readingProgress[readingIndex],SENTENCE_MASTERY) + '/' + SENTENCE_MASTERY + ')';
+    out.appendChild(banner);
+    const dotsEl = document.getElementById('readingCleanDots');
+    dotsEl.innerHTML = '';
+    for(let i=0;i<SENTENCE_MASTERY;i++){
+      const d = document.createElement('div');
+      d.className = 'repeat-dot' + (i < readingProgress[readingIndex] ? ' filled' : '');
+      dotsEl.appendChild(d);
+    }
+  }
+}
+
+// ---------- FREE WRITE MODE ----------
+function applyBankToText(text){
+  const tokens = text.split(/(\s+)/);
+  return tokens.map(tok=>{
+    const key = normalize(tok);
+    const entry = getBankEntry(key);
+    if(key && entry && entry.active) return {raw: tok, display: entry.correct, fixed:true, key};
+    return {raw: tok, display: tok, fixed:false, key};
+  });
+}
+function renderCorrectedOutput(text){
+  const out = document.getElementById('correctedOutput');
+  if(!text.trim()){ out.innerHTML = '<span style="color:var(--ink-dim);">Nothing here yet.</span>'; return; }
+  const parts = applyBankToText(text);
+  out.innerHTML = '';
+  parts.forEach(p=>{
+    if(/^\s+$/.test(p.raw) || p.raw===''){ out.appendChild(document.createTextNode(p.raw)); return; }
+    const span = document.createElement('span');
+    span.className = 'wtok' + (p.fixed ? ' fixed' : '');
+    span.textContent = p.display;
+    span.dataset.rawKey = p.key;
+    span.dataset.original = p.raw;
+    span.addEventListener('click', ()=> openFixPanel(span, false));
+    out.appendChild(span);
+  });
+}
+
+function openFixPanel(span, fromSentence){
+  const panel = document.getElementById('fixPanel');
+  panel.classList.add('show');
+  document.getElementById('fixingWord').textContent = '"' + (span.dataset.original || span.textContent) + '"';
+  const input = document.getElementById('fixInput');
+  input.value = fromSentence ? (span.dataset.expected || '') : span.textContent;
+  panel.dataset.rawKey = span.dataset.rawKey;
+  document.querySelectorAll('.tab').forEach(x=>{
+    if(x.dataset.tab === 'write') x.click();
+  });
+  input.focus();
+}
+document.getElementById('cancelFix').addEventListener('click', ()=>{ document.getElementById('fixPanel').classList.remove('show'); });
+document.getElementById('saveFix').addEventListener('click', async ()=>{
+  const panel = document.getElementById('fixPanel');
+  const key = panel.dataset.rawKey;
+  const val = document.getElementById('fixInput').value.trim();
+  if(!key || !val) return;
+  recordBankObservation(key, val);
+  await saveJSON('word_bank', wordBank);
+  panel.classList.remove('show');
+  updateProgressUI();
+  renderCorrectedOutput(document.getElementById('rawInput').value);
+});
+
+const rawInput = document.getElementById('rawInput');
+rawInput.addEventListener('input', ()=> renderCorrectedOutput(rawInput.value));
+
+document.getElementById('writeMic').addEventListener('click', ()=>{
+  if(!recognizer) return;
+  const btn = document.getElementById('writeMic');
+  recognizer.continuous = false;
+  btn.classList.add('listening');
+  recognizer.onresult = (e)=>{
+    const heard = e.results[0][0].transcript.trim();
+    rawInput.value = (rawInput.value ? rawInput.value + ' ' : '') + heard;
+    renderCorrectedOutput(rawInput.value);
+  };
+  recognizer.onerror = ()=>{ btn.classList.remove('listening'); };
+  recognizer.onend = ()=>{ btn.classList.remove('listening'); };
+  try{ recognizer.start(); }catch(e){}
+});
+
+// ---------- BANK TAB ----------
+function renderBankList(){
+  const list = document.getElementById('bankList');
+  const q = normalize(document.getElementById('bankSearch').value);
+  const entries = Object.entries(wordBank).map(([raw,val])=>{
+    const e = (typeof val === 'string') ? { correct: val, count: MASTERY_THRESHOLD, active: true } : val;
+    return [raw, e];
+  }).filter(([raw,e])=>{
+    if(!q) return true;
+    return raw.includes(q) || normalize(e.correct).includes(q);
+  }).sort((a,b)=> a[1].correct.localeCompare(b[1].correct));
+
+  if(entries.length === 0){
+    list.innerHTML = '<div class="empty-note">No corrections saved yet — use Practice or Sentences to start building her bank.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  entries.forEach(([raw,e])=>{
+    const row = document.createElement('div');
+    row.className = 'bank-row';
+    const statusNote = e.active ? '' : ' <span style="color:var(--amber);font-size:12px;">— needs confirming</span>';
+    row.innerHTML = '<div class="pair">heard "<b>'+raw+'</b>" \u2192 means <b>'+e.correct+'</b>'+statusNote+'</div>';
+    const btnWrap = document.createElement('div');
+    if(!e.active){
+      const confirmBtn = document.createElement('button');
+      confirmBtn.className = 'del-btn';
+      confirmBtn.style.color = 'var(--sage)';
+      confirmBtn.textContent = 'Confirm';
+      confirmBtn.onclick = async ()=>{
+        wordBank[raw] = { correct: e.correct, count: Math.max(2, e.count||1), active: true };
+        await saveJSON('word_bank', wordBank);
+        renderBankList();
+      };
+      btnWrap.appendChild(confirmBtn);
+    }
+    const del = document.createElement('button');
+    del.className = 'del-btn';
+    del.textContent = 'Remove';
+    del.style.marginLeft = '10px';
+    del.onclick = async ()=>{
+      delete wordBank[raw];
+      await saveJSON('word_bank', wordBank);
+      updateProgressUI();
+      renderBankList();
+    };
+    btnWrap.appendChild(del);
+    row.appendChild(btnWrap);
+    list.appendChild(row);
+  });
+}
+document.getElementById('bankSearch').addEventListener('input', renderBankList);
+
+function renderAttemptLog(){
+  const container = document.getElementById('attemptLogList');
+  if(!container) return;
+  const entries = Object.values(attemptLog).filter(e => e.count >= 2)
+    .sort((a,b) => b.count - a.count).slice(0, 15);
+  if(entries.length === 0){
+    container.innerHTML = '<div class="empty-note">Nothing recurring yet.</div>';
+    return;
+  }
+  container.innerHTML = '';
+  entries.forEach(e=>{
+    const row = document.createElement('div');
+    row.className = 'bank-row';
+    row.innerHTML = '<div class="pair">practicing "<b>'+e.target+'</b>" \u2014 heard "<b>'+e.heard+'</b>" ('+e.count+'x)</div>';
+    const addBtn = document.createElement('button');
+    addBtn.className = 'del-btn';
+    addBtn.style.color = 'var(--sage)';
+    addBtn.textContent = 'Add to bank';
+    addBtn.onclick = async ()=>{
+      wordBank[normalize(e.heard)] = { correct: e.target, count: MASTERY_THRESHOLD, active: true };
+      await saveJSON('word_bank', wordBank);
+      delete attemptLog[attemptKey(e.target, e.heard)];
+      await saveJSON('attempt_log', attemptLog);
+      updateProgressUI();
+      renderBankList();
+      renderAttemptLog();
+    };
+    row.appendChild(addBtn);
+    container.appendChild(row);
+  });
+}
+
+document.getElementById('manualAddBtn').addEventListener('click', async ()=>{
+  const rawEl = document.getElementById('manualRaw');
+  const corEl = document.getElementById('manualCorrect');
+  const raw = rawEl.value.trim(), cor = corEl.value.trim();
+  if(!raw || !cor) return;
+  wordBank[normalize(raw)] = { correct: cor, count: MASTERY_THRESHOLD, active: true };
+  await saveJSON('word_bank', wordBank);
+  rawEl.value=''; corEl.value='';
+  updateProgressUI();
+  renderBankList();
+});
+
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify({word_bank: wordBank, verified_words: verifiedWords, confirm_counts: confirmCounts, sentence_progress: sentenceProgress, reading_passage: readingPassage, reading_progress: readingProgress}, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'word-bank-export.json';
+  a.click();
+});
+document.getElementById('importFile').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async (ev)=>{
+    try{
+      const data = JSON.parse(ev.target.result);
+      if(data.word_bank){ wordBank = {...wordBank, ...data.word_bank}; await saveJSON('word_bank', wordBank); }
+      if(data.verified_words){ verifiedWords = [...new Set([...verifiedWords, ...data.verified_words])]; await saveJSON('verified_words', verifiedWords); }
+      if(data.confirm_counts){ confirmCounts = {...confirmCounts, ...data.confirm_counts}; await saveJSON('confirm_counts', confirmCounts); }
+      if(data.sentence_progress){ sentenceProgress = {...sentenceProgress, ...data.sentence_progress}; await saveJSON('sentence_progress', sentenceProgress); }
+      if(data.reading_passage){ readingPassage = data.reading_passage; readingSentences = parseReadingPassage(readingPassage); await saveJSON('reading_passage', readingPassage); }
+      if(data.reading_progress){ readingProgress = {...readingProgress, ...data.reading_progress}; await saveJSON('reading_progress', readingProgress); }
+      buildQueue(); updateProgressUI(); renderBankList(); renderPracticeWord(); renderReadingUI();
+      alert('Imported successfully.');
+    }catch(err){ alert('That file could not be read.'); }
+  };
+  reader.readAsText(file);
+});
+
+// ---------- Init ----------
+(async function init(){
+  // Render an empty shell immediately; real data populates once Firestore's
+  // first snapshot arrives (see onSnapshot above).
+  buildQueue();
+  updateProgressUI();
+  renderPracticeWord();
+  renderSentence();
+  renderReadingUI();
+  renderCorrectedOutput('');
+  refreshSessionUI();
+
+  await initFirebase();
+})();
+</script>
+</body>
+</html>
