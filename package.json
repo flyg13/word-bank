@@ -17,6 +17,7 @@
     "firebase": "^12.18.0"
   },
   "devDependencies": {
+    "@iarna/toml": "^2.2.5",
     "jsdom": "^30.0.1",
     "playwright": "^1.62.1",
     "vite": "^8.2.2",

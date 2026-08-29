@@ -38,6 +38,26 @@ To test against realistic data, open the live site, *Word Bank → Export bank
 (.json)*, then import that file on localhost under the throwaway code. Same
 data, separate document.
 
+## Testing on an iPad, or any other device
+
+Every branch and pull request gets its own public HTTPS URL automatically, from
+Netlify. Open it on the iPad — no terminal, no certificate, no being on the same
+network. Because it is real HTTPS on a public host, the microphone works.
+
+- **A pull request** gets a comment from Netlify carrying the preview link.
+- **Any branch** is also reachable at a stable address,
+  `https://<branch-name>--<site>.netlify.app` — branch names are lowercased and
+  anything unusual becomes a hyphen.
+
+Two things to expect:
+
+- Each preview is a different origin, so it asks for the family code the first
+  time you open a given branch. Nothing is lost — the data lives in Firestore
+  keyed by the code, not by the URL. Use the throwaway code unless you
+  deliberately want to work against real data.
+- Open it in a Safari tab, not from the home screen. The Web Speech API is
+  unavailable in home-screen mode, which is what the app's own banner is about.
+
 ## Tests
 
 ```bash
@@ -79,6 +99,7 @@ src/
   features/             one module per tab, plus shared session/mic/progress
   test/                 unit tests
 e2e/smoke.mjs           browser smoke test
+netlify.toml            hosting: build, previews, cache headers
 legacy/index.html       the original single-file app, kept for reference
 ```
 
@@ -147,16 +168,30 @@ scope against, and an unscoped rewrite is exactly the collision hazard above.
 
 ## Deployment
 
-`npm run build` produces a static `dist/`, published to GitHub Pages by
-`.github/workflows/deploy.yml` on every push to `main`.
+`npm run build` produces a static `dist/`. Hosting is Netlify, configured by
+`netlify.toml`: it builds every push, publishes `main` as production, and gives
+every other branch and pull request its own preview URL.
 
-**One-time setup:** in the repository's *Settings → Pages*, set **Source** to
-**GitHub Actions**. The site previously served `index.html` straight from the
-branch root; that file is now a build input rather than the built app, so Pages
-has to run the build.
+Production runs `npm test && npm run build`; previews run the build only. Harlie
+uses production daily, so it does not ship unless the suite passes. Previews
+exist to be looked at quickly, and GitHub Actions already runs the full suite on
+every pull request.
 
-`vite.config.js` sets `base: './'`, so the build works from a repo subpath
-(`https://<user>.github.io/word-bank/`) as well as a domain root.
+`vite.config.js` sets `base: './'`, so the build works from a domain root or a
+subpath either way.
+
+### Still on GitHub Pages until the handover is done
+
+The live site is served by GitHub Pages at `https://flyg13.github.io/word-bank/`
+via `.github/workflows/deploy.yml`. **That workflow is deliberately still in
+place**, so production keeps deploying exactly as it does today. The two run
+side by side and nothing about the live site changes until the handover below is
+finished.
+
+One constraint worth knowing before switching: `flyg13.github.io/word-bank` is a
+GitHub-owned address, and no other host can serve it. Production can keep that
+exact URL only by staying on Pages; moving it to Netlify means a new URL with
+the old one redirecting to it.
 
 ## Firebase
 

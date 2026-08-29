@@ -4,6 +4,7 @@
 //
 //   npm run build && npm run test:e2e
 //
+import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { preview } from 'vite';
 
@@ -287,6 +288,42 @@ check('removing the pronunciation restores the plain mismatch',
   ' mismatch=' + (await page.locator('#sentenceOutput .wtok.mismatch').count()));
 
 await page.click('.tab[data-tab="bank"]');
+
+// ---- Export / import round trip, through the real file ----
+// Not a state round trip: the actual Blob the Export button produces, fed back
+// through the actual file input. A restore that silently dropped a field would
+// lose every recorded pronunciation.
+const [download] = await Promise.all([
+  page.waitForEvent('download'),
+  page.click('#exportBtn')
+]);
+const exportPath = await download.path();
+const exported = JSON.parse(readFileSync(exportPath, 'utf8'));
+check('export carries every synced field',
+  ['word_bank', 'verified_words', 'confirm_counts', 'sentence_progress',
+   'reading_passage', 'reading_progress', 'phonic_bank']
+    .every((f) => f in exported),
+  Object.keys(exported).join(', '));
+check('export carries the recorded pronunciations',
+  Object.keys(exported.phonic_bank || {}).length > 0,
+  JSON.stringify(exported.phonic_bank));
+
+// Wipe the pronunciations, then restore from that file.
+const beforeWipe = Object.keys(exported.phonic_bank);
+let guard = 0;
+while ((await page.locator('.phonic-row').count()) > 0 && guard++ < 20) {
+  await page.locator('.phonic-row button', { hasText: 'Remove' }).first().click();
+}
+check('pronunciations can be cleared', (await page.locator('.phonic-row').count()) === 0);
+
+await page.setInputFiles('#importFile', exportPath);
+await page.waitForFunction(() => document.querySelectorAll('.phonic-row').length > 0);
+const restored = await page.evaluate(() =>
+  [...document.querySelectorAll('.phonic-row .word')].map((el) => el.textContent)
+);
+check('importing the export file restores every pronunciation',
+  beforeWipe.length === restored.length,
+  'had ' + beforeWipe.length + ', restored ' + restored.length + ' (' + restored.join(', ') + ')');
 
 // ---- Escaping: banked text is never treated as markup ----
 // `correct` is free text typed by the parent (and, via Practice, the
