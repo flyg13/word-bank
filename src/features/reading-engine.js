@@ -2,6 +2,7 @@ import { SENTENCE_MASTERY } from '../config.js';
 import { alignWords, isCleanRead } from '../lib/align.js';
 import { toWords, normalize } from '../lib/text.js';
 import { wordsMatch } from '../lib/wordbank.js';
+import { soundsLikeHerWord } from '../lib/phonicbank.js';
 import { openFixPanel } from './freewrite.js';
 
 // Sentences and Reading Passage differ only in where their text and progress
@@ -38,6 +39,12 @@ function makeToken(className, text) {
  * follows it. The comparison is bank-aware: a confirmed mispronunciation counts
  * as the word it stands for.
  *
+ * A wrong word that sounds like a way she says the expected word is shown in
+ * amber rather than red. That is a display annotation only — the alignment
+ * itself and `isCleanRead` stay strict, so an approximate match never scores a
+ * read as clean. Tapping the word banks the exact text, which is how the
+ * precise correction accumulates towards going active.
+ *
  * @returns {boolean} whether this was a clean read.
  */
 export function renderReadResult(outputId, expectedSentence, heard) {
@@ -56,7 +63,12 @@ export function renderReadResult(outputId, expectedSentence, heard) {
       span.dataset.expected = op.expected;
       span.addEventListener('click', () => openFixPanel(span, true));
     } else if (op.type === 'substitute') {
-      span = makeToken('mismatch', op.heard);
+      const soundsRight = soundsLikeHerWord(op.expected, op.heard);
+      span = makeToken(soundsRight ? 'close' : 'mismatch', op.heard);
+      if (soundsRight) {
+        span.title =
+          'Sounds like how she says “' + op.expected + '” — tap to confirm the correction';
+      }
       span.dataset.rawKey = normalize(op.heard);
       span.dataset.expected = op.expected;
       span.addEventListener('click', () => openFixPanel(span, true));

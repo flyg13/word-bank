@@ -66,6 +66,17 @@
         <div class="heard-text" id="heardText">—</div>
         <div class="action-row" id="matchActions"></div>
       </div>
+
+      <div class="phonic-panel" id="phonicQuick">
+        <div class="output-label" style="margin-top:0;">How does she say &ldquo;<span id="phonicQuickWord"></span>&rdquo;?</div>
+        <p class="sub" style="margin-bottom:10px;">Sound it out the way it comes out of her mouth &mdash; it doesn&rsquo;t need to be a real word.</p>
+        <input type="text" id="phonicQuickInput" placeholder="e.g. yeyo" autocomplete="off">
+        <div class="phonic-note" id="phonicQuickNote"></div>
+        <div class="row">
+          <button class="btn btn-primary btn-sm" id="phonicQuickSave">Save</button>
+          <button class="btn btn-ghost btn-sm" id="phonicQuickCancel">Cancel</button>
+        </div>
+      </div>
     </div>
 
     <div class="card" style="text-align:center;">
@@ -176,6 +187,17 @@
       <div class="output-label" style="margin-top:0;">Recurring sounds not yet in her bank</div>
       <p class="sub" style="margin-bottom:14px;">When the same word gets misheard the same way more than once during Practice, it shows up here — even before you've confirmed a correction for it.</p>
       <div id="attemptLogList"></div>
+    </div>
+    <div class="card">
+      <div class="output-label" style="margin-top:0;">How she says her words</div>
+      <p class="sub" style="margin-bottom:14px;">Tell the app how a word sounds coming out of her mouth, without waiting for it to be misheard first. When what she says sounds like this, the app will recognise it &mdash; and ask you to confirm before trusting it.</p>
+      <div class="manual-add">
+        <input type="text" id="phonicWord" placeholder="The word" autocomplete="off">
+        <input type="text" id="phonicSpelling" placeholder="How she says it" autocomplete="off">
+        <button class="btn btn-primary" id="phonicAddBtn">Add</button>
+      </div>
+      <div class="phonic-note" id="phonicAddNote"></div>
+      <div id="phonicList"></div>
     </div>
     <div class="card">
       <div class="output-label" style="margin-top:0;">Add a correction manually</div>

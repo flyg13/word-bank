@@ -68,6 +68,9 @@ src/
   lib/
     align.js            word-sequence alignment (see below)
     similarity.js       how much two words resemble each other
+    phonetics.js        Double Metaphone keys and sound-alike comparison
+    phonicbank.js       how she says her words (word -> spellings)
+    snapshot.js         the one place stored and in-memory shapes meet
     text.js             normalize / tokenize / passage splitting
     wordbank.js         bank entry model: pending -> active corrections
     store.js            shared state, persistence, render registry
@@ -103,6 +106,44 @@ Two details worth knowing:
   whether you call it three wrong words or one wrong word plus a dropped one
   plus an inserted one. The second reading is the truthful one.
   `src/lib/similarity.js` is the seam to replace when Double Metaphone lands.
+
+### Phonetic matching
+
+`src/lib/phonetics.js` (Double Metaphone) and `src/lib/phonicbank.js`.
+
+The parent records how a word sounds coming out of her mouth — "yellow" is
+said "yeyo" — proactively, rather than waiting for the recognizer to happen to
+emit something correctable. Three things are worth knowing:
+
+**What it fixes.** The recognizer is inconsistent: the same sound comes back as
+"yo yo", then "ye oh", then "yeyo". Under exact-text matching those are three
+unrelated corrections, none of which ever reaches the two sightings needed to
+activate. All three key to `A`, so a recorded spelling recognises all of them.
+
+**What it does not do.** Double Metaphone maps English spelling to sound. It has
+no model of her articulation — it does not know she says "wed" for "red"
+(`RT` vs `AT`) or "fink" for "think" (`0NK` vs `FNK`). The parent supplies the
+sound; Double Metaphone absorbs however the recognizer spells it.
+
+**Why nothing is matched globally.** Across the 355-word practice list there are
+70 colliding key groups: `AT` covers it/at/what/out/eat/eight/idea/wait/white,
+and the single-character `A` covers you/we/way/who as well as the bare words a,
+i, oh and e. A "which of her words does this sound like" search would be
+unusable. So every phonetic comparison is scoped to one expected word — "does
+this sound like how she says the word I already asked her for" — and the answer
+is never applied silently:
+
+| | Practice | Sentences / Reading | Free Write |
+|---|---|---|---|
+| Exact text, active correction | advances automatically | counts as a match | applied |
+| Sounds like how she says it | amber, one tap to confirm | amber, not a clean read | not applied |
+
+Confirming a phonetic hit banks the exact text as a *pending* correction, so the
+precise text still needs two sightings before it is trusted on its own. The
+phonetic layer accelerates that accumulation; it never replaces it.
+
+Free Write is deliberately unchanged: with no expected word there is nothing to
+scope against, and an unscoped rewrite is exactly the collision hazard above.
 
 ## Deployment
 

@@ -2,6 +2,13 @@ import { MASTERY_THRESHOLD } from '../config.js';
 import { normalize, parsePassage } from '../lib/text.js';
 import { state, save, onRender, renderAll } from '../lib/store.js';
 import { getBankEntry } from '../lib/wordbank.js';
+import {
+  phonicEntries,
+  addSpelling,
+  removeSpelling,
+  removePhonicEntry
+} from '../lib/phonicbank.js';
+import { isWeakSpelling, phoneticKeys } from '../lib/phonetics.js';
 import { buildQueue, attemptKey } from './practice.js';
 
 // ---------- Correction list ----------
@@ -135,6 +142,115 @@ export function renderAttemptLog() {
   });
 }
 
+// ---------- How she says her words ----------
+
+/**
+ * Explain what a typed spelling will actually key to. A one-character key
+ * collides with a lot of ordinary speech ("a", "oh", "I"), so the parent
+ * should know before relying on it.
+ */
+function describeSpelling(spelling) {
+  const keys = phoneticKeys(spelling);
+  if (!keys.length) return { text: '', warn: false };
+  if (isWeakSpelling(spelling)) {
+    return {
+      warn: true,
+      text:
+        'Heads up: “' +
+        spelling +
+        '” sounds like a lot of ordinary words (a, oh, I), so it will match loosely. ' +
+        'Adding a consonant closer to how she says it makes it sharper.'
+    };
+  }
+  return { warn: false, text: 'Sounds like: ' + keys.join(' or ') };
+}
+
+function setNote(id, spelling) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const { text, warn } = spelling ? describeSpelling(spelling) : { text: '', warn: false };
+  el.textContent = text;
+  el.className = 'phonic-note' + (warn ? ' warn' : '');
+}
+
+export function renderPhonicList() {
+  const list = document.getElementById('phonicList');
+  if (!list) return;
+  const entries = phonicEntries();
+
+  if (entries.length === 0) {
+    list.innerHTML =
+      '<div class="empty-note">Nothing recorded yet — add a word above, or use “Teach how she says it” during Practice.</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  entries.forEach(([, entry]) => {
+    const row = document.createElement('div');
+    row.className = 'phonic-row';
+
+    const head = document.createElement('div');
+    head.className = 'head';
+    const word = document.createElement('div');
+    word.className = 'word';
+    word.textContent = entry.word;
+    const right = document.createElement('div');
+    const keys = document.createElement('span');
+    keys.className = 'keys';
+    keys.textContent = entry.keys.join(' · ');
+    keys.title = 'Double Metaphone keys these spellings produce';
+    const remove = document.createElement('button');
+    remove.className = 'del-btn';
+    remove.style.marginLeft = '10px';
+    remove.textContent = 'Remove';
+    remove.onclick = () => {
+      removePhonicEntry(entry.word);
+      save('phonic_bank', state.phonicBank);
+      renderAll();
+    };
+    right.append(keys, remove);
+    head.append(word, right);
+    row.appendChild(head);
+
+    const spellings = document.createElement('div');
+    spellings.className = 'spellings';
+    entry.spellings.forEach((spelling) => {
+      const chip = document.createElement('span');
+      chip.className = 'spelling';
+      chip.appendChild(document.createTextNode(spelling));
+      if (isWeakSpelling(spelling)) {
+        chip.title = 'This spelling matches loosely — it sounds like many common words.';
+        chip.style.borderColor = 'var(--amber-dim)';
+      }
+      const drop = document.createElement('button');
+      drop.textContent = '×';
+      drop.title = 'Remove this spelling';
+      drop.onclick = () => {
+        removeSpelling(entry.word, spelling);
+        save('phonic_bank', state.phonicBank);
+        renderAll();
+      };
+      chip.appendChild(drop);
+      spellings.appendChild(chip);
+    });
+
+    const add = document.createElement('button');
+    add.className = 'add-spelling';
+    add.textContent = '+ another way she says it';
+    add.onclick = () => {
+      const spelling = window.prompt('Another way she says “' + entry.word + '”:');
+      if (!spelling) return;
+      if (addSpelling(entry.word, spelling)) {
+        save('phonic_bank', state.phonicBank);
+        renderAll();
+      }
+    };
+    spellings.appendChild(add);
+    row.appendChild(spellings);
+    list.appendChild(row);
+  });
+}
+
 // ---------- Import / export ----------
 
 function exportBank() {
@@ -144,7 +260,8 @@ function exportBank() {
     confirm_counts: state.confirmCounts,
     sentence_progress: state.sentenceProgress,
     reading_passage: state.readingPassage,
-    reading_progress: state.readingProgress
+    reading_progress: state.readingProgress,
+    phonic_bank: state.phonicBank
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -191,6 +308,10 @@ function importBank(file) {
       state.readingProgress = { ...state.readingProgress, ...data.reading_progress };
       save('reading_progress', state.readingProgress);
     }
+    if (data.phonic_bank) {
+      state.phonicBank = { ...state.phonicBank, ...data.phonic_bank };
+      save('phonic_bank', state.phonicBank);
+    }
     buildQueue();
     renderAll();
     window.alert('Imported successfully.');
@@ -220,6 +341,28 @@ export function initBank() {
     renderAll();
   });
 
+  const phonicWordEl = document.getElementById('phonicWord');
+  const phonicSpellingEl = document.getElementById('phonicSpelling');
+
+  phonicSpellingEl.addEventListener('input', () =>
+    setNote('phonicAddNote', phonicSpellingEl.value.trim())
+  );
+
+  document.getElementById('phonicAddBtn').addEventListener('click', () => {
+    const word = phonicWordEl.value.trim();
+    const spelling = phonicSpellingEl.value.trim();
+    if (!word || !spelling) return;
+    if (!addSpelling(word, spelling)) {
+      setNote('phonicAddNote', spelling);
+      return;
+    }
+    save('phonic_bank', state.phonicBank);
+    phonicWordEl.value = '';
+    phonicSpellingEl.value = '';
+    setNote('phonicAddNote', '');
+    renderAll();
+  });
+
   document.getElementById('exportBtn').addEventListener('click', exportBank);
 
   document.getElementById('importFile').addEventListener('change', (e) => {
@@ -230,4 +373,5 @@ export function initBank() {
 
   onRender(renderBankList);
   onRender(renderAttemptLog);
+  onRender(renderPhonicList);
 }

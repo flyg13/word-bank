@@ -65,6 +65,21 @@ page.on('dialog', (d) => d.dismiss());
 
 await page.goto(BASE, { waitUntil: 'networkidle' });
 
+/**
+ * Say something into a sentence/reading mic and wait for THIS result.
+ * Clearing first matters: without it, waiting for "some tokens exist" passes
+ * instantly against the previous read's tokens.
+ */
+async function readInto(outputId, micId, transcript) {
+  await page.evaluate((id) => { document.getElementById(id).innerHTML = ''; }, outputId);
+  await page.evaluate((t) => { window.__nextTranscript = t; }, transcript);
+  await page.click('#' + micId);
+  await page.waitForFunction(
+    (id) => document.querySelectorAll('#' + id + ' .wtok').length > 0,
+    outputId
+  );
+}
+
 // ---- Shell ----
 check('title renders', (await page.title()) === "Harlie's Word Bank");
 check('five tabs present', (await page.locator('.tab').count()) === 5);
@@ -96,7 +111,10 @@ await page.evaluate(() => { window.__nextTranscript = 'zzquump'; });
 await page.click('#practiceMic');
 await page.waitForSelector('#matchActions button');
 const actionLabels = await page.locator('#matchActions button').allTextContents();
-check('mishearing offers bank / retry / skip', actionLabels.length === 3, actionLabels.join(' | '));
+check('mishearing offers bank / retry / skip / teach',
+  actionLabels.length === 4 &&
+  actionLabels.some((l) => l.includes('Teach how she says it')),
+  actionLabels.join(' | '));
 await page.locator('#matchActions button', { hasText: "That's her word" }).click();
 await page.click('.tab[data-tab="bank"]');
 const bankText = await page.locator('#bankList').textContent();
@@ -135,9 +153,7 @@ const words = sentence.replace(/[.,!?]/g, '').split(/\s+/);
 const dropIndex = Math.min(2, words.length - 1);
 const dropped = words[dropIndex];
 const partial = words.filter((_, i) => i !== dropIndex).join(' ');
-await page.evaluate((t) => { window.__nextTranscript = t; }, partial);
-await page.click('#sentenceMic');
-await page.waitForFunction(() => document.querySelectorAll('#sentenceOutput .wtok').length > 0);
+await readInto('sentenceOutput', 'sentenceMic', partial);
 const matched = await page.locator('#sentenceOutput .wtok.match').count();
 const missing = await page.locator('#sentenceOutput .wtok.missing').allTextContents();
 check('a dropped word costs exactly one word (the old bug shifted the rest)',
@@ -145,8 +161,7 @@ check('a dropped word costs exactly one word (the old bug shifted the rest)',
   matched + ' matched, missing=[' + missing.join(',') + '] of ' + words.length);
 
 // A perfect read is clean.
-await page.evaluate((t) => { window.__nextTranscript = t; }, sentence);
-await page.click('#sentenceMic');
+await readInto('sentenceOutput', 'sentenceMic', sentence);
 await page.waitForSelector('#sentenceOutput .read-note');
 check('a perfect read is a clean read',
   (await page.locator('#sentenceOutput .read-note').textContent()).includes('Clean read (1/2)'));
@@ -157,10 +172,7 @@ check('clean-read dot filled',
 await page.click('#nextSentence');
 const sentence2 = (await page.locator('#targetSentence').textContent()).trim();
 const words2 = sentence2.replace(/[.,!?]/g, '').split(/\s+/);
-await page.evaluate((t) => { window.__nextTranscript = t; },
-  [words2[0], 'umm', ...words2.slice(1)].join(' '));
-await page.click('#sentenceMic');
-await page.waitForFunction(() => document.querySelectorAll('#sentenceOutput .wtok').length > 0);
+await readInto('sentenceOutput', 'sentenceMic', [words2[0], 'umm', ...words2.slice(1)].join(' '));
 check('an inserted word costs exactly one word',
   (await page.locator('#sentenceOutput .wtok.match').count()) === words2.length &&
   (await page.locator('#sentenceOutput .wtok.extra').count()) === 1);
@@ -172,8 +184,7 @@ await page.click('#saveReadingBtn');
 await page.waitForSelector('#readingPracticeCard:visible');
 check('passage splits into two lines',
   (await page.locator('#readingCounter').textContent()).trim() === '1 / 2');
-await page.evaluate(() => { window.__nextTranscript = 'the dog ran fast'; });
-await page.click('#readingMic');
+await readInto('readingOutput', 'readingMic', 'the dog ran fast');
 await page.waitForSelector('#readingOutput .read-note');
 check('reading line scores a clean read',
   (await page.locator('#readingOutput .read-note').textContent()).includes('Clean read (1/2)'));
@@ -188,6 +199,94 @@ await page.click('#endSessionBtn');
 await page.click('.tab[data-tab="bank"]');
 check('session is logged',
   (await page.locator('#sessionLogView').textContent()).includes('attempted'));
+
+// ---- §3 Phonetic matching ----
+
+// Record how she says the word Practice is currently showing.
+await page.click('.tab[data-tab="practice"]');
+const phonicTarget = (await page.locator('#targetWord').textContent()).trim();
+await page.click('.tab[data-tab="bank"]');
+await page.fill('#phonicWord', phonicTarget);
+await page.fill('#phonicSpelling', 'yeyo');
+check('a collision-prone spelling is flagged before saving',
+  (await page.locator('#phonicAddNote').textContent()).includes('sounds like a lot of ordinary words'));
+await page.click('#phonicAddBtn');
+const phonicList = await page.locator('#phonicList').textContent();
+check('pronunciation is recorded, with its derived key shown',
+  phonicList.includes(phonicTarget) && phonicList.includes('yeyo') && phonicList.includes('A'));
+
+// A different transcription of the same sound is recognised...
+await page.click('.tab[data-tab="practice"]');
+await page.evaluate(() => { window.__nextTranscript = 'yo yo'; });
+await page.click('#practiceMic');
+await page.waitForFunction(() => document.getElementById('heardBox').classList.contains('show'));
+check('a transcription variant is recognised as how she says it',
+  (await page.locator('#heardText').textContent()).includes('sounds like how she says it'));
+check('and is shown as approximate, not as a match',
+  await page.locator('#heardText').evaluate((el) => el.classList.contains('match-close')));
+
+// ...but must NOT advance the word on its own. This is the confidence buffer:
+// Double Metaphone over-matches, so a phonetic hit is a suggestion to confirm.
+await page.waitForTimeout(1200);
+check('a phonetic hit does NOT auto-advance the word',
+  (await page.locator('#targetWord').textContent()).trim() === phonicTarget);
+
+// Confirming it advances, and banks the exact text as a pending correction.
+await page.locator('#matchActions button', { hasText: "that's her saying it" }).click();
+await page.waitForFunction(
+  (prev) => document.getElementById('targetWord').textContent.trim() !== prev,
+  phonicTarget, { timeout: 4000 });
+check('confirming a phonetic hit advances the word', true);
+await page.click('.tab[data-tab="bank"]');
+const afterConfirm = await page.locator('#bankList').textContent();
+check('and banks the exact text as pending, not active',
+  afterConfirm.includes('yoyo') && afterConfirm.includes('needs confirming'));
+
+// "Teach how she says it" — capture a pronunciation at the moment it happens.
+await page.click('.tab[data-tab="practice"]');
+const teachTarget = (await page.locator('#targetWord').textContent()).trim();
+await page.evaluate(() => { window.__nextTranscript = 'blorptastic'; });
+await page.click('#practiceMic');
+await page.waitForSelector('#matchActions button');
+await page.locator('#matchActions button', { hasText: 'Teach how she says it' }).click();
+check('the teach panel opens prefilled with what was heard',
+  (await page.inputValue('#phonicQuickInput')) === 'blorptastic' &&
+  (await page.locator('#phonicQuickNote').textContent()).includes('Sounds like'));
+await page.click('#phonicQuickSave');
+await page.click('.tab[data-tab="bank"]');
+check('teaching from Practice records the pronunciation',
+  (await page.locator('#phonicList').textContent()).includes(teachTarget));
+
+// Sentences: a phonetically-close word reads amber, and the read is not clean.
+await page.click('.tab[data-tab="bank"]');
+await page.fill('#phonicWord', 'cat');
+await page.fill('#phonicSpelling', 'kat');
+await page.click('#phonicAddBtn');
+await page.click('.tab[data-tab="sentences"]');
+while ((await page.locator('#targetSentence').textContent()).trim() !== 'The cat sat on the mat.') {
+  await page.click('#nextSentence');
+}
+await readInto('sentenceOutput', 'sentenceMic', 'the cot sat on the mat');
+check('a phonetically-close word is amber, not red',
+  (await page.locator('#sentenceOutput .wtok.close').count()) === 1 &&
+  (await page.locator('#sentenceOutput .wtok.close').textContent()) === 'cot' &&
+  (await page.locator('#sentenceOutput .wtok.mismatch').count()) === 0);
+check('but the read is still NOT scored clean',
+  (await page.locator('#sentenceOutput .read-note').count()) === 0);
+
+// Removing it puts the word back to a plain mismatch.
+await page.click('.tab[data-tab="bank"]');
+await page.locator('.phonic-row').filter({ has: page.locator('.word', { hasText: /^cat$/ }) })
+  .locator('button', { hasText: 'Remove' }).click();
+await page.click('.tab[data-tab="sentences"]');
+await readInto('sentenceOutput', 'sentenceMic', 'the cot sat on the mat');
+check('removing the pronunciation restores the plain mismatch',
+  (await page.locator('#sentenceOutput .wtok.close').count()) === 0 &&
+  (await page.locator('#sentenceOutput .wtok.mismatch').count()) === 1,
+  'close=' + (await page.locator('#sentenceOutput .wtok.close').count()) +
+  ' mismatch=' + (await page.locator('#sentenceOutput .wtok.mismatch').count()));
+
+await page.click('.tab[data-tab="bank"]');
 
 // ---- Escaping: banked text is never treated as markup ----
 // `correct` is free text typed by the parent (and, via Practice, the

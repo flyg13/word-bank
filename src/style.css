@@ -140,3 +140,26 @@
   .wtok.extra{ color:var(--coral); font-style:italic; }
   .read-note{ margin-top:10px; font-size:13px; font-weight:600; }
   .read-note.clean{ color:var(--sage); }
+
+  /* Phonetic matching (see src/lib/phonetics.js) */
+  .wtok.close{ color:var(--amber); border-bottom:1px dashed var(--amber); }
+  .match-close{ color:var(--amber); }
+
+  .phonic-panel{ display:none; margin-top:14px; background:var(--surface-2); padding:14px; border-radius:10px; }
+  .phonic-panel.show{ display:block; }
+  .phonic-panel input{ width:100%; padding:10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:15px; margin:0 0 8px; }
+  .phonic-panel .row{ display:flex; gap:8px; }
+
+  .phonic-note{ font-size:12.5px; color:var(--ink-dim); margin:0 0 10px; line-height:1.5; }
+  .phonic-note.warn{ color:var(--amber); }
+  .phonic-note:empty{ margin:0; }
+
+  .phonic-row{ padding:10px 4px; border-bottom:1px solid var(--line); }
+  .phonic-row:last-child{ border-bottom:none; }
+  .phonic-row .head{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+  .phonic-row .word{ font-size:15px; font-weight:600; }
+  .phonic-row .keys{ font-size:11.5px; color:var(--ink-dim); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .spellings{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; align-items:center; }
+  .spelling{ display:inline-flex; align-items:center; gap:6px; background:var(--surface-2); border:1px solid var(--line); border-radius:999px; padding:4px 6px 4px 11px; font-size:13px; }
+  .spelling button{ background:none; border:none; color:var(--coral); cursor:pointer; font-size:15px; line-height:1; padding:0 3px; }
+  .add-spelling{ background:none; border:1px dashed var(--line); border-radius:999px; padding:5px 11px; font-size:12.5px; color:var(--ink-dim); cursor:pointer; }

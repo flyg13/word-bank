@@ -16,6 +16,7 @@ export const state = {
   readingProgress: {},
   readingIndex: 0,
   attemptLog: {},
+  phonicBank: {},
 
   // Local only — not persisted
   practiceQueue: [],

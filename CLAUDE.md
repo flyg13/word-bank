@@ -92,6 +92,37 @@ Add a **phonetic key** to the matching system, computed with the **Double Metaph
 
 **New UI in the Word Bank tab:** a "phonic spelling" field next to each entry (or in the manual-add form) where you can type "yeyo" directly — sound it out however makes sense to you, doesn't need to be a real word. This is entered *once, proactively*, rather than only being extractable after the recognizer happens to mishear something.
 
+### As built — two deviations, for review
+
+**1. Stored as a second field, not merged into the bank entry.** The sketch above
+puts `heardExamples` and `phonicSpelling` on one object, which means re-keying
+`word_bank` from heard-text to correct-word — a migration on live data. Instead
+there is a new `phonic_bank` field keyed by word, and `word_bank` is untouched.
+Logically it is the same model (an entry's heard examples are exactly the
+`word_bank` keys pointing at it); it is denormalised so nothing needs migrating.
+A phonic entry has no `count`/`active`: the parent typed it deliberately, so
+there is nothing for the app to confirm about it.
+
+**2. Matching is scoped to one expected word, never a global scan.** The sketch
+says to compare the recognizer's key "against every banked phonicKey". Measured
+against the real 355-word list, that is not safe: 70 key groups collide, `AT`
+covers nine practice words, and the one-character `A` — which is what "yeyo"
+keys to — also covers you/we/way/who and the bare words a, i, oh, e. So the
+question asked is always "does this sound like how she says the word I already
+asked her for", which keeps the collision surface to a single entry. The
+consequence is that Free Write gets no phonetic behaviour, since it has no
+expected word to scope against.
+
+**The confidence buffer is stronger than requested.** A phonetic hit never
+auto-advances and never auto-activates: it shows amber with a one-tap confirm,
+and confirming banks the exact text as *pending*, still needing two sightings.
+Phonetics accelerates accumulation rather than substituting for it.
+
+**One limitation worth knowing:** Double Metaphone models English spelling, not
+her articulation. It will not connect "red" to "wed" or "think" to "fink" on its
+own — the parent supplies the sound, and it absorbs the recognizer's spelling
+variance. That is the actual complaint it answers (§3's problem 2).
+
 **This also directly addresses the homophone/collision risk you raised** — because phonetic matching is *approximate*, it's actually more prone to over-matching than the exact-text system, not less. Claude Code should build a confidence buffer here: a phonetic match should require a slightly higher bar (e.g., exact Double Metaphone key match, not just "close") and should still route through the existing pending→confirm flow before going active, never auto-activate on a single phonetic hit.
 
 ---
@@ -137,9 +168,9 @@ This is a lower-priority, purely additive feature — sequence it after the accu
 
 ## 7. Suggested build order
 
-1. **Scaffold the Vite project structure**, port existing working logic over module-by-module — including the sentence-alignment fix (§1) — verify parity with the current live site before adding anything new.
-2. **Phonetic matching** (§3) — highest value, directly answers today's real complaints, no external dependencies.
-3. **Staleness reminders** (§4) — small, valuable, low risk.
+1. ~~**Scaffold the Vite project structure**~~ — **done.** Ported module-by-module, including the sentence-alignment fix. Schema parity with the original is pinned by a differential test.
+2. ~~**Phonetic matching** (§3)~~ — **built, pending review.** Two deviations from the spec below, both deliberate.
+3. **Staleness reminders** (§4) — small, valuable, low risk. Next.
 4. **Voice Lock via sherpa-onnx** (§5) — biggest lift, do once the foundation is solid.
 5. **Illustrated reading passages / story library** (§6) — additive, do once the content corpus from §2 exists to fill it.
 

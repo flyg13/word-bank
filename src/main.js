@@ -1,8 +1,7 @@
 import './style.css';
 
 import { state, setSaveErrorHandler, setSaver, renderAll } from './lib/store.js';
-import { parsePassage } from './lib/text.js';
-import { SENTENCES } from './data/sentences.js';
+import { foldSnapshot } from './lib/snapshot.js';
 import { speechRecognitionSupported } from './lib/speech.js';
 
 import { initTabs } from './features/tabs.js';
@@ -16,26 +15,9 @@ import { initBank } from './features/bank.js';
 
 let firstSnapshotReceived = false;
 
-/** A stored position can outlive the list it points into. */
-function clampIndex(value, length) {
-  const index = Number(value) || 0;
-  if (!length) return 0;
-  return Math.min(Math.max(0, index), length - 1);
-}
-
-/** Fold a Firestore snapshot into local state. */
+/** Fold a Firestore snapshot into local state, then redraw. */
 function applySnapshot(data) {
-  state.wordBank = data.word_bank || {};
-  state.verifiedWords = data.verified_words || [];
-  state.confirmCounts = data.confirm_counts || {};
-  state.sessionLog = data.session_log || [];
-  state.sentenceProgress = data.sentence_progress || {};
-  state.sentenceIndex = clampIndex(data.sentence_index, SENTENCES.length);
-  state.readingPassage = data.reading_passage || '';
-  state.readingSentences = state.readingPassage ? parsePassage(state.readingPassage) : [];
-  state.readingProgress = data.reading_progress || {};
-  state.readingIndex = clampIndex(data.reading_index, state.readingSentences.length);
-  state.attemptLog = data.attempt_log || {};
+  foldSnapshot(state, data);
 
   if (!firstSnapshotReceived) {
     buildQueue();

@@ -3,6 +3,8 @@ import { PRACTICE_WORDS } from '../data/practice-words.js';
 import { normalize, shuffle } from '../lib/text.js';
 import { state, save, onRender, renderAll } from '../lib/store.js';
 import { getBankEntry, recordBankObservation } from '../lib/wordbank.js';
+import { soundsLikeHerWord, addSpelling } from '../lib/phonicbank.js';
+import { isWeakSpelling, phoneticKeys } from '../lib/phonetics.js';
 import { speak } from '../lib/speech.js';
 import { bindMic, MIC_IDLE } from './mic.js';
 import { renderProgress } from './progress.js';
@@ -118,6 +120,7 @@ function registerConfirm(word) {
   // Update the screen immediately — don't make her wait on a network
   // round-trip before she can see (or hear) the next word.
   clearHeard();
+  closePhonicQuick();
   renderProgress();
   renderSession();
   renderPracticeWord();
@@ -156,13 +159,28 @@ function handlePracticeResult(heard) {
     return;
   }
 
+  // A phonetic hit is a strong suggestion, never a silent pass. Double
+  // Metaphone over-matches (see src/lib/phonetics.js), so this stops at
+  // telling the parent what it thinks and letting them say yes — which also
+  // banks the exact text, so the precise correction accumulates towards
+  // going active on its own.
+  const soundsRight = soundsLikeHerWord(target, heard);
+  if (soundsRight) {
+    heardTextEl.className = 'heard-text match-close';
+    heardTextEl.textContent += '  ≈ sounds like how she says it';
+  }
+
   logAttempt(target, heard);
   renderAll();
 
   const bankBtn = document.createElement('button');
   bankBtn.className = 'btn btn-primary';
-  bankBtn.textContent =
-    entry && !entry.active ? "Yes, that's her word again — confirm it" : "That's her word — bank it";
+  if (soundsRight) {
+    bankBtn.textContent = "Yes — that's her saying it";
+  } else {
+    bankBtn.textContent =
+      entry && !entry.active ? "Yes, that's her word again — confirm it" : "That's her word — bank it";
+  }
   bankBtn.onclick = () => {
     recordBankObservation(heardKey, target);
     save('word_bank', state.wordBank);
@@ -175,7 +193,10 @@ function handlePracticeResult(heard) {
   const retryBtn = document.createElement('button');
   retryBtn.className = 'btn btn-ghost';
   retryBtn.textContent = 'Try again';
-  retryBtn.onclick = () => document.getElementById('heardBox').classList.remove('show');
+  retryBtn.onclick = () => {
+    clearHeard();
+    closePhonicQuick();
+  };
 
   const skipBtn = document.createElement('button');
   skipBtn.className = 'btn btn-outline';
@@ -183,10 +204,59 @@ function handlePracticeResult(heard) {
   skipBtn.onclick = () => {
     state.practiceQueue.push(state.practiceQueue.shift());
     clearHeard();
+    closePhonicQuick();
     renderPracticeWord();
   };
 
   actions.append(bankBtn, retryBtn, skipBtn);
+
+  // The moment the parent is best placed to record a pronunciation is right
+  // after hearing her say it, so offer it here rather than only in Word Bank.
+  if (!soundsRight) {
+    const teachBtn = document.createElement('button');
+    teachBtn.className = 'btn btn-outline';
+    teachBtn.textContent = 'Teach how she says it';
+    teachBtn.onclick = () => openPhonicQuick(target, heard);
+    actions.appendChild(teachBtn);
+  }
+}
+
+// ---------- "Teach how she says it" ----------
+
+function openPhonicQuick(word, prefill) {
+  const panel = document.getElementById('phonicQuick');
+  panel.dataset.word = word;
+  document.getElementById('phonicQuickWord').textContent = word;
+  const input = document.getElementById('phonicQuickInput');
+  input.value = prefill || '';
+  panel.classList.add('show');
+  updatePhonicQuickNote();
+  input.focus();
+  input.select();
+}
+
+function closePhonicQuick() {
+  const panel = document.getElementById('phonicQuick');
+  panel.classList.remove('show');
+  panel.dataset.word = '';
+  document.getElementById('phonicQuickNote').textContent = '';
+}
+
+function updatePhonicQuickNote() {
+  const spelling = document.getElementById('phonicQuickInput').value.trim();
+  const note = document.getElementById('phonicQuickNote');
+  if (!spelling) {
+    note.textContent = '';
+    note.className = 'phonic-note';
+    return;
+  }
+  const weak = isWeakSpelling(spelling);
+  note.className = 'phonic-note' + (weak ? ' warn' : '');
+  note.textContent = weak
+    ? 'Heads up: “' +
+      spelling +
+      '” sounds like a lot of ordinary words (a, oh, I), so it will match loosely.'
+    : 'Sounds like: ' + phoneticKeys(spelling).join(' or ');
 }
 
 // ---------- Wiring ----------
@@ -220,6 +290,27 @@ export function initPractice() {
     clearHeard();
     renderPracticeWord();
   });
+
+  const quickInput = document.getElementById('phonicQuickInput');
+  quickInput.addEventListener('input', updatePhonicQuickNote);
+  quickInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('phonicQuickSave').click();
+    if (e.key === 'Escape') closePhonicQuick();
+  });
+
+  document.getElementById('phonicQuickSave').addEventListener('click', () => {
+    const panel = document.getElementById('phonicQuick');
+    const word = panel.dataset.word;
+    const spelling = quickInput.value.trim();
+    if (!word || !spelling) return;
+    if (addSpelling(word, spelling)) {
+      save('phonic_bank', state.phonicBank);
+    }
+    closePhonicQuick();
+    renderAll();
+  });
+
+  document.getElementById('phonicQuickCancel').addEventListener('click', closePhonicQuick);
 
   onRender(renderPracticeWord);
 }
