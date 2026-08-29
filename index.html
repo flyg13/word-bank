@@ -314,6 +314,11 @@
       <div id="bankList"></div>
     </div>
     <div class="card">
+      <div class="output-label" style="margin-top:0;">Recurring sounds not yet in her bank</div>
+      <p class="sub" style="margin-bottom:14px;">When the same word gets misheard the same way more than once during Practice, it shows up here — even before you've confirmed a correction for it.</p>
+      <div id="attemptLogList"></div>
+    </div>
+    <div class="card">
       <div class="output-label" style="margin-top:0;">Add a correction manually</div>
       <div class="manual-add">
         <input type="text" id="manualRaw" placeholder="What the app hears">
@@ -338,7 +343,7 @@
 const MASTERY_THRESHOLD = 3;
 const REQUEUE_GAP = 4;
 
-const PRACTICE_WORDS = ("the,and,a,to,said,you,he,i,of,it,in,was,her,that,they,on,at,with,all,we,can,are,up,had,my,for,but,not,what,so,out,as,have,is,his,go,me,do,see,like,this,one,by,here,she,too,then,them,now,day,big,when,come,little,down,how,did,could,were,about,got,run,going,jump,eat,play,help,look,made,make,want,over,put,use,water,way,who,will,your,after,again,any,ask,because,before,best,better,both,call,came,change,does,every,found,give,goes,good,great,know,laugh,left,let,live,many,may,most,much,must,name,never,new,off,old,only,open,own,people,pretty,pull,read,right,round,shall,show,six,small,start,take,thank,think,walk,warm,write,work,world,years,young,above,across,ahead,almost,alone,along,also,although,always,among,animal,another,answer,area,around,arrive,become,began,begin,behind,being,below,beside,between,beyond,body,book,bring,brother,brought,build,carry,catch,children,clean,close,cold,color,cook,cool,corner,country,course,cover,cried,different,doctor,dream,during,early,earth,easy,eight,either,else,end,enough,even,ever,everyone,everything,eyes,face,family,father,fast,feel,feet,few,fine,first,five,fly,follow,food,foot,four,friend,front,full,funny,garden,girl,glass,gone,grow,hand,happen,happy,hard,head,heard,heart,hold,hope,horse,house,however,idea,important,inside,instead,keep,kind,knew,late,learn,leave,letter,light,long,longer,love,mean,might,mind,minute,money,morning,mother,mountain,move,music,near,need,news,night,north,nothing,notice,number,often,once,outside,paper,part,party,pass,person,picture,place,plant,point,poor,quick,quiet,quite,rain,ready,real,remember,ring,river,room,school,sea,second,seem,sentence,several,shoe,short,should,side,sign,since,sister,sleep,slow,snow,soon,sound,south,special,spell,spring,star,stay,still,stop,story,street,strong,study,sudden,summer,sure,table,talk,teach,teacher,tell,than,thing,third,those,though,thought,three,through,today,together,told,tomorrow,tonight,tree,trouble,true,turn,under,until,upon,visit,voice,wait,wash,watch,week,while,white,window,winter,without,woman,word,worry,worse,would,year,yellow,yes,yesterday").split(",");
+const PRACTICE_WORDS = ("the,and,said,you,he,it,in,was,her,that,they,on,at,with,all,we,can,are,up,had,my,but,not,what,so,out,as,have,is,his,go,me,do,like,this,one,by,here,she,then,them,now,day,big,when,come,little,down,how,did,could,were,about,got,run,going,jump,eat,play,help,look,made,make,want,over,put,use,water,way,who,will,your,after,again,any,ask,because,before,best,better,both,call,came,change,does,every,found,give,goes,good,great,know,laugh,left,let,live,many,may,most,much,must,name,never,old,only,open,own,people,pretty,pull,read,round,shall,show,six,small,start,take,thank,think,walk,warm,work,world,years,young,above,across,ahead,almost,alone,along,also,although,always,among,animal,another,answer,area,around,arrive,become,began,begin,behind,being,below,beside,between,beyond,body,book,bring,brother,brought,build,carry,catch,children,clean,close,cold,color,cook,cool,corner,country,course,cover,cried,different,doctor,dream,during,early,earth,easy,eight,either,else,end,enough,even,ever,everyone,everything,eyes,face,family,father,fast,feel,feet,few,fine,first,five,fly,follow,food,foot,friend,front,full,funny,garden,girl,glass,gone,grow,hand,happen,happy,hard,head,heard,heart,hold,hope,horse,house,however,idea,important,inside,instead,keep,kind,late,learn,leave,letter,light,long,longer,love,mean,might,mind,minute,money,morning,mother,mountain,move,music,near,need,news,night,north,nothing,notice,number,often,once,outside,paper,part,party,pass,person,picture,place,plant,point,poor,quick,quiet,quite,rain,ready,real,remember,ring,river,room,school,second,seem,sentence,several,shoe,short,should,side,sign,since,sister,sleep,slow,snow,soon,sound,south,special,spell,spring,star,stay,still,stop,story,street,strong,study,sudden,summer,sure,table,talk,teach,teacher,tell,than,thing,third,those,though,thought,three,through,today,together,told,tomorrow,tonight,tree,trouble,true,turn,under,until,upon,visit,voice,wait,wash,watch,week,while,white,window,winter,without,woman,word,worry,worse,would,year,yellow,yes,yesterday").split(",");
 
 const SENTENCES = [
  "The cat sat on the mat.",
@@ -424,13 +429,19 @@ async function initFirebase(){
       readingSentences = readingPassage ? parseReadingPassage(readingPassage) : [];
       readingProgress = data.reading_progress || {};
       readingIndex = data.reading_index || 0;
-      buildQueue();
+      attemptLog = data.attempt_log || {};
+      if(!firstSnapshotReceived){
+        buildQueue();
+      }else{
+        reconcileQueue();
+      }
       updateProgressUI();
       renderPracticeWord();
       renderSentence();
       renderReadingUI();
       renderCorrectedOutput(document.getElementById('rawInput') ? document.getElementById('rawInput').value : '');
       renderBankList();
+      renderAttemptLog();
       renderSessionLog();
       refreshSessionUI();
       firstSnapshotReceived = true;
@@ -507,7 +518,7 @@ document.querySelectorAll('.tab').forEach(t=>{
     ['practice','sentences','reading','write','bank'].forEach(name=>{
       document.getElementById('tab-'+name).style.display = (name===t.dataset.tab) ? 'block' : 'none';
     });
-    if(t.dataset.tab === 'bank'){ renderBankList(); renderSessionLog(); }
+    if(t.dataset.tab === 'bank'){ renderBankList(); renderAttemptLog(); renderSessionLog(); }
     if(t.dataset.tab === 'sentences'){ renderSentence(); }
     if(t.dataset.tab === 'reading'){ renderReadingUI(); }
   });
@@ -544,8 +555,31 @@ function renderSessionLog(){
 }
 
 // ---------- PRACTICE MODE ----------
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
 function buildQueue(){
-  practiceQueue = PRACTICE_WORDS.filter(w => !verifiedWords.map(normalize).includes(normalize(w)));
+  practiceQueue = shuffle(PRACTICE_WORDS.filter(w => !verifiedWords.map(normalize).includes(normalize(w))));
+}
+
+// Live sync means a Firestore update fires after every attempt (including our
+// own). Rebuilding the queue from scratch each time would discard the
+// spaced-repeat positions set below — this just drops newly-mastered words
+// without disturbing the order, so a word requeued a few turns out actually
+// stays a few turns out.
+function reconcileQueue(){
+  const masteredSet = new Set(verifiedWords.map(normalize));
+  practiceQueue = practiceQueue.filter(w => !masteredSet.has(normalize(w)));
+  const inQueue = new Set(practiceQueue.map(normalize));
+  PRACTICE_WORDS.forEach(w=>{
+    if(!masteredSet.has(normalize(w)) && !inQueue.has(normalize(w))) practiceQueue.push(w);
+  });
 }
 
 function renderPracticeWord(){
@@ -583,15 +617,15 @@ document.getElementById('speakWordBtn').addEventListener('click', ()=>{
   if(w) speak(w);
 });
 
-async function registerConfirm(word, wasNew){
+function registerConfirm(word, wasNew){
   const key = normalize(word);
   confirmCounts[key] = (confirmCounts[key]||0) + 1;
-  await saveJSON('confirm_counts', confirmCounts);
   sessionAttempted++;
+  let justMastered = false;
   if(confirmCounts[key] >= MASTERY_THRESHOLD){
     if(!verifiedWords.map(normalize).includes(key)){
       verifiedWords.push(word);
-      await saveJSON('verified_words', verifiedWords);
+      justMastered = true;
     }
     practiceQueue.shift();
   }else{
@@ -599,9 +633,14 @@ async function registerConfirm(word, wasNew){
     const insertAt = Math.min(REQUEUE_GAP, practiceQueue.length);
     practiceQueue.splice(insertAt, 0, w);
   }
+  // Update the screen immediately — don't make her wait on a network
+  // round-trip before she can see (or hear) the next word.
   updateProgressUI();
   refreshSessionUI();
   renderPracticeWord();
+  // Persist in the background.
+  saveJSON('confirm_counts', confirmCounts);
+  if(justMastered) saveJSON('verified_words', verifiedWords);
 }
 
 document.getElementById('practiceMic').addEventListener('click', ()=>{
@@ -618,14 +657,57 @@ document.getElementById('practiceMic').addEventListener('click', ()=>{
   try{ recognizer.start(); }catch(e){}
 });
 
+// A freshly banked correction starts PENDING — seen once, not yet trusted.
+// It only becomes ACTIVE (auto-applied everywhere) once the same heard→correct
+// pairing shows up a second time, whether that's a retry in Practice or a
+// matching correction made in Sentences/Reading/Free Write. This stops a
+// single noisy mishearing from silently rewriting every future correct
+// instance of a common word.
+function getBankEntry(key){
+  const v = wordBank[key];
+  if(!v) return null;
+  if(typeof v === 'string') return { correct: v, count: MASTERY_THRESHOLD, active: true }; // legacy entries stay trusted
+  return v;
+}
+function recordBankObservation(key, target){
+  const existing = getBankEntry(key);
+  if(existing && normalize(existing.correct) === normalize(target)){
+    const newCount = (existing.count||1) + 1;
+    wordBank[key] = { correct: target, count: newCount, active: existing.active || newCount >= 2 };
+  }else{
+    wordBank[key] = { correct: target, count: 1, active: false };
+  }
+}
+
+let attemptLog = {}; // key: "target|||heard" -> {target, heard, count, lastSeen}
+
+function attemptKey(target, heard){ return normalize(target) + '|||' + normalize(heard); }
+
+async function logAttempt(target, heard){
+  const key = attemptKey(target, heard);
+  const existing = attemptLog[key];
+  attemptLog[key] = {
+    target: target,
+    heard: heard,
+    count: (existing ? existing.count : 0) + 1,
+    lastSeen: new Date().toISOString()
+  };
+  const keys = Object.keys(attemptLog);
+  if(keys.length > 150){
+    keys.sort((a,b)=> new Date(attemptLog[a].lastSeen) - new Date(attemptLog[b].lastSeen));
+    delete attemptLog[keys[0]];
+  }
+  await saveJSON('attempt_log', attemptLog);
+}
+
 function handlePracticeResult(heard){
   const target = practiceQueue[0];
   if(!target) return;
   const heardKey = normalize(heard);
   const targetKey = normalize(target);
-  const knownMapping = wordBank[heardKey];
+  const entry = getBankEntry(heardKey);
   const isDirectMatch = heardKey === targetKey;
-  const isKnownConsistent = knownMapping && normalize(knownMapping) === targetKey;
+  const isKnownConsistent = entry && entry.active && normalize(entry.correct) === targetKey;
 
   document.getElementById('heardBox').classList.add('show');
   const heardTextEl = document.getElementById('heardText');
@@ -639,12 +721,16 @@ function handlePracticeResult(heard){
     heardTextEl.textContent += isDirectMatch ? '  ✓ matched' : '  ✓ matches her known pronunciation';
     setTimeout(()=>{ registerConfirm(target, false); }, 700);
   }else{
+    logAttempt(target, heard);
+    renderAttemptLog();
     const bankBtn = document.createElement('button');
     bankBtn.className = 'btn btn-primary';
-    bankBtn.textContent = "That's her word — bank it";
+    bankBtn.textContent = entry && !entry.active ? "Yes, that's her word again — confirm it" : "That's her word — bank it";
     bankBtn.onclick = async ()=>{
-      wordBank[heardKey] = target;
+      recordBankObservation(heardKey, target);
       await saveJSON('word_bank', wordBank);
+      delete attemptLog[attemptKey(target, heard)];
+      await saveJSON('attempt_log', attemptLog);
       registerConfirm(target, true);
     };
     const retryBtn = document.createElement('button');
@@ -673,7 +759,8 @@ document.getElementById('resetProgress').addEventListener('click', async ()=>{
 // ---------- SENTENCES MODE ----------
 function applyBankToWord(w){
   const key = normalize(w);
-  return wordBank[key] ? wordBank[key] : w;
+  const entry = getBankEntry(key);
+  return (entry && entry.active) ? entry.correct : w;
 }
 function renderSentence(){
   const s = SENTENCES[sentenceIndex];
@@ -887,7 +974,8 @@ function applyBankToText(text){
   const tokens = text.split(/(\s+)/);
   return tokens.map(tok=>{
     const key = normalize(tok);
-    if(key && wordBank[key]) return {raw: tok, display: wordBank[key], fixed:true, key};
+    const entry = getBankEntry(key);
+    if(key && entry && entry.active) return {raw: tok, display: entry.correct, fixed:true, key};
     return {raw: tok, display: tok, fixed:false, key};
   });
 }
@@ -926,7 +1014,7 @@ document.getElementById('saveFix').addEventListener('click', async ()=>{
   const key = panel.dataset.rawKey;
   const val = document.getElementById('fixInput').value.trim();
   if(!key || !val) return;
-  wordBank[key] = val;
+  recordBankObservation(key, val);
   await saveJSON('word_bank', wordBank);
   panel.classList.remove('show');
   updateProgressUI();
@@ -955,41 +1043,92 @@ document.getElementById('writeMic').addEventListener('click', ()=>{
 function renderBankList(){
   const list = document.getElementById('bankList');
   const q = normalize(document.getElementById('bankSearch').value);
-  const entries = Object.entries(wordBank).filter(([raw,correct])=>{
+  const entries = Object.entries(wordBank).map(([raw,val])=>{
+    const e = (typeof val === 'string') ? { correct: val, count: MASTERY_THRESHOLD, active: true } : val;
+    return [raw, e];
+  }).filter(([raw,e])=>{
     if(!q) return true;
-    return raw.includes(q) || normalize(correct).includes(q);
-  }).sort((a,b)=> a[1].localeCompare(b[1]));
+    return raw.includes(q) || normalize(e.correct).includes(q);
+  }).sort((a,b)=> a[1].correct.localeCompare(b[1].correct));
 
   if(entries.length === 0){
     list.innerHTML = '<div class="empty-note">No corrections saved yet — use Practice or Sentences to start building her bank.</div>';
     return;
   }
   list.innerHTML = '';
-  entries.forEach(([raw,correct])=>{
+  entries.forEach(([raw,e])=>{
     const row = document.createElement('div');
     row.className = 'bank-row';
-    row.innerHTML = '<div class="pair">heard "<b>'+raw+'</b>" \u2192 means <b>'+correct+'</b></div>';
+    const statusNote = e.active ? '' : ' <span style="color:var(--amber);font-size:12px;">— needs confirming</span>';
+    row.innerHTML = '<div class="pair">heard "<b>'+raw+'</b>" \u2192 means <b>'+e.correct+'</b>'+statusNote+'</div>';
+    const btnWrap = document.createElement('div');
+    if(!e.active){
+      const confirmBtn = document.createElement('button');
+      confirmBtn.className = 'del-btn';
+      confirmBtn.style.color = 'var(--sage)';
+      confirmBtn.textContent = 'Confirm';
+      confirmBtn.onclick = async ()=>{
+        wordBank[raw] = { correct: e.correct, count: Math.max(2, e.count||1), active: true };
+        await saveJSON('word_bank', wordBank);
+        renderBankList();
+      };
+      btnWrap.appendChild(confirmBtn);
+    }
     const del = document.createElement('button');
     del.className = 'del-btn';
     del.textContent = 'Remove';
+    del.style.marginLeft = '10px';
     del.onclick = async ()=>{
       delete wordBank[raw];
       await saveJSON('word_bank', wordBank);
       updateProgressUI();
       renderBankList();
     };
-    row.appendChild(del);
+    btnWrap.appendChild(del);
+    row.appendChild(btnWrap);
     list.appendChild(row);
   });
 }
 document.getElementById('bankSearch').addEventListener('input', renderBankList);
+
+function renderAttemptLog(){
+  const container = document.getElementById('attemptLogList');
+  if(!container) return;
+  const entries = Object.values(attemptLog).filter(e => e.count >= 2)
+    .sort((a,b) => b.count - a.count).slice(0, 15);
+  if(entries.length === 0){
+    container.innerHTML = '<div class="empty-note">Nothing recurring yet.</div>';
+    return;
+  }
+  container.innerHTML = '';
+  entries.forEach(e=>{
+    const row = document.createElement('div');
+    row.className = 'bank-row';
+    row.innerHTML = '<div class="pair">practicing "<b>'+e.target+'</b>" \u2014 heard "<b>'+e.heard+'</b>" ('+e.count+'x)</div>';
+    const addBtn = document.createElement('button');
+    addBtn.className = 'del-btn';
+    addBtn.style.color = 'var(--sage)';
+    addBtn.textContent = 'Add to bank';
+    addBtn.onclick = async ()=>{
+      wordBank[normalize(e.heard)] = { correct: e.target, count: MASTERY_THRESHOLD, active: true };
+      await saveJSON('word_bank', wordBank);
+      delete attemptLog[attemptKey(e.target, e.heard)];
+      await saveJSON('attempt_log', attemptLog);
+      updateProgressUI();
+      renderBankList();
+      renderAttemptLog();
+    };
+    row.appendChild(addBtn);
+    container.appendChild(row);
+  });
+}
 
 document.getElementById('manualAddBtn').addEventListener('click', async ()=>{
   const rawEl = document.getElementById('manualRaw');
   const corEl = document.getElementById('manualCorrect');
   const raw = rawEl.value.trim(), cor = corEl.value.trim();
   if(!raw || !cor) return;
-  wordBank[normalize(raw)] = cor;
+  wordBank[normalize(raw)] = { correct: cor, count: MASTERY_THRESHOLD, active: true };
   await saveJSON('word_bank', wordBank);
   rawEl.value=''; corEl.value='';
   updateProgressUI();
