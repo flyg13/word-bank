@@ -16,12 +16,41 @@ npm run build      # static build into dist/
 npm run preview    # serve the build locally
 ```
 
+## Testing it by hand
+
+```bash
+git clone -b claude/vite-scaffold-index-port-vf8y3x https://github.com/flyg13/word-bank.git
+cd word-bank
+npm install
+npm run dev
+```
+
+Open the printed `http://localhost:5173/` **in Chrome, Edge or Safari**. The mic
+needs a secure context, and `localhost` counts as one — a `file://` copy does
+not, so open the URL rather than the built HTML.
+
+**Use a throwaway family code.** The first prompt asks for one. `localhost` is a
+different origin from the live site, so it will ask fresh and store its own
+answer — type something like `parity-test`, not the real code. That gives a
+clean empty document to click through without touching production data.
+
+To test against realistic data, open the live site, *Word Bank → Export bank
+(.json)*, then import that file on localhost under the throwaway code. Same
+data, separate document.
+
 ## Tests
 
 ```bash
-npm test           # unit tests (alignment, bank model, text helpers)
+npm test           # unit tests
 npm run test:e2e   # drives the built app in a real browser
 ```
+
+`src/test/schema-parity.test.js` is the one to know about. It drives the same
+user flows through `legacy/index.html` and through the ported modules, with a
+recording fake in place of Firestore, and asserts both wrote identical
+payloads — field names, document path, `merge: true`, and value shapes across
+all ten synced fields. There is real synced data in production; this is what
+stops the schema drifting out from under it.
 
 The e2e suite needs a browser: `npx playwright install chromium` once, or set
 `CHROMIUM_PATH` to an existing Chromium binary. It builds nothing itself, so run

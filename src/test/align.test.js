@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { alignWords, isCleanRead } from '../lib/align.js';
 import { toWords, normalize } from '../lib/text.js';
+import { state } from '../lib/store.js';
+import { wordsMatch, recordBankObservation, getBankEntry } from '../lib/wordbank.js';
 
 const loose = (a, b) => normalize(a) === normalize(b);
 const align = (expected, heard) => alignWords(toWords(expected), toWords(heard), loose);
@@ -110,5 +112,64 @@ describe('alignWords tie-breaking', () => {
     const ops = align('she has a red hat', 'she has a wed hat');
     expect(types(ops)).toEqual(['match', 'match', 'match', 'substitute', 'match']);
     expect(ops[3]).toMatchObject({ expected: 'red', heard: 'wed' });
+  });
+});
+
+// The aligner takes a comparator, and the app passes the bank-aware one. These
+// pin the trust boundary: a correction that has NOT been confirmed twice must
+// not make a read score as correct, in alignment or anywhere else. §3's
+// phonetic matching must keep this property.
+describe('alignment only trusts confirmed (active) corrections', () => {
+  const alignWithBank = (expected, heard) =>
+    alignWords(toWords(expected), toWords(heard), wordsMatch);
+
+  beforeEach(() => {
+    state.wordBank = {};
+  });
+
+  it('does not treat a pending correction as a match', () => {
+    recordBankObservation('yeyo', 'yellow'); // seen once -> pending
+    expect(getBankEntry('yeyo').active).toBe(false);
+
+    const ops = alignWithBank('a yellow bird', 'a yeyo bird');
+    expect(types(ops)).toEqual(['match', 'substitute', 'match']);
+    expect(isCleanRead(ops)).toBe(false);
+  });
+
+  it('treats it as a match only after the second confirmation', () => {
+    recordBankObservation('yeyo', 'yellow');
+    recordBankObservation('yeyo', 'yellow'); // -> active
+    expect(getBankEntry('yeyo').active).toBe(true);
+
+    const ops = alignWithBank('a yellow bird', 'a yeyo bird');
+    expect(types(ops)).toEqual(['match', 'match', 'match']);
+    expect(isCleanRead(ops)).toBe(true);
+  });
+
+  it('stops trusting a correction that was reassigned and went pending again', () => {
+    recordBankObservation('yeyo', 'yellow');
+    recordBankObservation('yeyo', 'yellow');
+    expect(isCleanRead(alignWithBank('a yellow bird', 'a yeyo bird'))).toBe(true);
+
+    recordBankObservation('yeyo', 'yolk'); // reassigned -> pending again
+    expect(isCleanRead(alignWithBank('a yellow bird', 'a yeyo bird'))).toBe(false);
+    expect(isCleanRead(alignWithBank('a yolk bird', 'a yeyo bird'))).toBe(false);
+  });
+
+  it('does not let a pending correction sway the tie-break either', () => {
+    // The similarity used for tie-breaking is purely orthographic and never
+    // consults the bank, so a pending entry cannot change how words pair up.
+    const before = types(alignWithBank('the cat sat on the mat', 'the cot on a the mat'));
+    recordBankObservation('cot', 'sat');
+    recordBankObservation('on', 'cat');
+    const after = types(alignWithBank('the cat sat on the mat', 'the cot on a the mat'));
+    expect(after).toEqual(before);
+  });
+
+  it('keeps trusting a legacy bare-string entry, as the original app did', () => {
+    // Entries written before the pending/active flow existed have no count and
+    // were always applied. Changing that would silently drop real corrections.
+    state.wordBank.yeyo = 'yellow';
+    expect(isCleanRead(alignWithBank('a yellow bird', 'a yeyo bird'))).toBe(true);
   });
 });
