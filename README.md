@@ -34,8 +34,9 @@ different origin from the live site, so it will ask fresh and store its own
 answer — type something like `parity-test`, not the real code. That gives a
 clean empty document to click through without touching production data.
 
-To test against realistic data, open the live site, *Word Bank → Export bank
-(.json)*, then import that file on localhost under the throwaway code. Same
+To test against realistic data, open the live site
+(https://wordbank.flyinggiraffe.ai), *Word Bank → Export bank (.json)*, then
+import that file on localhost under the throwaway code. Same
 data, separate document.
 
 ## Testing on an iPad, or any other device
@@ -180,22 +181,57 @@ every pull request.
 `vite.config.js` sets `base: './'`, so the build works from a domain root or a
 subpath either way.
 
-### Still on GitHub Pages until the handover is done
+Production is `https://wordbank.flyinggiraffe.ai`.
 
-The live site is served by GitHub Pages at `https://flyg13.github.io/word-bank/`
-via `.github/workflows/deploy.yml`. **That workflow is deliberately still in
-place**, so production keeps deploying exactly as it does today. The two run
-side by side and nothing about the live site changes until the handover below is
-finished.
+### DNS
 
-One constraint worth knowing before switching: `flyg13.github.io/word-bank` is a
-GitHub-owned address, and no other host can serve it. Production can keep that
-exact URL only by staying on Pages; moving it to Netlify means a new URL with
-the old one redirecting to it.
+The domain is registered at GoDaddy and its nameservers stay there, so other
+subdomains can point elsewhere later. Netlify serves this one subdomain through
+a single record:
+
+| Type | Name | Value | TTL |
+|---|---|---|---|
+| CNAME | `wordbank` | `<site-name>.netlify.app` | 600 |
+
+`<site-name>` is the Netlify site's own subdomain, from *Site configuration →
+Site details*. GoDaddy appends the domain to whatever goes in **Name**, so the
+name is `wordbank`, never `wordbank.flyinggiraffe.ai`.
+
+A subdomain only needs a CNAME. The A-record-to-`75.2.60.5` approach in
+Netlify's docs is for apex domains (`flyinggiraffe.ai` itself) and does not
+apply here.
+
+Netlify issues the Let's Encrypt certificate automatically once that record
+resolves, which is what makes the microphone work on a phone or iPad.
+
+### Still on GitHub Pages until the domain is confirmed live
+
+The old site is still served by GitHub Pages at
+`https://flyg13.github.io/word-bank/` via `.github/workflows/deploy.yml`.
+
+**That workflow is deliberately untouched.** Pointing it at the new domain
+before DNS resolves would break the URL the family currently uses. Once
+`wordbank.flyinggiraffe.ai` serves the app, that workflow gets replaced with a
+redirect so the old bookmark keeps working.
+
+`flyg13.github.io/word-bank` is a GitHub-owned address that no other host can
+serve, which is why the URL changes at all — and why a domain you own is the
+last hosting move you should have to make.
 
 ## Firebase
 
-`FIREBASE_CONFIG` lives in `src/config.js`. Those values are public by design —
+`FIREBASE_CONFIG` lives in `src/config.js`. `authDomain` stays
+`wordbank-fg13.firebaseapp.com` regardless of where the app is served from — it
+is the Firebase project's own handler domain, not the site's.
+
+`wordbank.flyinggiraffe.ai` is listed under *Authentication → Settings →
+Authorized domains*. Strictly it does not need to be: that list gates OAuth
+popup and redirect sign-in, and this app only ever calls `signInAnonymously()`,
+which talks to the Identity Toolkit API directly. It is there so that adding a
+real sign-in method later does not fail mysteriously. Netlify preview
+subdomains are not listed and cannot be — the list takes no wildcards — which
+is another reason the anonymous-only design is worth keeping.
+ Those values are public by design —
 they identify the project, they don't authorise anything. Access is controlled
 by Firestore security rules.
 

@@ -38,3 +38,8 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     X-Frame-Options = "DENY"
+    # Keeps a page titled with a child's name out of search results. It was
+    # obscure at flyg13.github.io/word-bank; on a real domain it would not be.
+    # The data itself is behind the family code either way — this is only about
+    # discoverability. Delete this line if you would rather it be indexed.
+    X-Robots-Tag = "noindex"

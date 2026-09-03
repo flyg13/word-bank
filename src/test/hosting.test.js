@@ -34,6 +34,13 @@ describe('netlify.toml', () => {
     expect(html.values['Cache-Control']).toContain('max-age=0');
   });
 
+  it('keeps the site out of search results', () => {
+    // A page titled with a child's name, on a memorable domain. Removing this
+    // should be a decision, not an accident.
+    const all = netlify.headers.find((h) => h.for === '/*');
+    expect(all.values['X-Robots-Tag']).toBe('noindex');
+  });
+
   it('caches hashed assets hard', () => {
     const assets = netlify.headers.find((h) => h.for === '/assets/*');
     expect(assets.values['Cache-Control']).toContain('immutable');
