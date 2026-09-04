@@ -6,6 +6,7 @@
 // for every caller to pick it up.
 
 import { SENTENCES } from '../data/sentences.js';
+import { DEFAULT_SPEECH_LANG, SPEECH_LANGS } from '../config.js';
 import { parsePassage } from './text.js';
 
 /** A stored position can outlive the list it points into. */
@@ -34,6 +35,12 @@ export function foldSnapshot(state, data) {
   state.readingIndex = clampIndex(data.reading_index, state.readingSentences.length);
   state.attemptLog = data.attempt_log || {};
   state.phonicBank = data.phonic_bank || {};
+  state.speechLang = validLang(data.speech_lang);
+}
+
+/** Fall back rather than hand the recognizer something it will reject. */
+function validLang(lang) {
+  return SPEECH_LANGS.some((l) => l.code === lang) ? lang : DEFAULT_SPEECH_LANG;
 }
 
 /** Every Firestore field the app reads. */
@@ -47,6 +54,7 @@ export const SYNCED_FIELDS = [
   'sentence_index',
   'sentence_progress',
   'session_log',
+  'speech_lang',
   'verified_words',
   'word_bank'
 ];

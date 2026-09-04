@@ -163,3 +163,6 @@
   .spelling{ display:inline-flex; align-items:center; gap:6px; background:var(--surface-2); border:1px solid var(--line); border-radius:999px; padding:4px 6px 4px 11px; font-size:13px; }
   .spelling button{ background:none; border:none; color:var(--coral); cursor:pointer; font-size:15px; line-height:1; padding:0 3px; }
   .add-spelling{ background:none; border:1px dashed var(--line); border-radius:999px; padding:5px 11px; font-size:12.5px; color:var(--ink-dim); cursor:pointer; }
+
+  .lang-select{ width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--line);
+                background:var(--surface-2); color:var(--ink); font-size:15px; font-family:inherit; }

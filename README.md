@@ -90,6 +90,7 @@ src/
     align.js            word-sequence alignment (see below)
     similarity.js       how much two words resemble each other
     phonetics.js        Double Metaphone keys and sound-alike comparison
+    speech.js           recognizer and voice, both tagged with her accent
     phonicbank.js       how she says her words (word -> spellings)
     snapshot.js         the one place stored and in-memory shapes meet
     text.js             normalize / tokenize / passage splitting
@@ -101,6 +102,7 @@ src/
   test/                 unit tests
 e2e/smoke.mjs           browser smoke test
 netlify.toml            hosting: build, previews, cache headers
+redirect/index.html     what the old GitHub Pages URL now serves
 legacy/index.html       the original single-file app, kept for reference
 ```
 
@@ -128,6 +130,22 @@ Two details worth knowing:
   whether you call it three wrong words or one wrong word plus a dropped one
   plus an inserted one. The second reading is the truthful one.
   `src/lib/similarity.js` is the seam to replace when Double Metaphone lands.
+
+### Her accent
+
+The recogniser and the voice that reads words aloud both run on one setting,
+`speech_lang`, defaulting to **en-AU** and changeable per family in the Word
+Bank tab. It is synced, so her devices agree.
+
+Getting this wrong costs accuracy twice over: an en-US recogniser scores an
+Australian child's vowels against the wrong model, and an American voice hands
+her the wrong pronunciation to copy in the first place.
+
+Recogniser coverage of these tags varies by browser and platform. An
+unsupported choice surfaces on the mic button as
+`language-not-supported`, naming the tag and pointing at the setting, rather
+than failing silently — every recognizer error code reaches that label, since on
+a device that isn't in front of you it is the only diagnostic there is.
 
 ### Phonetic matching
 
@@ -204,18 +222,20 @@ apply here.
 Netlify issues the Let's Encrypt certificate automatically once that record
 resolves, which is what makes the microphone work on a phone or iPad.
 
-### Still on GitHub Pages until the domain is confirmed live
+### The old GitHub Pages URL
 
-The old site is still served by GitHub Pages at
-`https://flyg13.github.io/word-bank/` via `.github/workflows/deploy.yml`.
+`https://flyg13.github.io/word-bank/` now redirects here.
+`.github/workflows/deploy.yml` no longer builds the app; it publishes
+`redirect/index.html` as both `index.html` and `404.html`, so deeper paths
+redirect too.
 
-**That workflow is deliberately untouched.** Pointing it at the new domain
-before DNS resolves would break the URL the family currently uses. Once
-`wordbank.flyinggiraffe.ai` serves the app, that workflow gets replaced with a
-redirect so the old bookmark keeps working.
+Pages serves static files and cannot issue a 301, so the page redirects three
+ways — a script (which also carries the query string and fragment across), a
+meta refresh behind it, and a plain link if both are blocked. It uses
+`location.replace`, so the back button does not bounce into it again.
 
 `flyg13.github.io/word-bank` is a GitHub-owned address that no other host can
-serve, which is why the URL changes at all — and why a domain you own is the
+serve, which is why the URL changed at all — and why a domain you own is the
 last hosting move you should have to make.
 
 ## Firebase

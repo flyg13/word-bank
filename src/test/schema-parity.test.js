@@ -546,3 +546,46 @@ describe('the snapshot fold covers every field the app writes', () => {
     expect(written.filter((f) => !SYNCED_FIELDS.includes(f))).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// speech_lang, like phonic_bank, has to be additive in both directions.
+// ---------------------------------------------------------------------------
+
+describe('speech_lang is purely additive', () => {
+  const drive = async (doc) => {
+    doc.querySelector('.tab[data-tab="bank"]').click();
+    const select = doc.getElementById('speechLang');
+    select.value = 'en-GB';
+    select.dispatchEvent(new window.Event('change'));
+    await new Promise((r) => setTimeout(r, 0));
+  };
+
+  it('changing the accent writes speech_lang and nothing else', async () => {
+    const writes = await runPorted(drive);
+    expect(fieldsWritten(writes)).toEqual(['speech_lang']);
+    expect(finalState(writes).speech_lang).toBe('en-GB');
+  });
+
+  it('defaults to en-AU for a document that predates the field', async () => {
+    await runPorted(async (doc) => doc.querySelector('.tab[data-tab="bank"]').click(), {
+      word_bank: { yoyo: 'yellow' }
+    });
+    const { state } = await import('../lib/store.js');
+    expect(state.speechLang).toBe('en-AU');
+  });
+
+  it('the original app tolerates a document containing speech_lang', async () => {
+    const writes = await runLegacy(
+      async (doc) => {
+        doc.querySelector('.tab[data-tab="bank"]').click();
+        doc.getElementById('manualRaw').value = 'yoyo';
+        doc.getElementById('manualCorrect').value = 'yellow';
+        doc.getElementById('manualAddBtn').click();
+        await new Promise((r) => setTimeout(r, 0));
+      },
+      { speech_lang: 'en-AU', phonic_bank: {} }
+    );
+    expect(finalState(writes).word_bank).toMatchObject({ yoyo: { correct: 'yellow' } });
+    expect(fieldsWritten(writes)).not.toContain('speech_lang');
+  });
+});

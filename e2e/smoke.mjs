@@ -45,11 +45,16 @@ page.on('response', (r) => { if (r.status() >= 400) badResponses.push(r.status()
 // Fake SpeechRecognition so we can drive the mic paths deterministically.
 await page.addInitScript(() => {
   window.__nextTranscript = '';
+  window.__nextError = null;
+  window.__lastLang = null;
   class FakeRecognition {
-    constructor() { this.continuous = false; this.interimResults = false; this.lang = 'en-US'; }
+    constructor() { this.continuous = false; this.interimResults = false; }
     start() {
+      window.__lastLang = this.lang;
       setTimeout(() => {
-        if (this.onresult) {
+        if (window.__nextError) {
+          if (this.onerror) this.onerror({ error: window.__nextError, message: '' });
+        } else if (this.onresult) {
           this.onresult({ results: [[{ transcript: window.__nextTranscript }]] });
         }
         if (this.onend) this.onend();
@@ -289,6 +294,61 @@ check('removing the pronunciation restores the plain mismatch',
 
 await page.click('.tab[data-tab="bank"]');
 
+// ---- Accent, and recognizer error codes ----
+
+await page.click('.tab[data-tab="practice"]');
+await page.evaluate(() => { window.__nextTranscript = 'anything'; });
+await page.click('#practiceMic');
+await page.waitForFunction(() => window.__lastLang !== null);
+check('the recognizer is asked for Australian English by default',
+  (await page.evaluate(() => window.__lastLang)) === 'en-AU',
+  await page.evaluate(() => window.__lastLang));
+
+// Changing it in Word Bank takes effect on the next tap, without a reload.
+await page.click('.tab[data-tab="bank"]');
+await page.selectOption('#speechLang', 'en-GB');
+check('the accent note reflects the change',
+  (await page.locator('#speechLangNote').textContent()).includes('en-GB'));
+await page.click('.tab[data-tab="practice"]');
+await page.evaluate(() => { window.__lastLang = null; window.__nextTranscript = 'anything'; });
+await page.click('#practiceMic');
+await page.waitForFunction(() => window.__lastLang !== null);
+check('a changed accent applies to the next listen, with no reload',
+  (await page.evaluate(() => window.__lastLang)) === 'en-GB',
+  await page.evaluate(() => window.__lastLang));
+await page.click('.tab[data-tab="bank"]');
+await page.selectOption('#speechLang', 'en-AU');
+
+// Error codes reach the mic label.
+await page.click('.tab[data-tab="practice"]');
+async function micError(code) {
+  await page.evaluate((c) => { window.__nextError = c; }, code);
+  await page.click('#practiceMic');
+  await page.waitForFunction(
+    () => !document.getElementById('practiceMicLabel').textContent.includes('Listening')
+  );
+  return (await page.locator('#practiceMicLabel').textContent()).trim();
+}
+const noSpeech = await micError('no-speech');
+check('a recognizer error names its code on the mic label',
+  noSpeech.includes('(no-speech)') && noSpeech.includes("Didn't hear anything"), noSpeech);
+
+const blocked = await micError('not-allowed');
+check('a permission failure says so, and does not suggest retrying',
+  blocked.includes('(not-allowed)') && blocked.includes('permission is blocked') &&
+  !blocked.includes('tap to try again'), blocked);
+
+const unsupported = await micError('language-not-supported');
+check('an unsupported language names the language and where to change it',
+  unsupported.includes('en-AU') && unsupported.includes('(language-not-supported)') &&
+  unsupported.includes('Word Bank'), unsupported);
+
+const aborted = await micError('aborted');
+check('a cancelled listen is not reported as a failure', aborted === 'Tap to listen', aborted);
+
+await page.evaluate(() => { window.__nextError = null; });
+await page.click('.tab[data-tab="bank"]');
+
 // ---- Export / import round trip, through the real file ----
 // Not a state round trip: the actual Blob the Export button produces, fed back
 // through the actual file input. A restore that silently dropped a field would
@@ -301,7 +361,7 @@ const exportPath = await download.path();
 const exported = JSON.parse(readFileSync(exportPath, 'utf8'));
 check('export carries every synced field',
   ['word_bank', 'verified_words', 'confirm_counts', 'sentence_progress',
-   'reading_passage', 'reading_progress', 'phonic_bank']
+   'reading_passage', 'reading_progress', 'phonic_bank', 'speech_lang']
     .every((f) => f in exported),
   Object.keys(exported).join(', '));
 check('export carries the recorded pronunciations',

@@ -1,4 +1,4 @@
-import { MASTERY_THRESHOLD } from '../config.js';
+import { MASTERY_THRESHOLD, SPEECH_LANGS } from '../config.js';
 import { normalize, parsePassage } from '../lib/text.js';
 import { state, save, onRender, renderAll } from '../lib/store.js';
 import { getBankEntry } from '../lib/wordbank.js';
@@ -251,6 +251,21 @@ export function renderPhonicList() {
   });
 }
 
+// ---------- Her accent ----------
+
+export function renderSpeechLang() {
+  const select = document.getElementById('speechLang');
+  if (!select) return;
+  if (!select.options.length) {
+    SPEECH_LANGS.forEach(({ code, label }) => {
+      select.appendChild(new Option(label + '  ·  ' + code, code));
+    });
+  }
+  select.value = state.speechLang;
+  document.getElementById('speechLangNote').textContent =
+    'Listening for ' + state.speechLang + ', and reading words out in the same accent.';
+}
+
 // ---------- Import / export ----------
 
 function exportBank() {
@@ -261,7 +276,8 @@ function exportBank() {
     sentence_progress: state.sentenceProgress,
     reading_passage: state.readingPassage,
     reading_progress: state.readingProgress,
-    phonic_bank: state.phonicBank
+    phonic_bank: state.phonicBank,
+    speech_lang: state.speechLang
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -311,6 +327,10 @@ function importBank(file) {
     if (data.phonic_bank) {
       state.phonicBank = { ...state.phonicBank, ...data.phonic_bank };
       save('phonic_bank', state.phonicBank);
+    }
+    if (data.speech_lang && SPEECH_LANGS.some((l) => l.code === data.speech_lang)) {
+      state.speechLang = data.speech_lang;
+      save('speech_lang', state.speechLang);
     }
     buildQueue();
     renderAll();
@@ -363,6 +383,12 @@ export function initBank() {
     renderAll();
   });
 
+  document.getElementById('speechLang').addEventListener('change', (e) => {
+    state.speechLang = e.target.value;
+    save('speech_lang', state.speechLang);
+    renderAll();
+  });
+
   document.getElementById('exportBtn').addEventListener('click', exportBank);
 
   document.getElementById('importFile').addEventListener('change', (e) => {
@@ -374,4 +400,5 @@ export function initBank() {
   onRender(renderBankList);
   onRender(renderAttemptLog);
   onRender(renderPhonicList);
+  onRender(renderSpeechLang);
 }

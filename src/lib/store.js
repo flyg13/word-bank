@@ -1,3 +1,5 @@
+import { DEFAULT_SPEECH_LANG } from '../config.js';
+
 /**
  * All synced app state in one place. Feature modules read from and write to
  * this object directly (as the original single-file script did with its
@@ -17,6 +19,7 @@ export const state = {
   readingIndex: 0,
   attemptLog: {},
   phonicBank: {},
+  speechLang: DEFAULT_SPEECH_LANG,
 
   // Local only — not persisted
   practiceQueue: [],
