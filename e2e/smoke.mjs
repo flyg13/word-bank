@@ -706,12 +706,37 @@ check('but it still has an accessible name',
   (await giraffe.getAttribute('aria-label')) === 'Speech-To-Text');
 
 const geometry = await page.evaluate(() => {
+  const bar = document.querySelector('.tabs').getBoundingClientRect();
   const g = document.querySelector('.tab-giraffe').getBoundingClientRect();
-  const t = document.querySelector('.tab[data-tab="practice"]').getBoundingClientRect();
-  return { ratio: g.height / t.height, centred: Math.abs((g.top + g.height / 2) - (t.top + t.height / 2)) < 1 };
+  const labelled = [...document.querySelectorAll('.tab:not(.tab-giraffe)')].map((t) => t.getBoundingClientRect());
+  const t = labelled[0];
+  return {
+    ratio: g.height / t.height,
+    centred: Math.abs((g.top + g.height / 2) - (t.top + t.height / 2)) < 1,
+    circle: Math.round(g.width) === Math.round(g.height),
+    atFarLeft: Math.round(g.left - bar.left) === 0,
+    tabsRightJustified: Math.round(bar.right - labelled[labelled.length - 1].right) <= 1,
+    // The group gap between Reading and Corrections survives the reflow.
+    groupGap: Math.round(labelled[3].left - labelled[2].right)
+  };
 });
-check('it is twice the height of the tabs and centred against them',
-  geometry.ratio === 2 && geometry.centred, JSON.stringify(geometry));
+check('it is a circle, twice the height of the tabs and centred against them',
+  geometry.ratio === 2 && geometry.centred && geometry.circle, JSON.stringify(geometry));
+check('it leads the row, with the five tabs right-justified beside it',
+  geometry.atFarLeft && geometry.tabsRightJustified, JSON.stringify(geometry));
+check('and the group gap between Reading and Corrections is kept',
+  geometry.groupGap === 26, String(geometry.groupGap));
+
+// The ring is a masked pseudo-element, so the inside of the circle is genuinely
+// transparent when she is elsewhere rather than painted the background colour.
+const ringIdle = await page.evaluate(() => {
+  const el = document.querySelector('.tab-giraffe');
+  const ring = getComputedStyle(el, '::before');
+  return { ringIsGradient: ring.backgroundImage.includes('gradient'),
+           noFill: getComputedStyle(el).backgroundImage === 'none' };
+});
+check('unselected, the ring is the gradient and nothing fills the circle',
+  ringIdle.ringIsGradient && ringIdle.noFill, JSON.stringify(ringIdle));
 
 check('the wing flaps at the brand beat while she is elsewhere',
   await page.locator('.fg-wing').evaluate((el) => {
@@ -724,14 +749,17 @@ await page.waitForTimeout(300);
 check('tapping the giraffe opens Speech-To-Text', await page.locator('#tab-write').isVisible());
 const selected = await page.evaluate(() => {
   const el = document.querySelector('.tab-giraffe');
+  const ring = getComputedStyle(el, '::before');
   return {
-    gradient: getComputedStyle(el).backgroundImage !== 'none',
-    ring: getComputedStyle(el).boxShadow.includes('inset'),
+    fill: getComputedStyle(el).backgroundImage.includes('gradient'),
+    ringInk: ring.backgroundColor === 'rgb(36, 31, 27)' || ring.backgroundImage === 'none',
+    ringColour: ring.backgroundColor,
     wing: getComputedStyle(document.querySelector('.fg-wing')).animationName
   };
 });
-check('and once she is there it settles onto the gradient and stops flapping',
-  selected.gradient && selected.ring && selected.wing === 'none', JSON.stringify(selected));
+check('selected, the gradient moves to the fill, the ring turns ink, and it settles',
+  selected.fill && selected.ringColour === 'rgb(36, 31, 27)' && selected.wing === 'none',
+  JSON.stringify(selected));
 
 check('while the other five still fill with ink when selected',
   await page.evaluate(async () => {

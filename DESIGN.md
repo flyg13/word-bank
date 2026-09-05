@@ -99,10 +99,16 @@ The worksheet generator is linear; it never needed tabs. The closest pattern in 
 Restructure into the groups agreed with the parent:
 
 ```
-[ Practice ] [ Sentences ] [ Reading ]      🦒        [ Corrections ] [ Word Bank ]
- ─── build the bank ───                   use it       teach it        the brain
-     mint #EDF6EE                                      peach #FDF1E9   orange #FAE0C9
+ 🦒                    [ Practice ] [ Sentences ] [ Reading ]   [ Corrections ] [ Word Bank ]
+use it                  ─── build the bank ───                  teach it        the brain
+                            mint #EDF6EE                        peach #FDF1E9   orange #FAE0C9
 ```
+
+**The giraffe leads the row; the five tabs are right-justified beside it
+(parent's decision).** The giraffe is the primary action and gets the primary
+position; the tabs are the tools sitting beside it. Most future users will use
+the giraffe and little else. The group gap between Reading and Corrections is
+kept, so the two text groups still read as two.
 
 **The row sits on one line at iPad width (parent's decision).** Tab labels drop
 to 15px and padding tightens to 11px to get there; both are recorded as
@@ -119,13 +125,24 @@ mockups' year selector.
 
 ### The giraffe (parent's decision)
 
-**Speech-To-Text is not a labelled tab. It is the flying giraffe**, sitting where
-that tab was, at twice the height of the tabs and vertically centred on them.
+**Speech-To-Text is not a labelled tab. It is the flying giraffe in a circle**,
+leading the row, at twice the height of the tabs and vertically centred on them.
+The circle is the button.
 
 *Why:* every other tab is an input — say a word, read a sentence, teach a
 correction, look something up. The giraffe is the **result**: the thing all of
 that was for. And "tap the giraffe" is something a nine-year-old learns in one
 go and never needs told twice.
+
+**The ring (parent's decision).** Thin, and it carries the state:
+
+| | ring | fill |
+|---|---|---|
+| Not selected | holographic gradient | none — the circle is genuinely transparent |
+| Selected | ink | holographic gradient |
+
+Drawn as a masked pseudo-element rather than a border, so "no fill" means no
+fill rather than the circle being painted the background colour.
 
 - `giraffe-body.png` and `giraffe-wing.png` are layered on one canvas (both
   840×940 in source, so `inset:0` aligns them), which is what lets the wing move
@@ -138,7 +155,14 @@ go and never needs told twice.
   the ring is what marks it selected; the gradient is what makes it the tab it
   is.
 - `prefers-reduced-motion` stops the flap.
-- Its accessible name is `Speech-To-Text` via `aria-label`. No visible text.
+
+**No visible text label (parent's decision, to be revisited if it proves a
+problem in use).** The accessible name `Speech-To-Text` is carried by
+`aria-label`, so screen readers announce it; sighted users get the mark alone.
+The reasoning is that the flying giraffe is being established across all Flying
+Giraffe products as the mark for *the tool that creates the outcome* — so it
+should be learned as a mark, not propped up by a caption in one product. If real
+use shows it isn't being found, a label is the obvious first thing to try.
 
 On narrow screens the bar scrolls horizontally; the selected tab is always brought into view.
 
