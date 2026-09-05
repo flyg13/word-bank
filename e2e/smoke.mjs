@@ -438,6 +438,82 @@ check('a cancelled listen is not reported as a failure', aborted === 'Tap to lis
 await page.evaluate(() => { window.__nextError = null; });
 await page.click('.tab[data-tab="bank"]');
 
+// ---- Reaching a specific word, and focusing the queue ----
+
+await page.click('.tab[data-tab="bank"]');
+await page.fill('#phonicWord', 'flobber');
+await page.fill('#phonicSpelling', 'flibber');
+await page.click('#phonicAddBtn');
+await page.waitForFunction(() =>
+  [...document.querySelectorAll('.phonic-row')].some((r) => r.textContent.includes('flobber')));
+
+await page.locator('.phonic-row', { hasText: 'flobber' })
+  .locator('button', { hasText: 'Practice this word' }).click();
+check('"Practice this word" jumps straight to that word',
+  (await page.locator('#targetWord').textContent()).trim() === 'flobber' &&
+  (await page.locator('#tab-practice').isVisible()),
+  (await page.locator('#targetWord').textContent()).trim());
+
+check('the focus toggle says how many words it would cover',
+  /\(\d+ words?\)/.test(await page.locator('#focusCount').textContent()),
+  await page.locator('#focusCount').textContent());
+
+await page.check('#focusToggle');
+await page.waitForTimeout(100);
+const focusSeen = new Set();
+for (let i = 0; i < 8; i++) {
+  focusSeen.add((await page.locator('#targetWord').textContent()).trim());
+  await page.click('#skipWord');
+}
+const focusCount = Number((await page.locator('#focusCount').textContent()).match(/\d+/)[0]);
+check('focus mode limits the queue to her own words',
+  focusSeen.size <= focusCount && focusSeen.has('flobber'),
+  [...focusSeen].join(', '));
+
+await page.uncheck('#focusToggle');
+await page.waitForTimeout(100);
+check('turning it off restores the full queue',
+  (await page.locator('#practiceMic').isVisible()));
+
+// ---- Free Write: pronunciations as suggestions, never applied ----
+
+await page.click('.tab[data-tab="write"]');
+await page.fill('#rawInput', 'the flibber and the yo yo');
+await page.dispatchEvent('#rawInput', 'input');
+await page.waitForFunction(() => document.querySelectorAll('#correctedOutput .wtok').length > 0);
+
+const suggested = await page.locator('#correctedOutput .wtok.suggest').allTextContents();
+check('a strong pronunciation suggests what a loose word probably was',
+  suggested.length === 1 && suggested[0] === 'flibber', JSON.stringify(suggested));
+check('and it is offered, not applied',
+  (await page.locator('#correctedOutput').textContent()).includes('flibber') &&
+  !(await page.locator('#correctedOutput').textContent()).includes('flobber'));
+check('a loose pronunciation stays out of Free Write entirely',
+  !suggested.includes('yo') && !suggested.includes('yeyo'));
+
+// Accepting is one sighting, not an instant correction.
+await page.locator('#correctedOutput .wtok.suggest').first().click();
+await page.waitForFunction(() => document.getElementById('writeNote').textContent.trim() !== '');
+check('accepting once records a sighting without applying it',
+  (await page.locator('#writeNote').textContent()).includes('One more sighting') &&
+  (await page.locator('#correctedOutput .wtok.suggest').count()) === 1,
+  await page.locator('#writeNote').textContent());
+
+await page.locator('#correctedOutput .wtok.suggest').first().click();
+await page.waitForFunction(() =>
+  document.getElementById('writeNote').textContent.includes('Confirmed'));
+check('the second sighting confirms it, and then it applies',
+  (await page.locator('#correctedOutput .wtok.fixed').allTextContents()).includes('flobber') &&
+  (await page.locator('#correctedOutput .wtok.suggest').count()) === 0);
+
+await page.click('.tab[data-tab="bank"]');
+// Scoped to this row: other entries in the list are legitimately still pending.
+const flibberRow = page.locator('#bankList .bank-row', { hasText: 'flibber' });
+const flibberText = (await flibberRow.count()) ? await flibberRow.first().innerText() : '(no row)';
+check('and it reached the word bank as a confirmed correction',
+  flibberText.includes('flobber') && !flibberText.includes('needs confirming'),
+  flibberText.replace(/\s+/g, ' '));
+
 // ---- Export / import round trip, through the real file ----
 // Not a state round trip: the actual Blob the Export button produces, fed back
 // through the actual file input. A restore that silently dropped a field would

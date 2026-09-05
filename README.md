@@ -147,6 +147,24 @@ unsupported choice surfaces on the mic button as
 than failing silently — every recognizer error code reaches that label, since on
 a device that isn't in front of you it is the only diagnostic there is.
 
+### Reaching a particular word
+
+The practice queue is shuffled and Skip is the only way through it, so without
+help, reaching one word means tapping past everything in front of it. Two ways
+round that:
+
+- **"Practice this word"** on any entry in "How she says her words" sends the
+  queue straight there. The word is pinned, so a background sync cannot pull it
+  away — `reconcileQueue` drops mastered words, and a word worth revisiting is
+  often already mastered.
+- **"Focus on her words"** in Practice limits the queue to words she has a
+  pronunciation or a correction for, pending corrections included, since those
+  are precisely the ones still needing work. Words outside the built-in list
+  count — a correction from her homework is exactly what is worth drilling.
+
+The toggle is local, not synced: it is "what am I working on right now", and one
+device forcing it on another would be surprising.
+
 ### Recording how she says a word
 
 Two ways in, both gated identically by `alreadyRecognised(word, heard)` — the
@@ -203,14 +221,20 @@ is never applied silently:
 | | Practice | Sentences / Reading | Free Write |
 |---|---|---|---|
 | Exact text, active correction | advances automatically | counts as a match | applied |
-| Sounds like how she says it | amber, one tap to confirm | amber, not a clean read | not applied |
+| Sounds like how she says it | amber, one tap to confirm | amber, not a clean read | amber, one tap to accept |
 
 Confirming a phonetic hit banks the exact text as a *pending* correction, so the
 precise text still needs two sightings before it is trusted on its own. The
 phonetic layer accelerates that accumulation; it never replaces it.
 
-Free Write is deliberately unchanged: with no expected word there is nothing to
-scope against, and an unscoped rewrite is exactly the collision hazard above.
+Free Write is the one place with no expected word to scope against, so it gets
+the narrowest version: a suggestion, never a rewrite. Two guards make that safe,
+both in `suggestFromSound`. Spellings flagged as loose are excluded entirely —
+unscoped, a key like `A` would underline half a sentence. And if two different
+words would both fit, nothing is suggested, because picking one silently is a
+guess presented as knowledge. Accepting is one sighting, so the same
+pending-then-active path applies: tap once and it is noted, tap again and it
+starts applying on its own.
 
 ## Deployment
 

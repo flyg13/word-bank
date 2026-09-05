@@ -17,8 +17,8 @@
 // data in it from needing a migration.
 
 import { normalize } from './text.js';
-import { phoneticKeys, soundsAlike } from './phonetics.js';
-import { wordsMatch } from './wordbank.js';
+import { phoneticKeys, soundsAlike, isWeakSpelling } from './phonetics.js';
+import { wordsMatch, getBankEntry } from './wordbank.js';
 import { state } from './store.js';
 
 /**
@@ -130,6 +130,62 @@ export function soundsLikeHerWord(expectedWord, heardText) {
   const entry = getPhonicEntry(expectedWord);
   if (!entry || !heardText) return false;
   return entry.spellings.some((spelling) => soundsAlike(spelling, heardText));
+}
+
+/**
+ * Every word she has either a recorded pronunciation or a correction for.
+ *
+ * Includes pending corrections as well as active ones: a correction that has
+ * been seen once but not confirmed is precisely a word still needing work.
+ * Words here need not be in the built-in practice list — a correction for a
+ * word from her homework is exactly the kind of thing worth drilling.
+ *
+ * @returns {string[]} display forms, deduped by normalised key
+ */
+export function focusWords() {
+  const seen = new Map();
+  const remember = (word) => {
+    const key = normalize(word);
+    if (key && !seen.has(key)) seen.set(key, word);
+  };
+
+  phonicEntries().forEach(([, entry]) => remember(entry.word));
+  Object.keys(state.wordBank).forEach((heard) => {
+    const entry = getBankEntry(heard);
+    if (entry) remember(entry.correct);
+  });
+
+  return [...seen.values()];
+}
+
+/**
+ * What a loose word in Free Write probably was, or null.
+ *
+ * Free Write has no expected word to scope against, which is why phonetics is
+ * kept out of the matching there entirely. This is the one narrow exception,
+ * and it is a suggestion the parent taps to accept — never applied on its own:
+ *
+ *  - Spellings flagged as loose are excluded. A key like "A" collides with
+ *    ordinary speech, and unscoped it would underline half a sentence.
+ *  - If two different words match, nothing is suggested. Picking one silently
+ *    would be a guess presented as knowledge.
+ *
+ * @returns {string|null} the word it probably was
+ */
+export function suggestFromSound(heardWord) {
+  const key = normalize(heardWord);
+  if (!key) return null;
+
+  const matches = new Map();
+  phonicEntries().forEach(([, entry]) => {
+    if (normalize(entry.word) === key) return; // already that word
+    const trustworthy = entry.spellings.filter((s) => !isWeakSpelling(s));
+    if (trustworthy.some((spelling) => soundsAlike(spelling, heardWord))) {
+      matches.set(normalize(entry.word), entry.word);
+    }
+  });
+
+  return matches.size === 1 ? [...matches.values()][0] : null;
 }
 
 /**

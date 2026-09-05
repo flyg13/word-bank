@@ -118,9 +118,14 @@ against the real 355-word list, that is not safe: 70 key groups collide, `AT`
 covers nine practice words, and the one-character `A` — which is what "yeyo"
 keys to — also covers you/we/way/who and the bare words a, i, oh, e. So the
 question asked is always "does this sound like how she says the word I already
-asked her for", which keeps the collision surface to a single entry. The
-consequence is that Free Write gets no phonetic behaviour, since it has no
-expected word to scope against.
+asked her for", which keeps the collision surface to a single entry.
+
+Free Write, having no expected word, was initially left with no phonetic
+behaviour at all. It now has the narrowest possible version, added after iPad
+testing: a suggestion underlined in amber that one tap accepts, never a rewrite.
+Loose spellings are excluded, and an ambiguous match suggests nothing. Accepting
+counts as one sighting, so it feeds the same pending-then-active path rather
+than bypassing it.
 
 **The confidence buffer is stronger than requested.** A phonetic hit never
 auto-advances and never auto-activates: it shows amber with a one-tap confirm,

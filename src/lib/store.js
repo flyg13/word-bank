@@ -23,6 +23,14 @@ export const state = {
 
   // Local only — not persisted
   practiceQueue: [],
+  // Limits the queue to words she has a pronunciation or a correction for.
+  // Deliberately not synced: it is "what am I working on right now", not a
+  // family setting, and one device forcing it on another would be surprising.
+  focusMode: false,
+  // A word sent to the front of the queue from Word Bank. Held separately so a
+  // background snapshot cannot strip it — reconcileQueue drops mastered words,
+  // and a word worth revisiting is quite often already mastered.
+  pinnedWord: null,
   sessionActive: false,
   sessionAttempted: 0,
   sessionMasteredStart: 0

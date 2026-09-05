@@ -3,7 +3,12 @@ import { PRACTICE_WORDS } from '../data/practice-words.js';
 import { normalize, shuffle } from '../lib/text.js';
 import { state, save, onRender, renderAll } from '../lib/store.js';
 import { getBankEntry, recordBankObservation } from '../lib/wordbank.js';
-import { soundsLikeHerWord, addSpelling, alreadyRecognised } from '../lib/phonicbank.js';
+import {
+  soundsLikeHerWord,
+  addSpelling,
+  alreadyRecognised,
+  focusWords
+} from '../lib/phonicbank.js';
 import { isWeakSpelling, phoneticKeys } from '../lib/phonetics.js';
 import { speak } from '../lib/speech.js';
 import { bindMic, MIC_IDLE } from './mic.js';
@@ -12,9 +17,46 @@ import { countAttempt, renderSession } from './session.js';
 
 // ---------- Queue ----------
 
+/**
+ * The words eligible for practice: everything built in, or — in focus mode —
+ * only the words she has a pronunciation or a correction for.
+ */
+export function candidateWords() {
+  return state.focusMode ? focusWords() : PRACTICE_WORDS;
+}
+
 export function buildQueue() {
   const mastered = new Set(state.verifiedWords.map(normalize));
-  state.practiceQueue = shuffle(PRACTICE_WORDS.filter((w) => !mastered.has(normalize(w))));
+  state.practiceQueue = shuffle(candidateWords().filter((w) => !mastered.has(normalize(w))));
+  restorePinned();
+}
+
+/**
+ * Send Practice straight to one word, from Word Bank. Without this the queue is
+ * shuffled and Skip is the only way through it, so reaching a particular word
+ * means tapping past everything in front of it.
+ */
+export function practiceWord(word) {
+  state.pinnedWord = word;
+  state.practiceQueue = [
+    word,
+    ...state.practiceQueue.filter((w) => normalize(w) !== normalize(word))
+  ];
+}
+
+/** Put the pinned word back at the front if a rebuild or reconcile lost it. */
+function restorePinned() {
+  const pinned = state.pinnedWord;
+  if (!pinned) return;
+  if (state.practiceQueue.some((w) => normalize(w) === normalize(pinned))) return;
+  state.practiceQueue.unshift(pinned);
+}
+
+/** Once she has actually attempted or skipped past it, it is no longer pinned. */
+function releasePinned(word) {
+  if (state.pinnedWord && normalize(state.pinnedWord) === normalize(word)) {
+    state.pinnedWord = null;
+  }
 }
 
 /**
@@ -26,12 +68,16 @@ export function buildQueue() {
  */
 export function reconcileQueue() {
   const mastered = new Set(state.verifiedWords.map(normalize));
-  state.practiceQueue = state.practiceQueue.filter((w) => !mastered.has(normalize(w)));
+  const eligible = new Set(candidateWords().map(normalize));
+  state.practiceQueue = state.practiceQueue.filter(
+    (w) => !mastered.has(normalize(w)) && eligible.has(normalize(w))
+  );
   const queued = new Set(state.practiceQueue.map(normalize));
-  PRACTICE_WORDS.forEach((w) => {
+  candidateWords().forEach((w) => {
     const key = normalize(w);
     if (!mastered.has(key) && !queued.has(key)) state.practiceQueue.push(w);
   });
+  restorePinned();
 }
 
 // ---------- Attempt log ----------
@@ -79,12 +125,30 @@ export function clearHeard() {
   document.getElementById('heardBox').classList.remove('show');
 }
 
+export function renderFocusToggle() {
+  const toggle = document.getElementById('focusToggle');
+  if (!toggle) return;
+  toggle.checked = state.focusMode;
+  const available = focusWords().length;
+  document.getElementById('focusCount').textContent = available
+    ? '(' + available + (available === 1 ? ' word)' : ' words)')
+    : '(none yet)';
+}
+
 export function renderPracticeWord() {
   if (state.practiceQueue.length === 0) {
-    document.getElementById('targetWord').textContent = '🎉 All done!';
+    const empty = state.focusMode
+      ? {
+          word: 'Nothing to focus on',
+          note: candidateWords().length
+            ? 'Every word with a pronunciation or a correction is mastered.'
+            : 'No words have a pronunciation or a correction yet.'
+        }
+      : { word: '🎉 All done!', note: 'Every word has been mastered.' };
+    document.getElementById('targetWord').textContent = empty.word;
     document.getElementById('practiceMic').style.display = 'none';
     document.getElementById('speakWordBtn').style.display = 'none';
-    document.getElementById('practiceMicLabel').textContent = 'Every word has been mastered.';
+    document.getElementById('practiceMicLabel').textContent = empty.note;
     document.getElementById('repeatDots').innerHTML = '';
     return;
   }
@@ -100,6 +164,7 @@ export function renderPracticeWord() {
 // ---------- Attempt handling ----------
 
 function registerConfirm(word) {
+  releasePinned(word);
   const key = normalize(word);
   state.confirmCounts[key] = (state.confirmCounts[key] || 0) + 1;
   countAttempt();
@@ -202,6 +267,7 @@ function handlePracticeResult(heard) {
   skipBtn.className = 'btn btn-outline';
   skipBtn.textContent = 'Skip';
   skipBtn.onclick = () => {
+    releasePinned(state.practiceQueue[0]);
     state.practiceQueue.push(state.practiceQueue.shift());
     clearHeard();
     closePhonicQuick();
@@ -274,8 +340,18 @@ export function initPractice() {
     onResult: handlePracticeResult
   });
 
+  document.getElementById('focusToggle').addEventListener('change', (e) => {
+    state.focusMode = e.target.checked;
+    state.pinnedWord = null;
+    buildQueue();
+    clearHeard();
+    closePhonicQuick();
+    renderAll();
+  });
+
   document.getElementById('skipWord').addEventListener('click', () => {
     if (state.practiceQueue.length) {
+      releasePinned(state.practiceQueue[0]);
       state.practiceQueue.push(state.practiceQueue.shift());
       clearHeard();
       renderPracticeWord();
@@ -313,4 +389,5 @@ export function initPractice() {
   document.getElementById('phonicQuickCancel').addEventListener('click', closePhonicQuick);
 
   onRender(renderPracticeWord);
+  onRender(renderFocusToggle);
 }

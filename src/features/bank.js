@@ -10,6 +10,8 @@ import {
 } from '../lib/phonicbank.js';
 import { alreadyRecognised } from '../lib/phonicbank.js';
 import { describeWeakSpelling } from '../lib/collisions.js';
+import { practiceWord } from './practice.js';
+import { activateTab } from './tabs.js';
 import { isWeakSpelling, phoneticKeys } from '../lib/phonetics.js';
 import { bindMic } from './mic.js';
 import { buildQueue, attemptKey } from './practice.js';
@@ -217,6 +219,14 @@ export function renderPhonicList() {
     keys.className = 'keys';
     keys.textContent = entry.keys.join(' · ');
     keys.title = 'Double Metaphone keys these spellings produce';
+    const practise = document.createElement('button');
+    practise.className = 'practice-this';
+    practise.textContent = 'Practice this word';
+    practise.onclick = () => {
+      practiceWord(entry.word);
+      activateTab('practice');
+    };
+
     const remove = document.createElement('button');
     remove.className = 'del-btn';
     remove.style.marginLeft = '10px';
@@ -226,7 +236,7 @@ export function renderPhonicList() {
       save('phonic_bank', state.phonicBank);
       renderAll();
     };
-    right.append(keys, remove);
+    right.append(keys, practise, remove);
     head.append(word, right);
     row.appendChild(head);
 

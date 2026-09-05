@@ -44,6 +44,11 @@
         </div>
       </div>
       <div id="sessionSummary" class="session-summary" style="display:none;"></div>
+      <label class="focus-toggle">
+        <input type="checkbox" id="focusToggle">
+        <span>Focus on her words</span>
+        <span class="focus-count" id="focusCount"></span>
+      </label>
     </div>
 
     <div class="card practice-word">
@@ -165,6 +170,7 @@
 
       <div class="output-label">Corrected — tap any word to fix it</div>
       <div id="correctedOutput"><span style="color:var(--ink-dim);">Nothing here yet.</span></div>
+      <div class="write-note" id="writeNote"></div>
 
       <div class="fix-panel" id="fixPanel">
         <div class="output-label" style="margin-top:0;">Fixing: <span id="fixingWord" style="color:var(--ink);"></span></div>
