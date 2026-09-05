@@ -8,6 +8,23 @@
 </head>
 <body>
 
+  <!-- Shown only until a family code exists. DESIGN.md §5: no mascot — that is
+       a waiting-state device and nothing here is waiting. -->
+  <div class="entry" id="entryScreen" hidden>
+    <form class="entry-card" id="entryForm">
+      <img class="entry-coin" src="/flying-giraffe-coin.png" alt="" width="104" height="104">
+      <p class="wordmark">Flying Giraffe</p>
+      <h1 class="entry-title">Word Bank</h1>
+      <label class="entry-label" for="entryCode">Family code</label>
+      <input type="text" id="entryCode" name="code" autocomplete="off"
+             autocapitalize="none" autocorrect="off" spellcheck="false"
+             placeholder="e.g. harlie-home">
+      <p class="entry-error" id="entryError" role="alert"></p>
+      <button class="btn btn-primary entry-go" type="submit" id="entryContinue">Continue</button>
+      <p class="entry-meta">Type the same code on every device she uses. Your code is the only key to her data &mdash; keep it private.</p>
+    </form>
+  </div>
+
   <header class="app-head">
     <img class="coin" src="/flying-giraffe-coin.png" alt="" width="44" height="44">
     <div class="app-head-text">
@@ -67,10 +84,10 @@
       <div class="hint">Say the word after you hear it</div>
       <div class="repeat-dots" id="repeatDots"></div>
 
-      <button class="mic-btn" id="practiceMic" aria-label="Tap to listen">
+      <button class="mic-btn" id="practiceMic" aria-label="Tap to record">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
       </button>
-      <div class="mic-label" id="practiceMicLabel">Tap to listen</div>
+      <div class="mic-label" id="practiceMicLabel">Tap to record</div>
 
       <div class="heard-box" id="heardBox">
         <div class="eyebrow">Heard</div>
@@ -108,10 +125,10 @@
       </div>
       <div class="clean-dots" id="cleanDots"></div>
 
-      <button class="mic-btn" id="sentenceMic" aria-label="Tap to listen">
+      <button class="mic-btn" id="sentenceMic" aria-label="Tap to record">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
       </button>
-      <div class="mic-label" id="sentenceMicLabel">Tap to listen</div>
+      <div class="mic-label" id="sentenceMicLabel">Tap to record</div>
 
       <div class="eyebrow">She said &mdash; tap a marked word to fix it</div>
       <div class="read-out" id="sentenceOutput"><span class="empty-note">Nothing yet.</span></div>
@@ -144,10 +161,10 @@
       </div>
       <div class="clean-dots" id="readingCleanDots"></div>
 
-      <button class="mic-btn" id="readingMic" aria-label="Tap to listen">
+      <button class="mic-btn" id="readingMic" aria-label="Tap to record">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
       </button>
-      <div class="mic-label" id="readingMicLabel">Tap to listen</div>
+      <div class="mic-label" id="readingMicLabel">Tap to record</div>
 
       <div class="eyebrow">She said &mdash; tap a marked word to fix it</div>
       <div class="read-out" id="readingOutput"><span class="empty-note">Nothing yet.</span></div>
@@ -169,7 +186,7 @@
       <div class="eyebrow">Say a sentence, or type it here to test corrections</div>
       <textarea id="rawInput" placeholder="Tap the mic, or type here&hellip;"></textarea>
       <div class="centre-row">
-        <button class="mic-btn mic-btn-sm" id="writeMic" aria-label="Tap to listen">
+        <button class="mic-btn mic-btn-sm" id="writeMic" aria-label="Tap to record">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
         </button>
       </div>
@@ -204,7 +221,7 @@
           <svg viewBox="0 0 24 24" class="btn-mic" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
           Hear her say it
         </button>
-        <span class="capture-label" id="phonicMicLabel">Tap to listen</span>
+        <span class="capture-label" id="phonicMicLabel">Tap to record</span>
       </div>
       <p class="capture-hint">The mic records what the app hears. If you&rsquo;d spell it differently yourself, add that spelling too &mdash; both help.</p>
       <div class="phonic-note" id="phonicAddNote"></div>

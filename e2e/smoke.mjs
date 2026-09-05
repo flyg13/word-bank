@@ -71,6 +71,34 @@ page.on('dialog', (d) => d.dismiss());
 
 await page.goto(BASE, { waitUntil: 'networkidle' });
 
+// ---- Entry screen ----
+// It replaces a browser prompt(), so the app is gated behind it on a device
+// with no code stored — which is every preview URL, since each is its own origin.
+check('a device with no family code is met by the entry screen, not a prompt',
+  (await page.locator('#entryScreen').isVisible()) &&
+  (await page.locator('#entryScreen .wordmark').textContent()).trim() === 'Flying Giraffe');
+check('the entry screen carries the coin and the product title',
+  (await page.locator('.entry-coin').isVisible()) &&
+  (await page.locator('.entry-title').textContent()).trim() === 'Word Bank');
+check('and says what the code is for',
+  (await page.locator('.entry-meta').textContent()).includes('only key to her data'));
+
+// A code of pure punctuation normalises to nothing, so it is refused rather
+// than stored empty.
+await page.fill('#entryCode', '!!!');
+await page.click('#entryContinue');
+check('a code that normalises to nothing is refused',
+  (await page.locator('#entryError').textContent()).includes('letters and numbers') &&
+  (await page.locator('#entryScreen').isVisible()));
+
+await page.fill('#entryCode', 'Smoke Test!');
+await page.click('#entryContinue');
+await page.waitForFunction(() => document.getElementById('entryScreen').hidden);
+check('a valid code dismisses it and is normalised the way the prompt did',
+  (await page.evaluate(() => localStorage.getItem('word_bank_family_code'))) === 'smoke-test-');
+check('the app behind it is now usable',
+  await page.locator('.tabs').isVisible());
+
 /**
  * Say something into a sentence/reading mic and wait for THIS result.
  * Clearing first matters: without it, waiting for "some tokens exist" passes
@@ -435,7 +463,7 @@ check('an unsupported language names the language and where to change it',
   unsupported.includes('Word Bank'), unsupported);
 
 const aborted = await micError('aborted');
-check('a cancelled listen is not reported as a failure', aborted === 'Tap to listen', aborted);
+check('a cancelled listen is not reported as a failure', aborted === 'Tap to record', aborted);
 
 await page.evaluate(() => { window.__nextError = null; });
 await page.click('.tab[data-tab="bank"]');
@@ -639,6 +667,52 @@ if (await pendingRow.count()) {
   check('a pending correction is marked by background, border and words together',
     false, 'no pending row present to check');
 }
+
+// Colour reinforces the tab grouping; it must not be the only signal.
+// Tabs and the mic both transition over ~150ms, so let them settle first —
+// otherwise these read an intermediate blend rather than the real colour.
+await page.waitForTimeout(300);
+const tabColours = await page.evaluate(() =>
+  Object.fromEntries([...document.querySelectorAll('.tab')].map((t) => [
+    t.dataset.tab,
+    t.classList.contains('active') ? 'active' : getComputedStyle(t).backgroundImage !== 'none'
+      ? 'gradient' : getComputedStyle(t).backgroundColor
+  ])));
+check('the build-the-bank group shares one wash stop',
+  tabColours.sentences === tabColours.reading, JSON.stringify(tabColours));
+check('Corrections and Word Bank each get their own, all three different',
+  new Set([tabColours.sentences, tabColours.corrections, tabColours.bank]).size === 3,
+  JSON.stringify(tabColours));
+check('Speech-To-Text carries the full holographic gradient',
+  tabColours.write === 'gradient', tabColours.write);
+check('but the grouping still reads without colour, from the spacing',
+  (await page.evaluate(() => {
+    const groups = [...document.querySelectorAll('.tab-group')];
+    const gap = parseFloat(getComputedStyle(groups[0].parentElement).gap);
+    const inner = parseFloat(getComputedStyle(groups[0]).gap);
+    return gap > inner * 2;
+  })));
+
+await page.click('.tab[data-tab="practice"]');
+await page.waitForTimeout(300);
+const micIdle = await page.locator('#practiceMic').evaluate((el) => getComputedStyle(el).backgroundColor);
+await page.evaluate(() => document.getElementById('practiceMic').classList.add('listening'));
+await page.waitForTimeout(300);
+const micRecording = await page.locator('#practiceMic').evaluate((el) => getComputedStyle(el).backgroundColor);
+await page.evaluate(() => document.getElementById('practiceMic').classList.remove('listening'));
+check('the mic is purple waiting and green recording, not the same colour',
+  micIdle === 'rgb(95, 71, 144)' && micRecording === 'rgb(47, 116, 55)',
+  micIdle + ' -> ' + micRecording);
+
+const sessionColours = await page.evaluate(() => ({
+  start: getComputedStyle(document.getElementById('startSessionBtn')).backgroundColor,
+  end: getComputedStyle(document.getElementById('endSessionBtn')).backgroundColor
+}));
+check('start and end session are different brand fills, neither ink nor white',
+  sessionColours.start !== sessionColours.end &&
+  !['rgb(36, 31, 27)', 'rgb(255, 255, 255)'].includes(sessionColours.start) &&
+  !['rgb(36, 31, 27)', 'rgb(255, 255, 255)'].includes(sessionColours.end),
+  JSON.stringify(sessionColours));
 
 check('the coin is present and not stretched', await page.evaluate(() => {
   const img = document.querySelector('.coin');

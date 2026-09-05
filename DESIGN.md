@@ -19,7 +19,19 @@ Text is **Ink** `#241F1B`. Secondary copy **Muted** `#6B6259`. Labels/meta **Qui
 
 **Gold** `#C9A659` is border and fill only, never text. Gold text is `#8A6A1F`. Selected/notice backgrounds use **Gold wash** `#F4EFE2`.
 
-**Holographic wash** (the four-stop gradient at 135°) appears on exactly one Word Bank surface: the family-code entry screen. Nowhere else.
+**Holographic wash** (the four-stop gradient at 135°) backs the family-code
+entry screen. Its four stops — peach `#FDF1E9`, cream `#FBF6E4`, mint `#EDF6EE`,
+lilac `#F0ECF8` — are also used individually to tint the tab groups, and the
+whole gradient fills the Speech-To-Text tab. *Revised after iPad review:* this
+is a child's tool and carries more colour than the worksheet generator it came
+from. Colour reinforces the tab grouping; it never replaces the spacing that
+carries it, and the selected tab stays ink-filled so selection survives
+greyscale.
+
+**Mid-tones for filled buttons.** The wash stops are far too pale to fill a
+button with. Three are derived from them by keeping the hue and raising
+saturation and lightness until white on the result clears 4.5:1 — purple
+`#5F4790` (7.53:1), green `#2F7437` (5.72:1), terracotta `#8D5835` (5.87:1).
 
 ---
 
@@ -47,9 +59,14 @@ Restructure into the groups agreed with the parent:
 ```
 [ Practice ] [ Sentences ] [ Reading ]   [ Speech-To-Text ]   [ Corrections ] [ Word Bank ]
  ─── build the bank ───                    use it              teach it        the brain
+     mint                                  full wash           peach           lilac
 ```
 
-Grouping is carried by **spacing** (a wider gap between groups), optionally reinforced by a quiet 12px eyebrow above each group. Not by colour — the brand rule is "colour never carries meaning alone," and a colour-coded tab bar fails that on its own.
+Grouping is carried by **spacing** (a wider gap between groups) *and* reinforced
+by a wash stop per group. The brand rule is "colour never carries meaning
+alone," which the spacing satisfies: strip the colour and the three groups still
+read. Selection is never carried by colour either — the selected tab is
+ink-filled with white text, exactly as the mockups' year selector.
 
 On narrow screens the bar scrolls horizontally; the selected tab is always brought into view.
 
@@ -61,7 +78,19 @@ On narrow screens the bar scrolls horizontally; the selected tab is always broug
 
 **Header.** Coin at 44px (never recoloured, never cropped, clear space = ¼ diameter) + "Harlie's Word Bank" in Atkinson 700. Sync status as a quiet meta line beneath, same as now but in Quiet grey with a small filled dot in Checked green / Gold / Ink for connected / connecting / error — plus the word, so it survives greyscale.
 
-**The mic button.** This is "the thing you came to do," so it's the screen's one **ink button**: 84px circle, ink fill, white icon. Listening state = a **gold ring** that pulses gently (`cubic-bezier(.4,.05,.6,.95)`, ~1.2s), matching the brand's "happening now" progress-step vocabulary. When the mismatch action row is showing, the mic recedes to Quiet grey so the action row's primary button is the only ink on screen. Honours `prefers-reduced-motion`.
+**The mic button.** This is "the thing you came to do," so it's the screen's one
+filled circle: 84px, white icon. *Revised after iPad review:* **purple `#5F4790`
+when it's waiting, green `#2F7437` while it's recording** — the state is carried
+by the fill, the ring animation and the label together, not by any one of them.
+The ring pulses gently (`cubic-bezier(.4,.05,.6,.95)`, ~1.2s), matching the
+brand's "happening now" progress-step vocabulary.
+
+Its label reads **"Tap to record"**, not "tap to listen" — the app is not the one
+listening, she is the one speaking.
+
+**Session buttons.** Start session is purple; End session is terracotta
+`#8D5835`. A session being under way is signalled by a different colour, not by
+the absence of one. When the mismatch action row is showing, the mic recedes to Quiet grey so the action row's primary button is the only ink on screen. Honours `prefers-reduced-motion`.
 
 **Heard-back result.** Match: the heard word in Andika, then a Checked-green tick icon *and* the word "matched" — icon plus text, never colour alone. Mismatch: rendered inside a **gold notice box** (gold wash, gold border, 12px radius) — the brand's "the thing that will go wrong if ignored" container — with the heard word and the action row beneath.
 
@@ -117,13 +146,20 @@ Unchanged behaviour. Output box white card; auto-applied corrections marked with
 
 ## 7b. As built
 
-Everything above is implemented except the entry screen, and two things came out
-differently once measured.
+Everything above is implemented. Two things came out differently once measured,
+and the entry screen landed on the second pass.
 
-**Deferred: the family-code entry screen (§5).** It is the one item in §5 that is
-not a restyle — replacing `prompt()` means changing `getFamilyCode()` in
-`src/lib/firestore.js` and the boot sequence, which §7 puts out of bounds and the
-brief ruled out. The `prompt()` remains. Worth doing, as its own change.
+**Built (second pass): the family-code entry screen (§5).** Deferred in the first
+pass because §7 put `src/lib/` out of bounds; the constraint was lifted after
+iPad review and it is now in. Storage is untouched — same `word_bank_family_code`
+key, same normalisation — but it moved to `src/lib/family-code.js` so the screen
+can read it without pulling the 527 kB Firebase SDK into the main chunk, which
+importing from `firestore.js` did.
+
+One thing the screen fixes rather than reproduces: `prompt()` accepted "!!!",
+which normalises to "---" and would have pointed sync at `families/---`. A code
+with no letter or digit left in it is now refused. Codes already on a device are
+never re-validated, so nothing existing moves.
 
 **Corrected: gold text on gold wash does not clear 4.5:1.** §6 asserts it does;
 measured, it is 4.39:1, and none of the sizes here qualify as large text. Gold on

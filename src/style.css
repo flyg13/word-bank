@@ -30,6 +30,25 @@
 
   --checked:#3D6B4A;
 
+  /* The holographic wash, and its four stops used individually. This is a
+     child's tool and carries more colour than the worksheet generator it came
+     from: the stops tint the tab groups, and the whole gradient backs both the
+     Speech-To-Text tab and the entry screen. */
+  --wash:linear-gradient(135deg,#FDF1E9 0%,#FBF6E4 28%,#EDF6EE 58%,#F0ECF8 100%);
+  --wash-peach:#FDF1E9;
+  --wash-cream:#FBF6E4;
+  --wash-mint:#EDF6EE;
+  --wash-lilac:#F0ECF8;
+
+  /* Mid-tones derived from those stops by keeping the hue and raising
+     saturation and lightness until they work as a filled button on shell — the
+     stops themselves are far too pale to fill with. White on each clears 4.5:1.
+     purple 7.53, green 5.72, terracotta 5.87. */
+  --purple:#5F4790;
+  --purple-deep:#553C86;
+  --green:#2F7437;
+  --terracotta:#8D5835;
+
   --line:#DCD5CB;
   --card-line:rgba(36,31,27,.10);
   --radius:12px;
@@ -99,7 +118,15 @@ h1{ font-size:25px; font-weight:700; letter-spacing:-.01em; margin:0; }
   white-space:nowrap; user-select:none; transition:background .12s ease, color .12s ease;
 }
 .tab:hover{ border-color:var(--ink); color:var(--ink); }
+/* Selection stays ink-filled: colour reinforces the grouping, it never carries
+   the selected state, which has to survive greyscale on its own. */
 .tab.active{ background:var(--ink); border-color:var(--ink); color:var(--white); }
+
+.tab[data-tab='practice'], .tab[data-tab='sentences'], .tab[data-tab='reading']{ background:var(--wash-mint); }
+.tab[data-tab='corrections']{ background:var(--wash-peach); }
+.tab[data-tab='bank']{ background:var(--wash-lilac); }
+.tab[data-tab='write']{ background:var(--wash); }
+.tab.active[data-tab]{ background:var(--ink); }
 
 /* ---------- Cards ---------- */
 .card{
@@ -125,6 +152,10 @@ h1{ font-size:25px; font-weight:700; letter-spacing:-.01em; margin:0; }
   display:inline-flex; align-items:center; justify-content:center; gap:7px;
 }
 .btn-primary{ background:var(--ink); color:var(--white); border-color:var(--ink); }
+/* Start and end a session: brand-family fills, and clearly different from each
+   other so "running" is not signalled by absence. */
+#startSessionBtn{ background:var(--purple); border-color:var(--purple); color:var(--white); }
+#endSessionBtn{ background:var(--terracotta); border-color:var(--terracotta); color:var(--white); }
 .btn-outline, .btn-ghost{ background:var(--white); border-color:var(--line); color:var(--ink); }
 .btn-outline:hover, .btn-ghost:hover{ border-color:var(--ink); }
 /* Gold outline is reserved for the confirm-again class of action. */
@@ -199,17 +230,19 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
   border-color:var(--gold); box-shadow:0 0 0 2px var(--gold-wash);
 }
 
-/* The mic is "the thing you came to do": the screen's one ink button. */
+/* The mic is "the thing you came to do": the screen's one filled circle.
+   Purple when it is waiting, green while it is recording — the state is carried
+   by colour, the ring animation and the label together. */
 .mic-btn{
   display:block; margin:20px auto 0; width:84px; height:84px; border-radius:50%;
-  background:var(--ink); border:none; cursor:pointer; position:relative;
+  background:var(--purple); border:none; cursor:pointer; position:relative;
   transition:transform .1s ease, background .15s ease;
 }
 .mic-btn svg{ width:33px; height:33px; fill:var(--white); }
 .mic-btn:active{ transform:scale(.97); }
 .mic-btn-sm{ width:60px; height:60px; }
 .mic-btn-sm svg{ width:24px; height:24px; }
-.mic-btn.listening{ animation:ring 1.2s cubic-bezier(.4,.05,.6,.95) infinite; }
+.mic-btn.listening{ background:var(--green); animation:ring 1.2s cubic-bezier(.4,.05,.6,.95) infinite; }
 @keyframes ring{
   0%{ box-shadow:0 0 0 0 rgba(201,166,89,.75); }
   70%{ box-shadow:0 0 0 17px rgba(201,166,89,0); }
@@ -348,3 +381,30 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
 /* The derived Double Metaphone key, shown so the parent can see what a spelling
    produced. Set as a code chip so it does not read as a stray word. */
 .phonic-row .keys{ background:var(--paper); border-radius:4px; padding:2px 6px; }
+
+/* ---------- Entry screen ---------- */
+/* The one surface that carries the full holographic wash, per DESIGN.md §1. */
+.entry{
+  position:fixed; inset:0; z-index:20; background:var(--wash);
+  display:flex; align-items:center; justify-content:center; padding:24px; overflow-y:auto;
+}
+.entry[hidden]{ display:none; }
+.entry-card{
+  background:var(--white); border:1px solid var(--card-line); border-radius:var(--radius);
+  box-shadow:0 8px 26px rgba(36,31,27,.1); padding:34px 28px 28px;
+  width:100%; max-width:400px; text-align:center;
+}
+.entry-coin{ width:104px; height:104px; display:block; margin:0 auto 18px; }
+.wordmark{
+  font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.3em;
+  color:var(--muted); margin:0 0 10px; padding-left:.3em;
+}
+.entry-title{ font-size:27px; font-weight:700; margin:0 0 22px; }
+.entry-label{
+  display:block; text-align:left; font-size:12px; font-weight:700;
+  text-transform:uppercase; letter-spacing:.16em; color:var(--muted); margin-bottom:8px;
+}
+.entry-go{ width:100%; margin-top:14px; }
+.entry-error{ color:var(--terracotta); font-size:13.5px; margin:9px 0 0; text-align:left; min-height:0; }
+.entry-error:empty{ display:none; }
+.entry-meta{ color:var(--muted); font-size:13px; line-height:1.55; margin:18px 0 0; }

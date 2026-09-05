@@ -21,6 +21,7 @@ import { initSentences } from './features/sentences.js';
 import { initReading } from './features/reading.js';
 import { initFreeWrite } from './features/freewrite.js';
 import { initBank } from './features/bank.js';
+import { requireFamilyCode } from './features/entry.js';
 
 let firstSnapshotReceived = false;
 
@@ -58,6 +59,10 @@ async function main() {
   // first snapshot arrives.
   buildQueue();
   renderAll();
+
+  // Ask for the family code before connecting — without one there is no
+  // document to sync with, and the shell behind is already usable.
+  await requireFamilyCode();
 
   // The Firebase SDK is the bulk of the bundle and nothing on screen needs it,
   // so it loads in its own chunk after the shell is up.

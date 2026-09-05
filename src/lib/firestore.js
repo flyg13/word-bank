@@ -2,31 +2,13 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { FIREBASE_CONFIG } from '../config.js';
+import { getStoredFamilyCode } from './family-code.js';
 
 let familyDocRef = null;
 
 /** Whether a real Firebase project has been wired up in src/config.js. */
 export function isFirebaseConfigured() {
   return Boolean(FIREBASE_CONFIG.apiKey) && FIREBASE_CONFIG.apiKey !== 'PASTE_YOUR_API_KEY';
-}
-
-/**
- * The shared "family code" is the whole multi-device story: every device that
- * types the same code reads and writes the same Firestore document.
- */
-export function getFamilyCode() {
-  let code = localStorage.getItem('word_bank_family_code');
-  if (!code) {
-    code = window.prompt(
-      'Set up her shared code (make one up, then type this exact same code on ' +
-        'every device — Mac, iPad, etc). Letters and numbers only:'
-    );
-    if (code) {
-      code = code.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
-      localStorage.setItem('word_bank_family_code', code);
-    }
-  }
-  return code;
 }
 
 /**
@@ -46,7 +28,7 @@ export async function initFirebase(onData, onStatus) {
     await signInAnonymously(getAuth(app));
     const db = getFirestore(app);
 
-    const code = getFamilyCode();
+    const code = getStoredFamilyCode();
     if (!code) {
       onStatus('error', 'No family code set');
       return false;
