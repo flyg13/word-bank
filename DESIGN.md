@@ -45,15 +45,16 @@ Two further pastels extend the family, both **chosen by the parent**: a pastel
 orange `#FAE0C9` a step darker than peach for Word Bank, and a pastel blue
 `#E2EEF8` for Speech-To-Text. Tab labels clear 4.5:1 on both (4.71 and 5.07).
 
-**Filled buttons**, all four **chosen by the parent**, white icon and text on
-each:
+**Filled buttons**, all four **chosen by the parent**. White icon and text on
+the first three; End session is light enough that white fails on it, so it takes
+ink:
 
 | | | white on it |
 |---|---|---|
 | Mic, waiting | `#B5533C` | 4.92:1 |
 | Mic, recording | `#3D6B4A` | 6.18:1 |
 | Start session | `#3D6B4A` | 6.18:1 |
-| End session | `#96453A` | 6.54:1 |
+| End session | `#DE8C42` | *ink*, 6.17:1 |
 
 Recording and Start session are deliberately the same green as **Checked**, so
 "under way" reads the same wherever it appears. The mic's pulsing ring is that
@@ -77,11 +78,12 @@ app doesn't depend on a third-party CDN — a missing font on Harlie's reading
 surface is worse than a slow one.
 
 **Size floor, decided by the parent: 16px, not the brand sheet's 13px.** This
-overrides the brand sheet for this product. Three labels are exempt at 15px —
-the section label, the entry screen's field label and the brand wordmark — and
-the ✓ inside a progress dot is 12px, but that is an icon rather than text.
-Setting inputs at 16px has a second benefit: iOS stops zooming the page when one
-takes focus.
+overrides the brand sheet for this product. Four things are exempt at 15px —
+the section label, the entry screen's field label, the brand wordmark, and
+**the tab labels, so the row fits on one line at iPad width (parent's
+decision)** — and the ✓ inside a progress dot is 12px, but that is an icon
+rather than text. Setting inputs at 16px has a second benefit: iOS stops
+zooming the page when one takes focus.
 
 **Section labels, decided by the parent: sentence case, bold, 15px.** The brand
 sheet's uppercase letter-spaced eyebrow is gone. Same wording, no tracking, no
@@ -97,26 +99,46 @@ The worksheet generator is linear; it never needed tabs. The closest pattern in 
 Restructure into the groups agreed with the parent:
 
 ```
-[ Practice ] [ Sentences ] [ Reading ]   [ Speech-To-Text ]   [ Corrections ] [ Word Bank ]
- ─── build the bank ───                    use it              teach it        the brain
-     mint #EDF6EE                          blue #E2EEF8        peach #FDF1E9   orange #FAE0C9
+[ Practice ] [ Sentences ] [ Reading ]      🦒        [ Corrections ] [ Word Bank ]
+ ─── build the bank ───                   use it       teach it        the brain
+     mint #EDF6EE                                      peach #FDF1E9   orange #FAE0C9
 ```
+
+**The row sits on one line at iPad width (parent's decision).** Tab labels drop
+to 15px and padding tightens to 11px to get there; both are recorded as
+exceptions in §2. It wraps by group on a phone, where six will not fit at any
+size worth reading.
 
 Grouping is carried by **spacing** (a wider gap between groups) *and* reinforced
 by a colour per group, **as decided by the parent**. The brand rule is "colour
 never carries meaning alone," which the spacing satisfies: strip the colour and
 the three groups still read.
 
-**Selection**, for five of the six tabs, is an ink fill with white text — the
-mockups' year selector. **Speech-To-Text is the exception, by the parent's
-decision: selected, it takes the full holographic gradient instead of ink.**
-Because that is light-on-light, background alone cannot carry selection there,
-so it also takes a 2px inset ink ring. The ring is what marks it selected; the
-gradient is what makes it the tab it is.
+**Selection**, for the five labelled tabs, is an ink fill with white text — the
+mockups' year selector.
 
-At 16px the six tabs no longer fit across an iPad, so the bar wraps by group
-rather than clipping or scrolling — the row gap stays smaller than the group gap
-so the grouping still reads across a wrap.
+### The giraffe (parent's decision)
+
+**Speech-To-Text is not a labelled tab. It is the flying giraffe**, sitting where
+that tab was, at twice the height of the tabs and vertically centred on them.
+
+*Why:* every other tab is an input — say a word, read a sentence, teach a
+correction, look something up. The giraffe is the **result**: the thing all of
+that was for. And "tap the giraffe" is something a nine-year-old learns in one
+go and never needs told twice.
+
+- `giraffe-body.png` and `giraffe-wing.png` are layered on one canvas (both
+  840×940 in source, so `inset:0` aligns them), which is what lets the wing move
+  independently.
+- **Not selected: the wing flaps** on the brand's own `fg-flap` keyframe, its
+  `.95s` beat and its `52.4% 38.3%` pivot, all lifted from
+  `docs/worksheet-mockups/` rather than invented.
+- **Selected: it is still**, sitting on the holographic gradient with a 2px
+  inset ink ring. Light-on-light cannot carry selection on background alone, so
+  the ring is what marks it selected; the gradient is what makes it the tab it
+  is.
+- `prefers-reduced-motion` stops the flap.
+- Its accessible name is `Speech-To-Text` via `aria-label`. No visible text.
 
 On narrow screens the bar scrolls horizontally; the selected tab is always brought into view.
 
@@ -138,9 +160,11 @@ brand's "happening now" progress-step vocabulary.
 Its label reads **"Tap to record"**, not "tap to listen" — the app is not the one
 listening, she is the one speaking.
 
-**Session buttons.** Start session is green `#3D6B4A`; End session is
-`#96453A` (parent's colours). A session being under way is signalled by a
-different colour, not by the absence of one. When the mismatch action row is showing, the mic recedes to Quiet grey so the action row's primary button is the only ink on screen. Honours `prefers-reduced-motion`.
+**Session buttons.** Start session is green `#3D6B4A` with white text; End
+session is a mid orange `#DE8C42` **with ink text** — white reaches only 2.65:1
+on it, ink 6.17:1, so it takes ink the same way the brand does on gold wash.
+Both parent's colours. A session being under way is signalled by a different
+colour, not by the absence of one. When the mismatch action row is showing, the mic recedes to Quiet grey so the action row's primary button is the only ink on screen. Honours `prefers-reduced-motion`.
 
 **Heard-back result.** Match: the heard word in Andika, then a Checked-green tick icon *and* the word "matched" — icon plus text, never colour alone. Mismatch: rendered inside a **gold notice box** (gold wash, gold border, 12px radius) — the brand's "the thing that will go wrong if ignored" container — with the heard word and the action row beneath.
 
@@ -160,7 +184,7 @@ different colour, not by the absence of one. When the mismatch action row is sho
 
 ## 5. Screen by screen
 
-**Entry / family code.** Replace the browser `prompt()` with a real screen modelled on the mockup's sign-in page: holographic wash background, centred white card, coin at 104px, "FLYING GIRAFFE" wordmark (12–15px, uppercase, `.26–.34em` tracking), then "Word Bank" as the product title, a single text input for the family code, one ink button "Continue." Meta line beneath: "Your code is the only key to her data. Keep it private." No giraffe mascot here — it's a waiting-state mascot and nothing is waiting.
+**Entry / family code.** Replace the browser `prompt()` with a real screen modelled on the mockup's sign-in page: holographic wash background, centred white card, coin at 104px, "FLYING GIRAFFE" wordmark (12–15px, uppercase, `.26–.34em` tracking), then "Word Bank" as the product title, a single text input for the family code, one ink button "Continue." Meta line beneath: "Your code is the only key to her data. Keep it private." No giraffe on this screen — the coin carries the brand at the door, and the giraffe has its own job in the tab row (§3).
 
 **Practice.** Session bar as a quiet meta row. Target word large in Andika, speaker icon beside it. Repeat dots. Mic. Heard-back result per §4. Skip / reset as text links at the bottom, not buttons.
 
@@ -181,7 +205,7 @@ Unchanged behaviour. Output box white card; auto-applied corrections marked with
 - **No red/green as the only difference.** Match/mismatch, active/pending, connected/error all currently lean on colour. Every one now carries an icon or a word too. (§4.)
 - **Minimum 44px hit height.** The current `.btn-sm` is under that. Raise it.
 - **Minimum 16px text**, raised by the parent from the brand sheet's 13px. See
-  §2 for the three 15px label exceptions.
+  §2 for the four 15px exceptions.
 - **Contrast.** Ink on shell, ink on white, gold-text on gold-wash all clear 4.5:1 per the brand sheet. Verify nothing else was introduced.
 - **Copy.** Say "children with dyslexia," never "struggling learners." No outcome promises ("will fix," "will improve"). No countdowns or time promises. Australian English. The current tagline — "A personal speech-to-text trainer that learns her voice, one correction at a time." — passes.
 
@@ -191,7 +215,11 @@ Unchanged behaviour. Output box white card; auto-applied corrections marked with
 
 - No changes to `src/lib/` logic, the data model, Firestore fields, or the matching/alignment code.
 - All 110 unit tests and 50 browser checks keep passing. If a browser check asserts on a colour or class name that this restyle changes, update the assertion — don't weaken the check.
-- The giraffe mascot is **not used**. The brand reserves it for a waiting state; Word Bank's only true wait (sync connecting) is a second long. Leave it out rather than misuse it.
+- ~~The giraffe mascot is **not used**.~~ **Superseded by the parent.** The
+  original reasoning was that the brand reserves the giraffe for a waiting
+  state, and Word Bank has no real wait. That reading was too narrow: the
+  giraffe is now the Speech-To-Text tab (§3), not a waiting device but a
+  destination — the one place in the app that is a result rather than an input.
 
 ---
 

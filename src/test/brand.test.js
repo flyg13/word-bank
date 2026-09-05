@@ -37,7 +37,7 @@ describe('brand palette', () => {
   // DESIGN.md §6. Every pairing the app actually renders text in.
   it.each([
     ['ink on the Word Bank tab', 'ink', 'wash-orange'],
-    ['ink on the Speech-To-Text tab', 'ink', 'wash-blue'],
+    ['ink on the End session button', 'ink', 'session-end'],
     ['ink on shell', 'ink', 'shell'],
     ['ink on white', 'ink', 'white'],
     ['ink on paper', 'ink', 'paper'],
@@ -48,8 +48,7 @@ describe('brand palette', () => {
     ['muted on gold wash', 'muted', 'gold-wash'],
     ['gold text on white', 'gold-text', 'white'],
     ['checked on white', 'checked', 'white'],
-    ['tab label on the orange stop', 'muted', 'wash-orange'],
-    ['tab label on the blue stop', 'muted', 'wash-blue']
+    ['tab label on the orange stop', 'muted', 'wash-orange']
   ])('%s clears 4.5:1', (_name, fg, bg) => {
     const bgHex = bg === 'white' ? '#FFFFFF' : token(bg);
     expect(contrast(token(fg), bgHex)).toBeGreaterThanOrEqual(4.5);
@@ -68,6 +67,32 @@ describe('brand palette', () => {
     expect(contrast(token('quiet'), token('shell'))).toBeLessThan(4.5);
     const textUses = [...css.matchAll(/color:var\(--quiet\)/g)];
     expect(textUses).toHaveLength(0);
+  });
+});
+
+describe('the giraffe', () => {
+  it('flaps at the brand beat, on the brand pivot, with the brand keyframe', () => {
+    // Lifted from docs/worksheet-mockups/ rather than invented.
+    expect(css).toContain('animation:fg-flap .95s ease-in-out infinite');
+    expect(css).toContain('transform-origin:52.4% 38.3%');
+    expect(css).toContain('35%{ transform:rotate(-34deg) scaleY(.9); }');
+    expect(css).toContain('70%{ transform:rotate(16deg) scaleY(1.04); }');
+  });
+
+  it('is still once Speech-To-Text is the tab she is on', () => {
+    expect(css).toContain('.tab-giraffe.active .fg-wing{ animation:none; }');
+  });
+
+  it('does not flap when reduced motion is asked for', () => {
+    const block = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce){'));
+    expect(block.slice(0, block.indexOf('}'))).toContain('animation:none');
+  });
+
+  it('is twice the height of a tab', () => {
+    const tab = css.slice(css.indexOf('.tab{'));
+    expect(tab.slice(0, tab.indexOf('}'))).toContain('min-height:44px');
+    const giraffe = css.slice(css.indexOf('.tab-giraffe{'));
+    expect(giraffe.slice(0, giraffe.indexOf('}'))).toContain('height:88px');
   });
 });
 
@@ -91,10 +116,19 @@ describe('the filled buttons the parent chose', () => {
   it.each([
     ['mic waiting', 'mic-idle'],
     ['mic recording', 'mic-recording'],
-    ['start session', 'session-start'],
-    ['end session', 'session-end']
+    ['start session', 'session-start']
   ])('%s carries white at 4.5:1 or better', (_name, name) => {
     expect(contrast('#FFFFFF', token(name))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('End session is a mid orange that takes ink, because white fails on it', () => {
+    // Lighter than the brick it replaced, darker than the Word Bank pastel.
+    // White reaches only 2.65:1 there, so the label is ink — the same move the
+    // brand makes on gold wash.
+    expect(contrast('#FFFFFF', token('session-end'))).toBeLessThan(4.5);
+    expect(contrast(token('ink'), token('session-end'))).toBeGreaterThanOrEqual(4.5);
+    const block = css.slice(css.indexOf('#endSessionBtn{'));
+    expect(block.slice(0, block.indexOf('}'))).toContain('color:var(--ink)');
   });
 
   it('changes colour between waiting and recording', () => {
@@ -118,9 +152,11 @@ describe('the 16px readable floor', () => {
     expect(belowFifteen).toEqual([12]);
   });
 
-  it('allows exactly three 15px rules, all of them labels', () => {
-    expect(sizes.filter((s) => s === 15)).toHaveLength(3);
-    ['.eyebrow{', '.wordmark{', '.entry-label{'].forEach((sel) => {
+  it('allows exactly four 15px rules: three labels and the tab', () => {
+    // The tab is the fourth exception, added so the six sit on one line at
+    // iPad width. Parent's decision.
+    expect(sizes.filter((s) => s === 15)).toHaveLength(4);
+    ['.eyebrow{', '.wordmark{', '.entry-label{', '.tab{'].forEach((sel) => {
       const block = css.slice(css.indexOf(sel));
       expect(block.slice(0, block.indexOf('}'))).toContain('font-size:15px');
     });

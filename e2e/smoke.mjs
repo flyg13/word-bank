@@ -638,16 +638,16 @@ const tinyText = await page.evaluate(() => {
     if (el.children.length) return; // leaf nodes only
     const cs = getComputedStyle(el);
     const size = parseFloat(cs.fontSize);
-    // Three documented exceptions, all at 15px: the section label, the entry
-    // screen's field label, and the brand wordmark.
-    const exempt = el.classList.contains('eyebrow') ||
+    // Four documented exceptions, all at 15px: the section label, the entry
+    // screen's field label, the brand wordmark, and the tabs.
+    const exempt = el.classList.contains('eyebrow') || el.classList.contains('tab') ||
       el.classList.contains('entry-label') || el.classList.contains('wordmark');
     if (size < 16 && !exempt) bad.push((el.className || el.tagName) + ' ' + size + 'px');
     if (exempt && size < 15) bad.push((el.className || el.tagName) + ' ' + size + 'px (exempt, still too small)');
   });
   return bad;
 });
-check('nothing renders below 16px, bar the three 15px labels', tinyText.length === 0,
+check('nothing renders below 16px, bar the four 15px exceptions', tinyText.length === 0,
   tinyText.slice(0, 6).join(', '));
 
 check('section labels are sentence case, not all-caps',
@@ -693,19 +693,46 @@ check('the build-the-bank group shares one wash stop',
 check('Corrections and Word Bank each get their own, all three different',
   new Set([tabColours.sentences, tabColours.corrections, tabColours.bank]).size === 3,
   JSON.stringify(tabColours));
-check('Speech-To-Text is a solid pastel when idle, gradient when selected',
-  tabColours.write !== 'gradient' && tabColours.write !== 'active', tabColours.write);
-await page.click('.tab[data-tab="write"]');
+check('the six tabs sit on one row at iPad width',
+  (await page.evaluate(() => new Set([...document.querySelectorAll('.tab')]
+    .map((t) => { const r = t.getBoundingClientRect(); return Math.round(r.top + r.height / 2); })).size)) === 1);
+// Speech-To-Text is the giraffe now, not a labelled tab.
+const giraffe = page.locator('.tab-giraffe');
+check('Speech-To-Text is the giraffe, with no visible label',
+  (await giraffe.count()) === 1 &&
+  (await giraffe.textContent()).trim() === '' &&
+  (await page.locator('.tab[data-tab="write"]').count()) === 1);
+check('but it still has an accessible name',
+  (await giraffe.getAttribute('aria-label')) === 'Speech-To-Text');
+
+const geometry = await page.evaluate(() => {
+  const g = document.querySelector('.tab-giraffe').getBoundingClientRect();
+  const t = document.querySelector('.tab[data-tab="practice"]').getBoundingClientRect();
+  return { ratio: g.height / t.height, centred: Math.abs((g.top + g.height / 2) - (t.top + t.height / 2)) < 1 };
+});
+check('it is twice the height of the tabs and centred against them',
+  geometry.ratio === 2 && geometry.centred, JSON.stringify(geometry));
+
+check('the wing flaps at the brand beat while she is elsewhere',
+  await page.locator('.fg-wing').evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return cs.animationName === 'fg-flap' && cs.animationDuration === '0.95s';
+  }));
+
+await giraffe.click();
 await page.waitForTimeout(300);
-const writeSelected = await page.locator('.tab[data-tab="write"]').evaluate((el) => ({
-  gradient: getComputedStyle(el).backgroundImage !== 'none',
-  // Light-on-light cannot carry selection alone, so it also takes an ink ring.
-  ring: getComputedStyle(el).boxShadow.includes('inset'),
-  text: getComputedStyle(el).color
-}));
-check('and its selected state is the gradient plus an ink ring, not ink fill',
-  writeSelected.gradient && writeSelected.ring && writeSelected.text === 'rgb(36, 31, 27)',
-  JSON.stringify(writeSelected));
+check('tapping the giraffe opens Speech-To-Text', await page.locator('#tab-write').isVisible());
+const selected = await page.evaluate(() => {
+  const el = document.querySelector('.tab-giraffe');
+  return {
+    gradient: getComputedStyle(el).backgroundImage !== 'none',
+    ring: getComputedStyle(el).boxShadow.includes('inset'),
+    wing: getComputedStyle(document.querySelector('.fg-wing')).animationName
+  };
+});
+check('and once she is there it settles onto the gradient and stops flapping',
+  selected.gradient && selected.ring && selected.wing === 'none', JSON.stringify(selected));
+
 check('while the other five still fill with ink when selected',
   await page.evaluate(async () => {
     document.querySelector('.tab[data-tab="bank"]').click();
@@ -748,8 +775,10 @@ const sessionColours = await page.evaluate(() => ({
   end: getComputedStyle(document.getElementById('endSessionBtn')).backgroundColor
 }));
 check('start and end session are different brand fills, neither ink nor white',
-  sessionColours.start === 'rgb(61, 107, 74)' && sessionColours.end === 'rgb(150, 69, 58)',
+  sessionColours.start === 'rgb(61, 107, 74)' && sessionColours.end === 'rgb(222, 140, 66)',
   JSON.stringify(sessionColours));
+check('End session takes ink text, because white fails on a mid orange',
+  (await page.locator('#endSessionBtn').evaluate((el) => getComputedStyle(el).color)) === 'rgb(36, 31, 27)');
 
 check('the coin is present and not stretched', await page.evaluate(() => {
   const img = document.querySelector('.coin');

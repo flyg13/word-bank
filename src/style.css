@@ -40,10 +40,10 @@
   --wash-mint:#EDF6EE;
   --wash-lilac:#F0ECF8;
   /* Extending the family: a pastel orange a step darker than peach for Word
-     Bank, and a pastel blue for Speech-To-Text. Both keep the tab label above
-     4.5:1 (4.71 and 5.07). Parent's decision. */
+     Bank, keeping the tab label above 4.5:1 (4.71). Parent's decision.
+     (A pastel blue briefly held the Speech-To-Text tab; the giraffe replaced
+     it, so the token went with it.) */
   --wash-orange:#FAE0C9;
-  --wash-blue:#E2EEF8;
 
   /* Filled-button colours, chosen by the parent. White on each clears 4.5:1:
      mic-idle 4.92, mic-recording 6.18, session-start 6.18, session-end 6.54.
@@ -52,7 +52,10 @@
   --mic-idle:#B5533C;
   --mic-recording:#3D6B4A;
   --session-start:#3D6B4A;
-  --session-end:#96453A;
+  /* A mid orange, lighter than the brick it replaces and darker than the Word
+     Bank tab's pastel. White fails on it (2.65:1), so the text is ink (6.17:1)
+     — the same move the brand makes on gold wash. Parent's decision. */
+  --session-end:#DE8C42;
 
   --line:#DCD5CB;
   --card-line:rgba(36,31,27,.10);
@@ -115,14 +118,18 @@ h1{ font-size:25px; font-weight:700; letter-spacing:-.01em; margin:0; }
 /* At 16px the six tabs no longer fit across an iPad, so groups wrap as units
    rather than the last tab being clipped off the edge. The row gap stays
    smaller than the group gap so the grouping still reads across a wrap. */
-.tabs{ display:flex; flex-wrap:wrap; column-gap:26px; row-gap:9px; margin-bottom:20px;
-       overflow-x:auto; padding-bottom:4px; scrollbar-width:none; }
+.tabs{ display:flex; flex-wrap:wrap; align-items:center; column-gap:26px; row-gap:9px;
+       margin-bottom:20px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; }
 .tabs::-webkit-scrollbar{ display:none; }
-.tab-group{ display:flex; gap:7px; flex:none; }
+.tab-group{ display:flex; align-items:center; gap:7px; flex:none; }
+/* Tab labels are 15px, not the 16px floor — a documented exception for tabs
+   only, so the six sit on one line at iPad width. Padding is tightened to the
+   same end. Parent's decision. */
 .tab{
-  padding:11px 15px; min-height:44px; display:flex; align-items:center;
+  padding:11px 11px; min-height:44px; display:flex; align-items:center;
   border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--white);
-  font-size:16px; font-weight:700; color:var(--muted); cursor:pointer;
+  font-family:inherit; font-size:15px; font-weight:700; line-height:1.2;
+  color:var(--muted); cursor:pointer;
   white-space:nowrap; user-select:none; transition:background .12s ease, color .12s ease;
 }
 .tab:hover{ border-color:var(--ink); color:var(--ink); }
@@ -133,15 +140,38 @@ h1{ font-size:25px; font-weight:700; letter-spacing:-.01em; margin:0; }
 .tab[data-tab='practice'], .tab[data-tab='sentences'], .tab[data-tab='reading']{ background:var(--wash-mint); }
 .tab[data-tab='corrections']{ background:var(--wash-peach); }
 .tab[data-tab='bank']{ background:var(--wash-orange); }
-.tab[data-tab='write']{ background:var(--wash-blue); }
 .tab.active[data-tab]{ background:var(--ink); }
-/* Speech-To-Text is the one tab whose selected state is the holographic
-   gradient rather than ink — parent's decision. A light-on-light selection
-   would not survive greyscale on background alone, so it also takes an inset
-   ink ring: the ring, not the colour, is what marks it selected. */
-.tab.active[data-tab='write']{
-  background:var(--wash); color:var(--ink);
-  box-shadow:inset 0 0 0 2px var(--ink);
+
+/* ---------- The giraffe ---------- */
+/* Speech-To-Text is not a labelled tab: it is the flying giraffe, at twice the
+   height of the tabs and vertically centred on them. Parent's decision, and the
+   reasoning is in DESIGN.md — every other tab is an input, the giraffe is the
+   result, and "tap the giraffe" is a thing a nine-year-old learns in one go.
+   Its accessible name is carried by aria-label; there is no visible text. */
+.tab-giraffe{
+  padding:0; border:none; background:none; min-height:0;
+  height:88px; flex:none; border-radius:var(--radius-sm);
+}
+.tab-giraffe:hover{ border:none; }
+.tab-giraffe .fg{ position:relative; display:block; height:88px; width:79px; }
+.fg-body, .fg-wing{ position:absolute; inset:0; width:100%; height:100%; }
+
+/* The brand's own flap, beat and pivot included, lifted from the mockups. */
+.fg-wing{ transform-origin:52.4% 38.3%; animation:fg-flap .95s ease-in-out infinite; }
+@keyframes fg-flap{
+  0%,100%{ transform:rotate(0deg) scaleY(1); }
+  35%{ transform:rotate(-34deg) scaleY(.9); }
+  70%{ transform:rotate(16deg) scaleY(1.04); }
+}
+
+/* Selected: she has arrived, so the giraffe settles onto the holographic
+   gradient and stops flapping. */
+.tab.tab-giraffe.active[data-tab='write']{
+  background:var(--wash); box-shadow:inset 0 0 0 2px var(--ink);
+}
+.tab-giraffe.active .fg-wing{ animation:none; }
+@media (prefers-reduced-motion: reduce){
+  .fg-wing{ animation:none; }
 }
 
 /* ---------- Cards ---------- */
@@ -173,7 +203,7 @@ h1{ font-size:25px; font-weight:700; letter-spacing:-.01em; margin:0; }
 /* Start and end a session: brand-family fills, and clearly different from each
    other so "running" is not signalled by absence. */
 #startSessionBtn{ background:var(--session-start); border-color:var(--session-start); color:var(--white); }
-#endSessionBtn{ background:var(--session-end); border-color:var(--session-end); color:var(--white); }
+#endSessionBtn{ background:var(--session-end); border-color:var(--session-end); color:var(--ink); }
 .btn-outline, .btn-ghost{ background:var(--white); border-color:var(--line); color:var(--ink); }
 .btn-outline:hover, .btn-ghost:hover{ border-color:var(--ink); }
 /* Gold outline is reserved for the confirm-again class of action. */
@@ -425,6 +455,6 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
   color:var(--muted); margin-bottom:8px;
 }
 .entry-go{ width:100%; margin-top:14px; }
-.entry-error{ color:var(--session-end); font-size:16px; margin:9px 0 0; text-align:left; min-height:0; }
+.entry-error{ color:var(--mic-idle); font-size:16px; margin:9px 0 0; text-align:left; min-height:0; }
 .entry-error:empty{ display:none; }
 .entry-meta{ color:var(--muted); font-size:16px; line-height:1.55; margin:18px 0 0; }
