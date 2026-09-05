@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics=""><meta name="design_doc_mode" content="canvas"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""><link href="https://fonts.googleapis.com/css2?family=Andika:ital,wght@0,400;0,700;1,400;1,700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&amp;display=swap" rel="stylesheet"><style>body{margin:0;background:#EFEAE3;font-family:'Atkinson Hyperlegible',system-ui,sans-serif}a{color:#8A6A1F}a:hover{color:#5E4712}.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(36,31,27,.09);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}.dv-tid{font:700 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#241F1B;color:#fff;border-radius:4px;text-decoration:none}.dv-tname{font:700 13px/1.2 'Atkinson Hyperlegible',system-ui,sans-serif;color:#241F1B}.dv-opts{display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start;max-width:2720px}.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}.dv-oid{font:700 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(36,31,27,.09);color:#241F1B;border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11.5px/1.3 'Atkinson Hyperlegible',system-ui,sans-serif;color:rgba(36,31,27,.55)}.dv-card{max-width:100%;background:#fff;border:1px solid rgba(36,31,27,.1);border-radius:10px;box-shadow:0 2px 10px rgba(36,31,27,.07);overflow:hidden}.dv-opt:target .dv-oid{background:#8A6A1F;color:#fff}.dv-next{margin:22px 0 0;font:12px/1.6 'Atkinson Hyperlegible',system-ui,sans-serif;color:rgba(36,31,27,.55)}@keyframes fg-fly{0%{transform:translate(-150px,330px) rotate(-16deg) scale(.62);opacity:0}8%{opacity:1}28%{transform:translate(60px,210px) rotate(-8deg) scale(.82)}52%{transform:translate(210px,40px) rotate(-4deg) scale(1)}76%{transform:translate(370px,180px) rotate(-10deg) scale(.86)}92%{opacity:1}100%{transform:translate(560px,60px) rotate(-18deg) scale(.62);opacity:0}}@keyframes fg-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}@keyframes fg-flap{0%,100%{transform:rotate(0deg) scaleY(1)}35%{transform:rotate(-34deg) scaleY(.9)}70%{transform:rotate(16deg) scaleY(1.04)}}@keyframes fg-tumble{0%{transform:rotate(0deg)}55%{transform:rotate(0deg)}100%{transform:rotate(720deg)}}@keyframes fg-trail{0%{opacity:0;transform:scale(.4)}40%{opacity:.5}100%{opacity:0;transform:scale(1.5)}}</style></helmet>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Teacher flow — arrival → configuration → generation → review → print</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Screen 0 — Entry. Google/Microsoft first, no card, no time promise.</div>
+<div class="dv-card" style="width:1280px">
+<sc-if value="{{ showChrome }}" hint-placeholder-val="{{ true }}"><div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#F3EFE9;border-bottom:1px solid rgba(36,31,27,.1)"><div style="display:flex;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span></div><div style="margin-left:10px;flex:1;max-width:420px;padding:4px 12px;border-radius:6px;background:#fff;border:1px solid rgba(36,31,27,.09);font-size:11px;color:#8C8378">flyinggiraffe.com.au</div></div></sc-if>
+<div style="height:820px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#FDF1E9 0%,#FBF6E4 28%,#EDF6EE 58%,#F0ECF8 100%)">
+<div style="width:520px;background:#fff;border:1px solid rgba(36,31,27,.09);border-radius:16px;padding:52px 56px 40px;box-shadow:0 18px 48px rgba(36,31,27,.09);display:flex;flex-direction:column;align-items:center;text-align:center">
+<img src="assets/flying-giraffe-coin.png" alt="Flying Giraffe" style="width:104px;height:104px;display:block">
+<div style="margin-top:18px;font-size:15px;letter-spacing:.34em;text-transform:uppercase;color:#241F1B">Flying Giraffe</div>
+<div style="margin-top:28px;font-size:31px;line-height:1.25;font-weight:700;color:#241F1B;text-wrap:pretty">Small Change. Big Difference.</div>
+<div style="margin-top:12px;font-size:16px;line-height:1.5;color:#6B6259">Built for children with dyslexia and dyscalculia, used by everyone.<br>Because a clearer page is better.&nbsp;</div>
+<div style="margin-top:34px;display:flex;flex-direction:column;gap:12px;width:100%">
+<button style="font:inherit;font-size:16px;padding:15px 20px;border-radius:10px;border:1px solid rgba(36,31,27,.18);background:#fff;color:#241F1B;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:11px" style-hover="background:#FBF8F4"><span style="width:18px;height:18px;border-radius:50%;border:3px solid #C9A659;box-sizing:border-box"></span>Continue with Google</button>
+<button style="font:inherit;font-size:16px;padding:15px 20px;border-radius:10px;border:1px solid rgba(36,31,27,.18);background:#fff;color:#241F1B;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:11px" style-hover="background:#FBF8F4"><span style="width:18px;height:18px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px"><i style="background:#D9B7A6"></i><i style="background:#CFC3A0"></i><i style="background:#AFC9B4"></i><i style="background:#B8B0CE"></i></span>Continue with Microsoft</button>
+<button style="font:inherit;font-size:15px;padding:12px;border:0;background:none;color:#6B6259;text-decoration:underline;text-underline-offset:3px;cursor:pointer" style-hover="color:#241F1B">Use email instead</button>
+</div>
+<div style="margin-top:26px;padding-top:22px;border-top:1px solid rgba(36,31,27,.09);width:100%;font-size:14px;color:#6B6259">New here? Your first 5 worksheets are on us.</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1b">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Screen 1 — Dashboard. "Same layout, new numbers" is the hero control.</div>
+<div class="dv-card" style="width:1280px">
+<sc-if value="{{ showChrome }}" hint-placeholder-val="{{ true }}"><div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#F3EFE9;border-bottom:1px solid rgba(36,31,27,.1)"><div style="display:flex;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span></div><div style="margin-left:10px;flex:1;max-width:420px;padding:4px 12px;border-radius:6px;background:#fff;border:1px solid rgba(36,31,27,.09);font-size:11px;color:#8C8378">flyinggiraffe.com.au/home</div></div></sc-if>
+<div style="height:820px;background:#FBF8F4;display:flex;flex-direction:column">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 40px;background:#fff;border-bottom:1px solid rgba(36,31,27,.1)">
+<div style="display:flex;align-items:center;gap:12px"><img src="assets/flying-giraffe-coin.png" alt="" style="width:34px;height:34px"><span style="font-size:12.5px;letter-spacing:.26em;text-transform:uppercase;color:#241F1B">Flying Giraffe</span></div>
+<div style="display:flex;align-items:center;gap:18px"><span style="font-size:14px;color:#6B6259">Credits <b style="color:#241F1B">12</b></span><button style="font:inherit;font-size:14px;padding:9px 16px;border-radius:8px;border:1px solid rgba(36,31,27,.18);background:#fff;color:#241F1B;cursor:pointer" style-hover="background:#FBF8F4">Account</button></div>
+</div>
+<div style="flex:1;padding:34px 40px;display:flex;flex-direction:column;gap:34px;overflow:hidden">
+<button style="font:inherit;display:flex;align-items:center;gap:16px;width:100%;padding:24px 28px;border-radius:12px;border:0;background:#241F1B;color:#fff;cursor:pointer;text-align:left" style-hover="background:#332C26"><span style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#FCE3D2,#FAF0CE 45%,#DCEFE1);color:#241F1B;font-size:22px;display:flex;align-items:center;justify-content:center">+</span><span style="font-size:20px;font-weight:700">New worksheet</span><span style="margin-left:auto;font-size:14px;color:rgba(255,255,255,.62)">Year, topic, page style — one screen</span></button>
+
+<div>
+<div style="display:flex;align-items:baseline;gap:12px;margin-bottom:14px"><h3 style="margin:0;font-size:17px;color:#241F1B">Same layout, new numbers</h3><span style="font-size:13px;color:#6B6259">Finished layouts. One click swaps the questions.</span></div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:18px">
+<div style="background:#fff;border:1px solid rgba(36,31,27,.1);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px">
+<div style="height:132px;border-radius:7px;background:#fff;border:1px solid rgba(36,31,27,.12);padding:9px;display:flex;flex-direction:column;gap:6px"><div style="height:11px;border-radius:2px;background:#EFE7DA"></div><div style="flex:1;border:1px solid rgba(36,31,27,.11);border-radius:3px;background:repeating-linear-gradient(0deg,rgba(36,31,27,.07) 0 1px,transparent 1px 13px)"></div><div style="height:34px;border:1px solid rgba(36,31,27,.11);border-radius:3px;background:repeating-linear-gradient(0deg,rgba(36,31,27,.07) 0 1px,transparent 1px 11px)"></div></div>
+<div><div style="font-size:15px;font-weight:700;color:#241F1B">Times tables</div><div style="font-size:13px;color:#6B6259;margin-top:2px">Year 3 · used Monday</div></div>
+<button style="font:inherit;font-size:14px;padding:10px;border-radius:8px;border:1px solid #C9A659;background:#FDF7E7;color:#241F1B;cursor:pointer" style-hover="background:#FAF0D6">⟳&nbsp; Refresh worksheet</button>
+</div>
+<div style="background:#fff;border:1px solid rgba(36,31,27,.1);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px">
+<div style="height:132px;border-radius:7px;background:#fff;border:1px solid rgba(36,31,27,.12);padding:9px;display:flex;flex-direction:column;gap:6px"><div style="height:11px;border-radius:2px;background:#EFE7DA"></div><div style="flex:1;border:1px solid rgba(36,31,27,.11);border-radius:3px;display:flex;align-items:flex-end;gap:5px;padding:7px"><i style="flex:1;height:38%;background:#E3DED4"></i><i style="flex:1;height:66%;background:#E3DED4"></i><i style="flex:1;height:48%;background:#E3DED4"></i><i style="flex:1;height:82%;background:#E3DED4"></i></div><div style="height:22px;border:1px solid rgba(36,31,27,.11);border-radius:3px"></div></div>
+<div><div style="font-size:15px;font-weight:700;color:#241F1B">Reading a graph</div><div style="font-size:13px;color:#6B6259;margin-top:2px">Year 3 · last week</div></div>
+<button style="font:inherit;font-size:14px;padding:10px;border-radius:8px;border:1px solid #C9A659;background:#FDF7E7;color:#241F1B;cursor:pointer" style-hover="background:#FAF0D6">⟳&nbsp; Refresh worksheet</button>
+</div>
+<div style="background:#fff;border:1px solid rgba(36,31,27,.1);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px">
+<div style="height:132px;border-radius:7px;background:#fff;border:1px solid rgba(36,31,27,.12);padding:9px;display:flex;flex-direction:column;gap:6px"><div style="height:11px;border-radius:2px;background:#EFE7DA"></div><div style="flex:1;border:1px solid rgba(36,31,27,.11);border-radius:3px;display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px"><i style="border:1px solid rgba(36,31,27,.16);border-radius:2px"></i><i style="border:1px solid rgba(36,31,27,.16);border-radius:50%"></i><i style="border:1px solid rgba(36,31,27,.16);border-radius:2px"></i><i style="border:1px solid rgba(36,31,27,.16);border-radius:2px"></i></div><div style="height:22px;border:1px solid rgba(36,31,27,.11);border-radius:3px"></div></div>
+<div><div style="font-size:15px;font-weight:700;color:#241F1B">2D &amp; 3D shapes</div><div style="font-size:13px;color:#6B6259;margin-top:2px">Year 4 · last week</div></div>
+<button style="font:inherit;font-size:14px;padding:10px;border-radius:8px;border:1px solid #C9A659;background:#FDF7E7;color:#241F1B;cursor:pointer" style-hover="background:#FAF0D6">⟳&nbsp; Refresh worksheet</button>
+</div>
+<div style="border:1px dashed rgba(36,31,27,.2);border-radius:12px;padding:14px;display:flex;flex-direction:column;justify-content:center;gap:8px;text-align:center;color:#6B6259"><div style="font-size:14px;line-height:1.5">Sheets you keep stay here.<br>Nothing expires.</div><div style="font:11px ui-monospace,Menlo,monospace;color:#9A9188">empty slot</div></div>
+</div>
+</div>
+
+<div>
+<div style="display:flex;align-items:baseline;gap:12px;margin-bottom:14px"><h3 style="margin:0;font-size:17px;color:#241F1B">Start from a template</h3><span style="font-size:13px;color:#6B6259">A shape of lesson. We work out what fits the page.</span></div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px">
+<button style="font:inherit;text-align:left;background:#fff;border:1px solid rgba(36,31,27,.1);border-radius:12px;padding:20px 22px;cursor:pointer;display:flex;flex-direction:column;gap:6px" style-hover="border-color:#C9A659;background:#FEFCF7"><span style="font-size:16px;font-weight:700;color:#241F1B">Daily Review</span><span style="font-size:13.5px;color:#6B6259;line-height:1.5">Mixed topics · 1 page</span></button>
+<button style="font:inherit;text-align:left;background:#fff;border:1px solid rgba(36,31,27,.1);border-radius:12px;padding:20px 22px;cursor:pointer;display:flex;flex-direction:column;gap:6px" style-hover="border-color:#C9A659;background:#FEFCF7"><span style="font-size:16px;font-weight:700;color:#241F1B">Topic practice</span><span style="font-size:13.5px;color:#6B6259;line-height:1.5">One topic · 1 page</span></button>
+<button style="font:inherit;text-align:left;background:#fff;border:1px solid rgba(36,31,27,.1);border-radius:12px;padding:20px 22px;cursor:pointer;display:flex;flex-direction:column;gap:6px" style-hover="border-color:#C9A659;background:#FEFCF7"><span style="font-size:16px;font-weight:700;color:#241F1B">Homework sheet</span><span style="font-size:13.5px;color:#6B6259;line-height:1.5">Shorter · 1 page</span></button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1c">
+<div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Screen 2 — Configuration. One screen; fullness bar carries the 12-slot rule.</div>
+<div class="dv-card" style="width:1280px">
+<sc-if value="{{ showChrome }}" hint-placeholder-val="{{ true }}"><div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#F3EFE9;border-bottom:1px solid rgba(36,31,27,.1)"><div style="display:flex;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span></div><div style="margin-left:10px;flex:1;max-width:420px;padding:4px 12px;border-radius:6px;background:#fff;border:1px solid rgba(36,31,27,.09);font-size:11px;color:#8C8378">flyinggiraffe.com.au/new</div></div></sc-if>
+<div style="height:920px;background:#FBF8F4;display:flex;flex-direction:column">
+<div style="display:flex;align-items:center;gap:20px;padding:15px 32px;background:#fff;border-bottom:1px solid rgba(36,31,27,.1)"><button style="font:inherit;font-size:14px;background:none;border:0;color:#6B6259;cursor:pointer;padding:6px 4px" style-hover="color:#241F1B">← Back</button><span style="font-size:17px;font-weight:700;color:#241F1B">New worksheet</span></div>
+<div style="flex:1;display:grid;grid-template-columns:1fr 420px;overflow:hidden">
+<div style="padding:28px 32px;display:flex;flex-direction:column;gap:24px;overflow:hidden">
+
+<div><div style="font-size:16px;font-weight:700;color:#241F1B;margin-bottom:10px">1. Who is this for?</div>
+<div style="background:#fff;border:1px solid rgba(36,31,27,.1);border-radius:12px;padding:18px 20px;display:flex;align-items:center;gap:16px"><span style="font-size:14px;color:#6B6259">Year</span><div style="display:flex;gap:8px">
+<button style="font:inherit;font-size:15px;width:46px;height:46px;border-radius:10px;border:1px solid rgba(36,31,27,.16);background:#fff;color:#241F1B;cursor:pointer" style-hover="background:#FBF8F4">F</button>
+<button style="font:inherit;font-size:15px;width:46px;height:46px;border-radius:10px;border:1px solid rgba(36,31,27,.16);background:#fff;color:#241F1B;cursor:pointer" style-hover="background:#FBF8F4">1</button>
+<button style="font:inherit;font-size:15px;width:46px;height:46px;border-radius:10px;border:1px solid rgba(36,31,27,.16);background:#fff;color:#241F1B;cursor:pointer" style-hover="background:#FBF8F4">2</button>
+<button style="font:inherit;font-size:15px;font-weight:700;width:46px;height:46px;border-radius:10px;border:2px solid #241F1B;background:#241F1B;color:#fff;cursor:pointer">3</button>
+<button style="font:inherit;font-size:15px;width:46px;height:46px;border-radius:10px;border:1px solid rgba(36,31,27,.16);background:#fff;color:#241F1B;cursor:pointer" style-hover="background:#FBF8F4">4</button>
+<button style="font:inherit;font-size:15px;width:46px;height:46px;border-radius:10px;border:1px solid rgba(36,31,27,.16);background:#fff;color:#241F1B;cursor:pointer" style-hover="background:#FBF8F4">5</button>
+<button style="font:inherit;font-size:15px;width:46px;height:46px;border-radius:10px;border:1px solid rgba(36,31,27,.16);background:#fff;color:#241F1B;cursor:pointer" style-hover="background:#FBF8F4">6</button>
+</div><span style="margin-left:auto;font-size:13px;color:#9A9188">Australian Curriculum · en-AU</span></div></div>
+
+<div><div style="font-size:16px;font-weight:700;color:#241F1B;margin-bottom:10px">2. What are they working on?</div>
+<div style="background:#fff;border:1px solid rgba(36,31,27,.1);border-radius:12px;padding:18px 20px;display:grid;grid-template-columns:1fr 1fr;gap:22px 26px">
+<div>
+<div style="font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#9A9188;margin-bottom:9px">Number</div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<label style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:9px;background:#F4EFE2;border:1px solid #C9A659;font-size:15px;color:#241F1B;cursor:pointer"><span style="width:17px;height:17px;border-radius:50%;border:2px solid #241F1B;display:flex;align-items:center;justify-content:center;box-sizing:border-box"><i style="width:8px;height:8px;border-radius:50%;background:#241F1B"></i></span><b>Times tables</b></label>
+<label style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:9px;border:1px solid transparent;font-size:15px;color:#241F1B;cursor:pointer" style-hover="background:#FBF8F4;border-color:rgba(36,31,27,.1)"><span style="width:17px;height:17px;border-radius:50%;border:2px solid rgba(36,31,27,.3);box-sizing:border-box"></span>Adding &amp; taking away</label>
+<label style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:9px;border:1px solid transparent;font-size:15px;color:#241F1B;cursor:pointer" style-hover="background:#FBF8F4;border-color:rgba(36,31,27,.1)"><span style="width:17px;height:17px;border-radius:50%;border:2px solid rgba(36,31,27,.3);box-sizing:border-box"></span>Counting on a number line</label>
+<label style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:9px;background:#F4EFE2;border:1px solid #C9A659;font-size:15px;color:#241F1B;cursor:pointer"><span style="width:17px;height:17px;border-radius:50%;border:2px solid #241F1B;display:flex;align-items:center;justify-content:center;box-sizing:border-box"><i style="width:8px;height:8px;border-radius:50%;background:#241F1B"></i></span><b>Word problems</b></label>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:18px">
+<div>
+<div style="font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#9A9188;margin-bottom:9px">Shape &amp; space</div>
+<label style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:9px;border:1px solid transparent;font-size:15px;color:#241F1B;cursor:pointer" style-hover="background:#FBF8F4;border-color:rgba(36,31,27,.1)"><span style="width:17px;height:17px;border-radius:50%;border:2px solid rgba(36,31,27,.3);box-sizing:border-box"></span>2D &amp; 3D shapes</label>
+</div>
+<div>
+<div style="font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#9A9188;margin-bottom:9px">Data</div>
+<label style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:9px;border:1px solid transparent;font-size:15px;color:#241F1B;cursor:pointer" style-hover="background:#FBF8F4;border-color:rgba(36,31,27,.1)"><span style="width:17px;height:17px;border-radius:50%;border:2px solid rgba(36,31,27,.3);box-sizing:border-box"></span>Reading a graph</label>
+</div>
+<div style="border-top:1px solid rgba(36,31,27,.09);padding-top:14px;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:center;gap:10px;font-size:15px;color:#9A9188"><span style="flex:1">Time &amp; measuring</span><span style="font-size:12px;color:#9A9188">Coming soon</span><button style="font:inherit;font-size:12.5px;padding:5px 10px;border-radius:20px;border:1px solid rgba(36,31,27,.18);background:#fff;color:#241F1B;cursor:pointer" style-hover="background:#FDF7E7;border-color:#C9A659">I need this</button></div>
+<div style="display:flex;align-items:center;gap:10px;font-size:15px;color:#9A9188"><span style="flex:1">Chance</span><span style="font-size:12px;color:#9A9188">Coming soon</span><button style="font:inherit;font-size:12.5px;padding:5px 10px;border-radius:20px;border:1px solid rgba(36,31,27,.18);background:#fff;color:#241F1B;cursor:pointer" style-hover="background:#FDF7E7;border-color:#C9A659">I need this</button></div>
+</div>
+</div>
+</div></div>
+
+<div><div style="font-size:16px;font-weight:700;color:#241F1B;margin-bottom:10px">3. Page style</div>
+<div style="background:#fff;border:1px solid rgba(36,31,27,.1);border-radius:12px;padding:18px 20px;display:grid;grid-template-columns:1fr 1fr;gap:26px">
+<div>
+<div style="font-size:14px;color:#6B6259;margin-bottom:10px">Every sheet includes:</div>
+<div style="display:flex;flex-direction:column;gap:8px;font-size:15px;color:#241F1B">
+<div style="display:flex;gap:10px;align-items:center"><span style="color:#8A6A1F">✓</span>Short, clear sentences</div>
+<div style="display:flex;gap:10px;align-items:center"><span style="color:#8A6A1F">✓</span>Generous writing space</div>
+<div style="display:flex;gap:10px;align-items:center"><span style="color:#8A6A1F">✓</span>Key numbers stand out</div>
+</div>
+</div>
+<div>
+<div style="font-size:14px;color:#6B6259;margin-bottom:10px">Add for children who need it:</div>
+<label style="display:flex;gap:12px;padding:13px 14px;border-radius:9px;background:#F4EFE2;border:1px solid #C9A659;cursor:pointer">
+<span style="width:19px;height:19px;flex:none;border-radius:5px;background:#241F1B;color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center;margin-top:1px">✓</span>
+<span><b style="font-size:15px;color:#241F1B">Step-by-step prompts</b><br><span style="font-size:13.5px;color:#6B6259">Breaks each problem into steps</span></span>
+</label>
+</div>
+</div></div>
+
+<label style="display:flex;gap:12px;padding:16px 18px;border-radius:12px;background:#fff;border:1px solid rgba(36,31,27,.1);cursor:pointer" style-hover="border-color:#C9A659">
+<span style="width:19px;height:19px;flex:none;border-radius:5px;border:2px solid rgba(36,31,27,.3);box-sizing:border-box;margin-top:1px"></span>
+<span><b style="font-size:15px;color:#241F1B">Also print a plain version</b><br><span style="font-size:13.5px;color:#6B6259;line-height:1.5">Same questions, same numbers, no prompts — for children who don't need them.</span></span>
+</label>
+
+<div style="margin-top:auto;display:flex;align-items:center;justify-content:flex-end;gap:16px"><span style="font-size:13px;color:#9A9188">Credit is charged when you download, not now.</span><button style="font:inherit;font-size:17px;font-weight:700;padding:16px 30px;border-radius:11px;border:0;background:#241F1B;color:#fff;cursor:pointer" style-hover="background:#332C26">Make my worksheet</button></div>
+</div>
+
+<div style="border-left:1px solid rgba(36,31,27,.1);background:#F5F1EA;padding:28px 26px;display:flex;flex-direction:column;gap:18px">
+<div style="font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#9A9188">Live preview</div>
+<div style="font-family:'Andika',system-ui,sans-serif;background:#fff;border:1px solid rgba(36,31,27,.14);border-radius:4px;box-shadow:0 6px 20px rgba(36,31,27,.08);padding:16px;aspect-ratio:1 / 1.414;display:flex;flex-direction:column;gap:10px">
+<div style="border-bottom:1px solid rgba(36,31,27,.14);padding-bottom:7px;font-size:11px;color:#6B6259;display:flex;justify-content:space-between"><span>Year 3 · Times tables</span><span>Flying Giraffe</span></div>
+<div style="border:1px solid rgba(36,31,27,.16);border-radius:3px;padding:9px">
+<div style="font-size:12px;font-weight:700;color:#241F1B;margin-bottom:6px">Times tables</div>
+<div style="display:flex;flex-direction:column;gap:6px"><div style="height:8px;background:#EDE7DC;border-radius:2px"></div><div style="height:8px;width:76%;background:#EDE7DC;border-radius:2px"></div><div style="display:flex;gap:6px;margin-top:2px"><i style="width:34px;height:22px;border:1px solid rgba(36,31,27,.3);border-radius:2px"></i><i style="width:34px;height:22px;border:1px solid rgba(36,31,27,.3);border-radius:2px"></i><i style="width:34px;height:22px;border:1px solid rgba(36,31,27,.3);border-radius:2px"></i></div></div>
+</div>
+<div style="border:1px solid rgba(36,31,27,.16);border-radius:3px;padding:9px">
+<div style="font-size:12px;font-weight:700;color:#241F1B;margin-bottom:6px">Word problems</div>
+<div style="display:flex;flex-direction:column;gap:6px"><div style="height:8px;background:#EDE7DC;border-radius:2px"></div><div style="height:8px;width:64%;background:#EDE7DC;border-radius:2px"></div><div style="height:26px;border:1px solid rgba(36,31,27,.22);border-radius:2px;margin-top:2px"></div></div>
+</div>
+<div style="flex:1;border:1px dashed rgba(36,31,27,.22);border-radius:3px;display:flex;align-items:center;justify-content:center;font:11px ui-monospace,Menlo,monospace;color:#9A9188">space left</div>
+</div>
+<div>
+<div style="display:flex;justify-content:space-between;font-size:14px;color:#241F1B;margin-bottom:8px"><span>Page 1 — room for 1 more</span><span style="color:#6B6259">8 / 12</span></div>
+<div style="height:10px;border-radius:6px;background:#E4DED4;overflow:hidden;display:flex"><i style="width:67%;background:linear-gradient(90deg,#C9A659,#DFC183)"></i></div>
+</div>
+<button style="font:inherit;font-size:15px;padding:13px;border-radius:10px;border:1px dashed rgba(36,31,27,.3);background:#fff;color:#241F1B;cursor:pointer" style-hover="border-color:#C9A659;background:#FEFCF7">+ Add another section</button>
+<div style="margin-top:auto;font-size:12.5px;line-height:1.6;color:#9A9188">Sections are placed whole. Nothing is ever split across a page break.</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1d">
+<div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Screen 3 — Generation. Real steps only, retries shown as care, no countdown.</div>
+<div class="dv-card" style="width:1280px">
+<sc-if value="{{ showChrome }}" hint-placeholder-val="{{ true }}"><div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#F3EFE9;border-bottom:1px solid rgba(36,31,27,.1)"><div style="display:flex;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span></div><div style="margin-left:10px;flex:1;max-width:420px;padding:4px 12px;border-radius:6px;background:#fff;border:1px solid rgba(36,31,27,.09);font-size:11px;color:#8C8378">flyinggiraffe.com.au/building</div></div></sc-if>
+<div style="height:820px;background:#FBF8F4;display:flex;align-items:center;justify-content:center;padding:40px">
+<div style="width:1000px;display:grid;grid-template-columns:1.05fr 1fr;gap:40px;align-items:center">
+<div style="border-radius:16px;background:linear-gradient(135deg,#FDF1E9,#FBF6E4 40%,#EDF6EE 72%,#F0ECF8);border:1px solid rgba(36,31,27,.09);height:430px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center">
+<div style="font-family:'Andika',system-ui,sans-serif;background:#fff;border:1px solid rgba(36,31,27,.14);border-radius:4px;box-shadow:0 10px 30px rgba(36,31,27,.12);width:236px;aspect-ratio:1 / 1.414;padding:14px;display:flex;flex-direction:column;gap:9px">
+<div style="border-bottom:1px solid rgba(36,31,27,.14);padding-bottom:6px;font-size:10px;color:#6B6259">Year 3 · Times tables</div>
+<div style="border:1px solid rgba(36,31,27,.16);border-radius:3px;padding:8px;display:flex;flex-direction:column;gap:5px"><div style="font-size:11px;font-weight:700">Times tables</div><div style="height:7px;background:#EDE7DC;border-radius:2px"></div><div style="height:7px;width:70%;background:#EDE7DC;border-radius:2px"></div></div>
+<div style="border:1px solid rgba(36,31,27,.16);border-radius:3px;padding:8px;display:flex;flex-direction:column;gap:5px"><div style="font-size:11px;font-weight:700">Word problems</div><div style="height:7px;background:#EDE7DC;border-radius:2px"></div><div style="height:22px;border:1px solid rgba(36,31,27,.22);border-radius:2px"></div></div>
+<div style="flex:1;border:1px dashed rgba(36,31,27,.2);border-radius:3px;display:flex;align-items:center;justify-content:center;font:10px ui-monospace,Menlo,monospace;color:#A79E93">assembling…</div>
+</div>
+<div style="position:absolute;inset:0;pointer-events:none;overflow:hidden">
+<div style="position:absolute;top:0;left:0;animation:fg-fly 13s cubic-bezier(.4,.05,.6,.95) infinite">
+<div style="animation:fg-tumble 13s cubic-bezier(.55,0,.4,1) infinite">
+<div style="position:relative;width:104px;height:116px;animation:fg-bob 1.9s ease-in-out infinite;filter:drop-shadow(0 6px 14px rgba(138,106,31,.3))">
+<img src="assets/giraffe-body.png" alt="Flying Giraffe" style="position:absolute;inset:0;width:100%;height:100%">
+<img src="assets/giraffe-wing.png" alt="" style="position:absolute;inset:0;width:100%;height:100%;transform-origin:52.4% 38.3%;animation:fg-flap .95s ease-in-out infinite">
+</div>
+</div>
+<span style="position:absolute;top:44px;left:-16px;width:9px;height:9px;border-radius:50%;background:#C9A659;animation:fg-trail 1.2s ease-out infinite"></span>
+<span style="position:absolute;top:56px;left:-34px;width:7px;height:7px;border-radius:50%;background:#DFC183;animation:fg-trail 1.2s ease-out .25s infinite"></span>
+<span style="position:absolute;top:36px;left:-52px;width:5px;height:5px;border-radius:50%;background:#EBD6A6;animation:fg-trail 1.2s ease-out .5s infinite"></span>
+</div>
+</div>
+<div style="position:absolute;bottom:18px;left:24px;font:11px ui-monospace,Menlo,monospace;color:rgba(36,31,27,.4)">a giraffe flies past — animation lives here, never on a worksheet</div>
+</div>
+<div>
+<h2 style="margin:0;font-size:29px;font-weight:700;color:#241F1B">Building your worksheet</h2>
+<div style="margin-top:26px;display:flex;flex-direction:column;gap:15px;font-size:16px">
+<div style="display:flex;gap:13px;align-items:center;color:#241F1B"><span style="width:22px;height:22px;flex:none;border-radius:50%;background:#E7EFE7;color:#3D6B4A;font-size:13px;display:flex;align-items:center;justify-content:center">✓</span>Writing questions for Year 3 times tables</div>
+<div style="display:flex;gap:13px;align-items:center;color:#241F1B"><span style="width:22px;height:22px;flex:none;border-radius:50%;background:#E7EFE7;color:#3D6B4A;font-size:13px;display:flex;align-items:center;justify-content:center">✓</span>Checking every question reads clearly</div>
+<div style="display:flex;gap:13px;align-items:center;color:#241F1B;font-weight:700"><span style="width:22px;height:22px;flex:none;border-radius:50%;background:#F4EFE2;border:1px solid #C9A659;color:#8A6A1F;font-size:12px;display:flex;align-items:center;justify-content:center;box-sizing:border-box">⟳</span>Measuring the page</div>
+<div style="display:flex;gap:13px;align-items:center;color:#9A9188"><span style="width:22px;height:22px;flex:none;border-radius:50%;border:1px solid rgba(36,31,27,.18);box-sizing:border-box"></span>Checking there's room to write</div>
+<div style="display:flex;gap:13px;align-items:center;color:#9A9188"><span style="width:22px;height:22px;flex:none;border-radius:50%;border:1px solid rgba(36,31,27,.18);box-sizing:border-box"></span>Making the answer page</div>
+</div>
+<div style="margin-top:26px;padding:16px 18px;border-radius:11px;background:#fff;border:1px solid rgba(36,31,27,.1);font-size:15px;line-height:1.55;color:#241F1B">Two questions were a bit long, so we're rewriting them shorter.</div>
+<div style="margin-top:24px;display:flex;align-items:center;gap:16px"><button style="font:inherit;font-size:15px;padding:13px 20px;border-radius:10px;border:1px solid rgba(36,31,27,.18);background:#fff;color:#241F1B;cursor:pointer" style-hover="background:#FDF7E7;border-color:#C9A659">Make another while you wait</button><span style="font-size:13px;color:#9A9188">Queue it — we'll build both.</span></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1e">
+<div class="dv-olabel"><a class="dv-oid" href="#1e">1e</a>Screen 4 — Review. Per-section regenerate; watermarked preview; credit at download.</div>
+<div class="dv-card" style="width:1280px">
+<sc-if value="{{ showChrome }}" hint-placeholder-val="{{ true }}"><div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#F3EFE9;border-bottom:1px solid rgba(36,31,27,.1)"><div style="display:flex;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span></div><div style="margin-left:10px;flex:1;max-width:420px;padding:4px 12px;border-radius:6px;background:#fff;border:1px solid rgba(36,31,27,.09);font-size:11px;color:#8C8378">flyinggiraffe.com.au/review</div></div></sc-if>
+<div style="height:980px;background:#EFEAE3;display:flex;flex-direction:column">
+<div style="display:flex;align-items:center;gap:20px;padding:15px 32px;background:#fff;border-bottom:1px solid rgba(36,31,27,.1)"><button style="font:inherit;font-size:14px;background:none;border:0;color:#6B6259;cursor:pointer" style-hover="color:#241F1B">← Back</button><span style="font-size:17px;font-weight:700;color:#241F1B">Year 3 — Times tables</span><span style="font-size:13px;color:#9A9188">checked and built in 48 seconds</span><button style="font:inherit;margin-left:auto;font-size:15px;font-weight:700;padding:11px 20px;border-radius:9px;border:0;background:#241F1B;color:#fff;cursor:pointer" style-hover="background:#332C26">Download PDF</button></div>
+<div style="flex:1;display:grid;grid-template-columns:1fr 360px;overflow:hidden">
+<div style="padding:26px 32px;display:flex;flex-direction:column;align-items:center;gap:14px;overflow:hidden">
+<div style="font-family:'Andika',system-ui,sans-serif;position:relative;width:540px;background:#fff;border:1px solid rgba(36,31,27,.16);box-shadow:0 8px 26px rgba(36,31,27,.1);padding:26px 28px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:1.5px solid #241F1B;padding-bottom:8px"><span style="font-size:15px;font-weight:700;color:#241F1B">Times tables</span><span style="font-size:11.5px;color:#6B6259">Year 3 · Flying Giraffe</span></div>
+
+<div style="border:1px solid rgba(36,31,27,.28);border-radius:3px;padding:14px 16px;position:relative">
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px"><div style="font-size:13.5px;line-height:1.6;color:#241F1B;max-width:78%">1. Each tray holds <b>6</b> eggs. Mia fills <b>4</b> trays.<br>How many eggs is that?</div><div style="border:1px solid rgba(36,31,27,.3);border-radius:2px;padding:6px 8px;font-size:12px;color:#241F1B;text-align:right;line-height:1.5">6<br>× 4<br><span style="display:block;border-top:1px solid rgba(36,31,27,.4);margin-top:2px">&nbsp;</span></div></div>
+<div style="margin-top:10px;font-size:11.5px;color:#6B6259;display:flex;flex-direction:column;gap:7px"><span>Step 1 — How many in one tray?</span><span>Step 2 — How many trays?</span><span>Step 3 — Multiply.</span></div>
+<div style="margin-top:10px;display:flex;align-items:center;gap:9px"><span style="font-size:11.5px;color:#6B6259">Answer</span><i style="width:56px;height:38px;border:1.5px solid #241F1B;border-radius:2px"></i></div>
+<button style="font:inherit;position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;border:1px solid #C9A659;background:#FDF7E7;color:#8A6A1F;font-size:13px;cursor:pointer" style-hover="background:#F6E7BE">⟳</button>
+</div>
+
+<div style="border:1px solid rgba(36,31,27,.28);border-radius:3px;padding:14px 16px;position:relative">
+<div style="font-size:13.5px;line-height:1.6;color:#241F1B;margin-bottom:10px">2. Count in <b>3s</b> along the line. Draw each jump.</div>
+<div style="padding:0 4px"><div style="height:34px"></div><div style="border-top:1.5px solid #241F1B;display:flex;justify-content:space-between;padding-top:5px;font-size:11px;color:#241F1B"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span></div></div>
+<button style="font:inherit;position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;border:1px solid #C9A659;background:#FDF7E7;color:#8A6A1F;font-size:13px;cursor:pointer" style-hover="background:#F6E7BE">⟳</button>
+</div>
+
+<div style="border:1px solid rgba(36,31,27,.28);border-radius:3px;padding:14px 16px;position:relative;display:flex;gap:18px">
+<div style="display:grid;grid-template-columns:repeat(10,13px);grid-template-rows:repeat(10,13px)">
+<i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i>
+<i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i>
+<i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i>
+<i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i>
+<i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i>
+<i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i>
+<i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i>
+<i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i>
+<i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i>
+<i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i><i style="border:.5px solid rgba(36,31,27,.35)"></i>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:9px;font-size:13px;color:#241F1B">
+<div style="font-weight:700;font-size:13.5px">Practice sums</div>
+<div style="display:flex;gap:12px"><span>3 × 4 =</span><i style="width:48px;height:26px;border:1.2px solid #241F1B;border-radius:2px"></i></div>
+<div style="display:flex;gap:12px"><span>6 × 5 =</span><i style="width:48px;height:26px;border:1.2px solid #241F1B;border-radius:2px"></i></div>
+<div style="display:flex;gap:12px"><span>8 × 3 =</span><i style="width:48px;height:26px;border:1.2px solid #241F1B;border-radius:2px"></i></div>
+</div>
+<button style="font:inherit;position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;border:1px solid #C9A659;background:#FDF7E7;color:#8A6A1F;font-size:13px;cursor:pointer" style-hover="background:#F6E7BE">⟳</button>
+</div>
+<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none"><span style="font-size:64px;letter-spacing:.2em;color:rgba(36,31,27,.07);transform:rotate(-24deg);font-weight:700">PREVIEW</span></div>
+</div>
+<div style="display:flex;align-items:center;gap:14px;font-size:14px;color:#6B6259"><button style="font:inherit;width:32px;height:32px;border-radius:8px;border:1px solid rgba(36,31,27,.18);background:#fff;cursor:pointer;color:#241F1B">‹</button><span>Page 1 of 2</span><button style="font:inherit;width:32px;height:32px;border-radius:8px;border:1px solid rgba(36,31,27,.18);background:#fff;cursor:pointer;color:#241F1B">›</button></div>
+</div>
+
+<div style="border-left:1px solid rgba(36,31,27,.1);background:#fff;padding:26px 24px;display:flex;flex-direction:column;gap:22px">
+<div>
+<div style="font-size:17px;font-weight:700;color:#241F1B;margin-bottom:12px">Looks good?</div>
+<div style="display:flex;flex-direction:column;gap:10px">
+<button style="font:inherit;font-size:15px;text-align:left;padding:13px 15px;border-radius:10px;border:1px solid rgba(36,31,27,.16);background:#fff;color:#241F1B;cursor:pointer" style-hover="border-color:#C9A659;background:#FEFCF7">⟳&nbsp; New questions, same setup</button>
+<button style="font:inherit;font-size:15px;text-align:left;padding:13px 15px;border-radius:10px;border:1px solid rgba(36,31,27,.16);background:#fff;color:#241F1B;cursor:pointer" style-hover="border-color:#C9A659;background:#FEFCF7">✎&nbsp; Change year or topic</button>
+</div>
+<div style="font-size:12.5px;color:#9A9188;margin-top:10px;line-height:1.5">Or use ⟳ on a single section to rebuild just that one.</div>
+</div>
+<div style="border-top:1px solid rgba(36,31,27,.1);padding-top:20px">
+<div style="font-size:14px;color:#6B6259;margin-bottom:11px">Included:</div>
+<div style="display:flex;flex-direction:column;gap:11px;font-size:15px;color:#241F1B">
+<label style="display:flex;gap:11px;align-items:center;cursor:pointer"><span style="width:19px;height:19px;border-radius:5px;background:#241F1B;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center">✓</span>Answer page <span style="font-size:12.5px;color:#9A9188">separate PDF</span></label>
+<label style="display:flex;gap:11px;align-items:center;cursor:pointer"><span style="width:19px;height:19px;border-radius:5px;background:#241F1B;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center">✓</span>Curriculum codes <span style="font-size:12.5px;color:#9A9188">answers only</span></label>
+<label style="display:flex;gap:11px;align-items:center;cursor:pointer"><span style="width:19px;height:19px;border-radius:5px;border:2px solid rgba(36,31,27,.3);box-sizing:border-box"></span>Name &amp; date line</label>
+<label style="display:flex;gap:11px;align-items:center;cursor:pointer"><span style="width:19px;height:19px;border-radius:5px;border:2px solid rgba(36,31,27,.3);box-sizing:border-box"></span>"How did I go?" strip</label>
+</div>
+</div>
+<div style="padding:13px 15px;border-radius:10px;background:#FBF8F4;border:1px solid rgba(36,31,27,.1);font-size:13px;line-height:1.55;color:#6B6259">The answer page downloads as its own file, marked <b style="color:#241F1B">Do not print for students</b>.</div>
+<div style="margin-top:auto;display:flex;flex-direction:column;gap:9px">
+<button style="font:inherit;font-size:17px;font-weight:700;padding:16px;border-radius:11px;border:0;background:#241F1B;color:#fff;cursor:pointer" style-hover="background:#332C26">Download PDF</button>
+<div style="font-size:13px;color:#6B6259;text-align:center">Uses 1 credit · charged now, not at build</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1f">
+<div class="dv-olabel"><a class="dv-oid" href="#1f">1f</a>Screen 5 — Print handoff. One line of reasoning, not a lecture.</div>
+<div class="dv-card" style="width:1280px">
+<sc-if value="{{ showChrome }}" hint-placeholder-val="{{ true }}"><div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#F3EFE9;border-bottom:1px solid rgba(36,31,27,.1)"><div style="display:flex;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span><span style="width:10px;height:10px;border-radius:50%;background:#DCD5CB"></span></div><div style="margin-left:10px;flex:1;max-width:420px;padding:4px 12px;border-radius:6px;background:#fff;border:1px solid rgba(36,31,27,.09);font-size:11px;color:#8C8378">flyinggiraffe.com.au/print</div></div></sc-if>
+<div style="height:820px;background:#FBF8F4;display:flex;align-items:center;justify-content:center;padding:40px">
+<div style="width:620px;background:#fff;border:1px solid rgba(36,31,27,.1);border-radius:16px;padding:44px 48px;box-shadow:0 14px 40px rgba(36,31,27,.08)">
+<div style="display:flex;align-items:center;gap:14px"><img src="assets/flying-giraffe-coin.png" alt="" style="width:44px;height:44px"><h2 style="margin:0;font-size:27px;font-weight:700;color:#241F1B">Your worksheet is ready</h2></div>
+<div style="margin-top:26px;border:1px solid #C9A659;background:#FDF9EE;border-radius:12px;padding:24px 26px">
+<div style="font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#8A6A1F">Before you print</div>
+<div style="margin-top:16px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;align-items:center;gap:12px;font-size:19px;font-weight:700;color:#241F1B"><span style="width:26px;height:26px;border-radius:50%;background:#241F1B;color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center">1</span>Set scale to 100%</div>
+<div style="margin-top:12px;display:flex;align-items:center;gap:12px;font-size:19px;font-weight:700;color:#241F1B"><span style="width:26px;height:26px;border-radius:50%;background:#241F1B;color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center">2</span>Turn <span style="text-decoration:underline;text-underline-offset:3px">off</span> "fit to page"</div>
+</div>
+<div style="margin-top:18px;padding-top:16px;border-top:1px solid rgba(201,166,89,.5);font-size:15px;line-height:1.6;color:#6B6259">This keeps the writing spaces the right size for small hands.</div>
+</div>
+<div style="margin-top:26px;display:flex;gap:12px"><button style="font:inherit;flex:1;font-size:17px;font-weight:700;padding:16px;border-radius:11px;border:0;background:#241F1B;color:#fff;cursor:pointer" style-hover="background:#332C26">Download PDF</button><button style="font:inherit;flex:1;font-size:17px;padding:16px;border-radius:11px;border:1px solid rgba(36,31,27,.18);background:#fff;color:#241F1B;cursor:pointer" style-hover="background:#FBF8F4">Print now</button></div>
+<div style="margin-top:22px;display:flex;align-items:center;justify-content:space-between;gap:16px">
+<label style="display:flex;gap:10px;align-items:center;font-size:14px;color:#6B6259;cursor:pointer"><span style="width:18px;height:18px;border-radius:5px;border:2px solid rgba(36,31,27,.3);box-sizing:border-box"></span>Don't show this again</label>
+<a href="#1f" style="font-size:14px">Print the ruler check page</a>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "give me three visual directions for <a class="dv-oid" href="#1a">1a</a>" · "make <a class="dv-oid" href="#1c">1c</a> work at tablet width" · "add the failure state and the plain-version comparison to <a class="dv-oid" href="#1e">1e</a>"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showChrome&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Mockup frame&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    return { showChrome: this.props.showChrome ?? true };
+  }
+}
+</script>
+</body>
+</html>
