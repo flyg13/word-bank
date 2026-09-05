@@ -222,10 +222,16 @@ await page.click('#phonicAddBtn');
 // so the moment it actually mattered showed nothing. And in the list its only
 // signal was a title attribute, which a touchscreen cannot reach.
 const savedWarnings = await page.locator('#phonicList .warn-block').count();
-check('the warning survives saving, on the entry itself', savedWarnings >= 1,
-  savedWarnings
-    ? await page.locator('#phonicList .warn-block').first().innerText()
-    : 'no warning on the saved entry');
+const savedWarningText = savedWarnings
+  ? await page.locator('#phonicList .warn-block').first().innerText()
+  : 'no warning on the saved entry';
+check('the warning survives saving, on the entry itself', savedWarnings >= 1, savedWarningText);
+check('it names this spelling and its own colliding words',
+  savedWarningText.includes('“yeyo” matches loosely') && savedWarningText.includes(' a,'),
+  savedWarningText);
+check('and it does not prescribe an invented better spelling',
+  !/yeyoh/i.test(savedWarningText) &&
+  savedWarningText.includes('will need confirming each time it fires'));
 check('and it is a visible block, not a tooltip',
   savedWarnings >= 1 &&
   (await page.locator('#phonicList .warn-block').first().isVisible()) &&
@@ -306,6 +312,22 @@ check('removing the pronunciation restores the plain mismatch',
   ' mismatch=' + (await page.locator('#sentenceOutput .wtok.mismatch').count()));
 
 await page.click('.tab[data-tab="bank"]');
+
+// A different spelling must describe itself, not the first one's example.
+await page.fill('#phonicWord', 'blue');
+await page.fill('#phonicSpelling', 'boo');
+await page.click('#phonicAddBtn');
+await page.waitForFunction(() =>
+  [...document.querySelectorAll('.phonic-row')].some((r) => r.textContent.includes('boo')));
+const booWarning = await page.locator('.phonic-row', { hasText: 'blue' }).locator('.warn-block').innerText();
+check('a second entry names its own colliding words, not the first entry\'s',
+  booWarning.includes('“boo” matches loosely') && !/yeyo/i.test(booWarning), booWarning);
+check('and the two warnings genuinely differ',
+  booWarning !== savedWarningText);
+
+check('the mic explains what it records and that a typed spelling also helps',
+  (await page.locator('.capture-hint').textContent()).includes('records what the app hears') &&
+  (await page.locator('.capture-hint').textContent()).includes('add that spelling too'));
 
 // ---- Recording a pronunciation from her voice ----
 

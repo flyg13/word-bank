@@ -9,6 +9,7 @@ import {
   removePhonicEntry
 } from '../lib/phonicbank.js';
 import { alreadyRecognised } from '../lib/phonicbank.js';
+import { describeWeakSpelling } from '../lib/collisions.js';
 import { isWeakSpelling, phoneticKeys } from '../lib/phonetics.js';
 import { bindMic } from './mic.js';
 import { buildQueue, attemptKey } from './practice.js';
@@ -146,51 +147,38 @@ export function renderAttemptLog() {
 
 // ---------- How she says her words ----------
 
-/**
- * Why a spelling is a blunt instrument, in words worth interrupting for.
- *
- * A one-character Double Metaphone key collides with a great deal of ordinary
- * speech — "yeyo" keys to "A", the same as a, oh, I, you, we, way and who. The
- * parent needs to know that before relying on it, and needs to still know it
- * afterwards, so this text is shown on the entry itself and not only while
- * typing.
- */
-function weaknessOf(spelling) {
-  return (
-    '“' + spelling + '” sounds like a, oh and I to the matcher, so it may fire ' +
-    'on almost anything she says. Sounding it out with a consonant in it — ' +
-    '“yeyoh” rather than “yeyo” — makes it much sharper.'
-  );
-}
-
 /** An amber block, not a tint and not a tooltip. */
-function warnBlock(text) {
+function warnBlock({ heading, body }) {
   const block = document.createElement('div');
   block.className = 'warn-block';
   const icon = document.createElement('span');
   icon.className = 'warn-icon';
   icon.textContent = '\u26a0';
-  const body = document.createElement('span');
-  body.append(
-    Object.assign(document.createElement('b'), { textContent: 'Matches loosely. ' }),
-    document.createTextNode(text)
+  const text = document.createElement('span');
+  text.append(
+    Object.assign(document.createElement('b'), { textContent: heading + ' ' }),
+    document.createTextNode(body)
   );
-  block.append(icon, body);
+  block.append(icon, text);
   return block;
 }
 
 /** Plain informational note under the add form. */
-function showNote(id, text, warn = false) {
+function showNote(id, text) {
   const el = document.getElementById(id);
   if (!el) return;
   el.innerHTML = '';
   el.className = 'phonic-note';
-  if (!text) return;
-  if (warn) {
-    el.appendChild(warnBlock(text));
-  } else {
-    el.textContent = text;
-  }
+  if (text) el.textContent = text;
+}
+
+/** The same area, carrying an amber warning block instead. */
+function showWarning(id, description) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = '';
+  el.className = 'phonic-note';
+  el.appendChild(warnBlock(description));
 }
 
 /** Describe whatever is currently in the spelling box. */
@@ -199,7 +187,7 @@ function describeTypedSpelling() {
   if (!spelling) return showNote('phonicAddNote', '');
   const keys = phoneticKeys(spelling);
   if (!keys.length) return showNote('phonicAddNote', '');
-  if (isWeakSpelling(spelling)) return showNote('phonicAddNote', weaknessOf(spelling), true);
+  if (isWeakSpelling(spelling)) return showWarning('phonicAddNote', describeWeakSpelling(spelling));
   showNote('phonicAddNote', 'Sounds like: ' + keys.join(' or '));
 }
 
@@ -282,10 +270,9 @@ export function renderPhonicList() {
     // title attribute, which a touchscreen has no way to reach, and cleared
     // the form's warning on save — so the one moment it mattered showed
     // nothing at all.
-    const weak = entry.spellings.filter(isWeakSpelling);
-    if (weak.length) {
-      row.appendChild(warnBlock(weaknessOf(weak.join('” and “'))));
-    }
+    entry.spellings.filter(isWeakSpelling).forEach((spelling) => {
+      row.appendChild(warnBlock(describeWeakSpelling(spelling)));
+    });
 
     list.appendChild(row);
   });

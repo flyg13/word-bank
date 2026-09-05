@@ -157,11 +157,22 @@ already understood, so neither offers to record something already covered:
 - **Word Bank** — type the word, tap the mic, she says it. Both mics share the
   same wiring, so recognizer error codes appear on either.
 
-A spelling whose Double Metaphone key is a single character ("yeyo" → `A`)
-collides with a, oh, I, you, we, way and who. That is warned about before saving
-**and permanently on the saved entry**: an earlier version put it in a `title`
-attribute and cleared the form warning on save, which meant a touchscreen could
-never see it at the one moment it mattered.
+A spelling that is mostly vowels produces a Double Metaphone key barely a
+character long ("yeyo" → `A`, "boo" → `P`), and a key that short cannot be told
+apart from a lot of ordinary speech. `src/lib/collisions.js` works out which
+real words those actually are — the practice list plus the bare vowel sounds and
+homophones it deliberately omits, which are exactly what a recognizer emits for
+an unclear attempt — so each entry names its own: "boo" is warned about `be, by,
+bee and buy`, "yeyo" about `a, I, ah and aw`.
+
+The warning states the limit rather than prescribing a fix. Adding a consonant
+helps only if she actually makes one; otherwise that spelling will need
+confirming every time it fires, and saying so is more honest than inventing a
+better spelling.
+
+It shows before saving **and permanently on the saved entry**. An earlier
+version put it in a `title` attribute and cleared the form warning on save,
+which meant a touchscreen could never see it at the one moment it mattered.
 
 ### Phonetic matching
 
