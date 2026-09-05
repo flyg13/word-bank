@@ -36,6 +36,8 @@ describe('brand palette', () => {
 
   // DESIGN.md §6. Every pairing the app actually renders text in.
   it.each([
+    ['ink on the Word Bank tab', 'ink', 'wash-orange'],
+    ['ink on the Speech-To-Text tab', 'ink', 'wash-blue'],
     ['ink on shell', 'ink', 'shell'],
     ['ink on white', 'ink', 'white'],
     ['ink on paper', 'ink', 'paper'],
@@ -45,7 +47,9 @@ describe('brand palette', () => {
     ['muted on paper', 'muted', 'paper'],
     ['muted on gold wash', 'muted', 'gold-wash'],
     ['gold text on white', 'gold-text', 'white'],
-    ['checked on white', 'checked', 'white']
+    ['checked on white', 'checked', 'white'],
+    ['tab label on the orange stop', 'muted', 'wash-orange'],
+    ['tab label on the blue stop', 'muted', 'wash-blue']
   ])('%s clears 4.5:1', (_name, fg, bg) => {
     const bgHex = bg === 'white' ? '#FFFFFF' : token(bg);
     expect(contrast(token(fg), bgHex)).toBeGreaterThanOrEqual(4.5);
@@ -80,5 +84,58 @@ describe('brand typography', () => {
   it('uses only the two weights the brand allows', () => {
     const weights = [...css.matchAll(/font-weight:(\d+)/g)].map((m) => m[1]);
     expect([...new Set(weights)].sort()).toEqual(['400', '700']);
+  });
+});
+
+describe('the filled buttons the parent chose', () => {
+  it.each([
+    ['mic waiting', 'mic-idle'],
+    ['mic recording', 'mic-recording'],
+    ['start session', 'session-start'],
+    ['end session', 'session-end']
+  ])('%s carries white at 4.5:1 or better', (_name, name) => {
+    expect(contrast('#FFFFFF', token(name))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('changes colour between waiting and recording', () => {
+    expect(token('mic-idle')).not.toBe(token('mic-recording'));
+  });
+
+  it('changes colour between starting and ending a session', () => {
+    expect(token('session-start')).not.toBe(token('session-end'));
+  });
+});
+
+describe('the 16px readable floor', () => {
+  // The parent raised the minimum from the brand sheet's 13px to 16px for this
+  // product. Three labels are exempt at 15px: the section label, the entry
+  // screen's field label, and the brand wordmark.
+  const sizes = [...css.matchAll(/font-size:([0-9.]+)px/g)].map((m) => parseFloat(m[1]));
+
+  it('has no rule below 15px except the tick glyph inside a progress dot', () => {
+    const belowFifteen = sizes.filter((s) => s < 15);
+    // 12px, and it is an icon inside a 19px circle rather than text.
+    expect(belowFifteen).toEqual([12]);
+  });
+
+  it('allows exactly three 15px rules, all of them labels', () => {
+    expect(sizes.filter((s) => s === 15)).toHaveLength(3);
+    ['.eyebrow{', '.wordmark{', '.entry-label{'].forEach((sel) => {
+      const block = css.slice(css.indexOf(sel));
+      expect(block.slice(0, block.indexOf('}'))).toContain('font-size:15px');
+    });
+  });
+
+  it('sets section labels in sentence case, not the brand sheet\'s all-caps', () => {
+    const block = css.slice(css.indexOf('.eyebrow{'));
+    const rule = block.slice(0, block.indexOf('}'));
+    expect(rule).not.toContain('text-transform:uppercase');
+    expect(rule).not.toContain('letter-spacing');
+    expect(rule).toContain('font-weight:700');
+  });
+
+  it('keeps inputs at 16px, which also stops iOS zooming on focus', () => {
+    const block = css.slice(css.indexOf('input[type=text], textarea, select{'));
+    expect(block.slice(0, block.indexOf('}'))).toContain('font-size:16px');
   });
 });

@@ -4,6 +4,19 @@
 
 This is a restyle plus a tab restructure. **No logic changes. Every existing test must keep passing.** Data model untouched.
 
+**Why this product carries more colour than the mockups it came from.** The
+worksheet generator has one user, an adult. Word Bank has two: a nine-year-old
+on Practice, Sentences and Reading, and her parent on Corrections and Word Bank.
+A tool a child uses daily should not look like a tool for filing. So the tabs
+carry the holographic wash across their groups, the mic and session buttons are
+filled in brand colour rather than ink, and the Flying Giraffe mark is on the
+header and the entry screen rather than being held back for print. The
+accessibility rules do not relax to make room for that: every pairing below is
+measured, and colour still never carries meaning on its own.
+
+*The colour, type-size and label decisions recorded below were made by the
+parent, reviewing the build on the device it is used on.*
+
 ---
 
 ## 1. The big shift: dark → light
@@ -28,10 +41,23 @@ from. Colour reinforces the tab grouping; it never replaces the spacing that
 carries it, and the selected tab stays ink-filled so selection survives
 greyscale.
 
-**Mid-tones for filled buttons.** The wash stops are far too pale to fill a
-button with. Three are derived from them by keeping the hue and raising
-saturation and lightness until white on the result clears 4.5:1 — purple
-`#5F4790` (7.53:1), green `#2F7437` (5.72:1), terracotta `#8D5835` (5.87:1).
+Two further pastels extend the family, both **chosen by the parent**: a pastel
+orange `#FAE0C9` a step darker than peach for Word Bank, and a pastel blue
+`#E2EEF8` for Speech-To-Text. Tab labels clear 4.5:1 on both (4.71 and 5.07).
+
+**Filled buttons**, all four **chosen by the parent**, white icon and text on
+each:
+
+| | | white on it |
+|---|---|---|
+| Mic, waiting | `#B5533C` | 4.92:1 |
+| Mic, recording | `#3D6B4A` | 6.18:1 |
+| Start session | `#3D6B4A` | 6.18:1 |
+| End session | `#96453A` | 6.54:1 |
+
+Recording and Start session are deliberately the same green as **Checked**, so
+"under way" reads the same wherever it appears. The mic's pulsing ring is that
+green too — colour and motion saying one thing rather than two.
 
 ---
 
@@ -46,7 +72,21 @@ The brand draws a line: **Atkinson Hyperlegible** for what the teacher sees, **A
 | The heard-back text ("yoyo") | **Andika** | It's shown to her as what she said. |
 | Everything else — chrome, tabs, labels, Corrections, Word Bank, buttons | **Atkinson Hyperlegible** | Parent-facing interface. |
 
-Two weights only: 400 and 700. Nothing below 13px except the 12px uppercase eyebrow (`.16em` tracking). Self-host both fonts (both are free/open) so the app doesn't depend on a third-party CDN — a missing font on Harlie's reading surface is worse than a slow one.
+Two weights only: 400 and 700. Self-host both fonts (both are free/open) so the
+app doesn't depend on a third-party CDN — a missing font on Harlie's reading
+surface is worse than a slow one.
+
+**Size floor, decided by the parent: 16px, not the brand sheet's 13px.** This
+overrides the brand sheet for this product. Three labels are exempt at 15px —
+the section label, the entry screen's field label and the brand wordmark — and
+the ✓ inside a progress dot is 12px, but that is an icon rather than text.
+Setting inputs at 16px has a second benefit: iOS stops zooming the page when one
+takes focus.
+
+**Section labels, decided by the parent: sentence case, bold, 15px.** The brand
+sheet's uppercase letter-spaced eyebrow is gone. Same wording, no tracking, no
+`text-transform`. All-caps is harder to read for the reader this app is built
+for, which is reason enough to depart from the sheet here.
 
 ---
 
@@ -59,14 +99,24 @@ Restructure into the groups agreed with the parent:
 ```
 [ Practice ] [ Sentences ] [ Reading ]   [ Speech-To-Text ]   [ Corrections ] [ Word Bank ]
  ─── build the bank ───                    use it              teach it        the brain
-     mint                                  full wash           peach           lilac
+     mint #EDF6EE                          blue #E2EEF8        peach #FDF1E9   orange #FAE0C9
 ```
 
 Grouping is carried by **spacing** (a wider gap between groups) *and* reinforced
-by a wash stop per group. The brand rule is "colour never carries meaning
-alone," which the spacing satisfies: strip the colour and the three groups still
-read. Selection is never carried by colour either — the selected tab is
-ink-filled with white text, exactly as the mockups' year selector.
+by a colour per group, **as decided by the parent**. The brand rule is "colour
+never carries meaning alone," which the spacing satisfies: strip the colour and
+the three groups still read.
+
+**Selection**, for five of the six tabs, is an ink fill with white text — the
+mockups' year selector. **Speech-To-Text is the exception, by the parent's
+decision: selected, it takes the full holographic gradient instead of ink.**
+Because that is light-on-light, background alone cannot carry selection there,
+so it also takes a 2px inset ink ring. The ring is what marks it selected; the
+gradient is what makes it the tab it is.
+
+At 16px the six tabs no longer fit across an iPad, so the bar wraps by group
+rather than clipping or scrolling — the row gap stays smaller than the group gap
+so the grouping still reads across a wrap.
 
 On narrow screens the bar scrolls horizontally; the selected tab is always brought into view.
 
@@ -79,18 +129,18 @@ On narrow screens the bar scrolls horizontally; the selected tab is always broug
 **Header.** Coin at 44px (never recoloured, never cropped, clear space = ¼ diameter) + "Harlie's Word Bank" in Atkinson 700. Sync status as a quiet meta line beneath, same as now but in Quiet grey with a small filled dot in Checked green / Gold / Ink for connected / connecting / error — plus the word, so it survives greyscale.
 
 **The mic button.** This is "the thing you came to do," so it's the screen's one
-filled circle: 84px, white icon. *Revised after iPad review:* **purple `#5F4790`
-when it's waiting, green `#2F7437` while it's recording** — the state is carried
-by the fill, the ring animation and the label together, not by any one of them.
-The ring pulses gently (`cubic-bezier(.4,.05,.6,.95)`, ~1.2s), matching the
+filled circle: 84px, white icon. **Terracotta `#B5533C` when it's waiting, green
+`#3D6B4A` while it's recording** (parent's colours) — the state is carried by the
+fill, the ring animation and the label together, not by any one of them. The ring
+pulses in that same green (`cubic-bezier(.4,.05,.6,.95)`, ~1.2s), matching the
 brand's "happening now" progress-step vocabulary.
 
 Its label reads **"Tap to record"**, not "tap to listen" — the app is not the one
 listening, she is the one speaking.
 
-**Session buttons.** Start session is purple; End session is terracotta
-`#8D5835`. A session being under way is signalled by a different colour, not by
-the absence of one. When the mismatch action row is showing, the mic recedes to Quiet grey so the action row's primary button is the only ink on screen. Honours `prefers-reduced-motion`.
+**Session buttons.** Start session is green `#3D6B4A`; End session is
+`#96453A` (parent's colours). A session being under way is signalled by a
+different colour, not by the absence of one. When the mismatch action row is showing, the mic recedes to Quiet grey so the action row's primary button is the only ink on screen. Honours `prefers-reduced-motion`.
 
 **Heard-back result.** Match: the heard word in Andika, then a Checked-green tick icon *and* the word "matched" — icon plus text, never colour alone. Mismatch: rendered inside a **gold notice box** (gold wash, gold border, 12px radius) — the brand's "the thing that will go wrong if ignored" container — with the heard word and the action row beneath.
 
@@ -130,7 +180,8 @@ Unchanged behaviour. Output box white card; auto-applied corrections marked with
 
 - **No red/green as the only difference.** Match/mismatch, active/pending, connected/error all currently lean on colour. Every one now carries an icon or a word too. (§4.)
 - **Minimum 44px hit height.** The current `.btn-sm` is under that. Raise it.
-- **Minimum 13px text.** Current 12.5px buttons go to 13px.
+- **Minimum 16px text**, raised by the parent from the brand sheet's 13px. See
+  §2 for the three 15px label exceptions.
 - **Contrast.** Ink on shell, ink on white, gold-text on gold-wash all clear 4.5:1 per the brand sheet. Verify nothing else was introduced.
 - **Copy.** Say "children with dyslexia," never "struggling learners." No outcome promises ("will fix," "will improve"). No countdowns or time promises. Australian English. The current tagline — "A personal speech-to-text trainer that learns her voice, one correction at a time." — passes.
 

@@ -638,14 +638,24 @@ const tinyText = await page.evaluate(() => {
     if (el.children.length) return; // leaf nodes only
     const cs = getComputedStyle(el);
     const size = parseFloat(cs.fontSize);
-    // The 12px uppercase eyebrow is the one documented exception.
-    const isEyebrow = el.classList.contains('eyebrow') || cs.textTransform === 'uppercase';
-    if (size < 13 && !isEyebrow) bad.push((el.className || el.tagName) + ' ' + size + 'px');
+    // Three documented exceptions, all at 15px: the section label, the entry
+    // screen's field label, and the brand wordmark.
+    const exempt = el.classList.contains('eyebrow') ||
+      el.classList.contains('entry-label') || el.classList.contains('wordmark');
+    if (size < 16 && !exempt) bad.push((el.className || el.tagName) + ' ' + size + 'px');
+    if (exempt && size < 15) bad.push((el.className || el.tagName) + ' ' + size + 'px (exempt, still too small)');
   });
   return bad;
 });
-check('nothing renders below 13px except the eyebrow', tinyText.length === 0,
-  tinyText.slice(0, 5).join(', '));
+check('nothing renders below 16px, bar the three 15px labels', tinyText.length === 0,
+  tinyText.slice(0, 6).join(', '));
+
+check('section labels are sentence case, not all-caps',
+  await page.evaluate(() => [...document.querySelectorAll('.eyebrow')].every((el) => {
+    const cs = getComputedStyle(el);
+    return cs.textTransform === 'none' && cs.fontWeight === '700' &&
+           parseFloat(cs.fontSize) === 15;
+  })));
 
 await page.click('.tab[data-tab="bank"]');
 check('the fullness bar is always paired with words and numerals',
@@ -683,12 +693,41 @@ check('the build-the-bank group shares one wash stop',
 check('Corrections and Word Bank each get their own, all three different',
   new Set([tabColours.sentences, tabColours.corrections, tabColours.bank]).size === 3,
   JSON.stringify(tabColours));
-check('Speech-To-Text carries the full holographic gradient',
-  tabColours.write === 'gradient', tabColours.write);
+check('Speech-To-Text is a solid pastel when idle, gradient when selected',
+  tabColours.write !== 'gradient' && tabColours.write !== 'active', tabColours.write);
+await page.click('.tab[data-tab="write"]');
+await page.waitForTimeout(300);
+const writeSelected = await page.locator('.tab[data-tab="write"]').evaluate((el) => ({
+  gradient: getComputedStyle(el).backgroundImage !== 'none',
+  // Light-on-light cannot carry selection alone, so it also takes an ink ring.
+  ring: getComputedStyle(el).boxShadow.includes('inset'),
+  text: getComputedStyle(el).color
+}));
+check('and its selected state is the gradient plus an ink ring, not ink fill',
+  writeSelected.gradient && writeSelected.ring && writeSelected.text === 'rgb(36, 31, 27)',
+  JSON.stringify(writeSelected));
+check('while the other five still fill with ink when selected',
+  await page.evaluate(async () => {
+    document.querySelector('.tab[data-tab="bank"]').click();
+    await new Promise((r) => setTimeout(r, 300));
+    const el = document.querySelector('.tab[data-tab="bank"]');
+    return getComputedStyle(el).backgroundColor === 'rgb(36, 31, 27)';
+  }));
+check('no tab is clipped off the edge of the bar',
+  await page.evaluate(() => {
+    const bar = document.querySelector('.tabs').getBoundingClientRect();
+    return [...document.querySelectorAll('.tab')].every((t) => {
+      const b = t.getBoundingClientRect();
+      return b.right <= bar.right + 1 && b.left >= bar.left - 1;
+    });
+  }));
+check('and the page itself never scrolls sideways',
+  await page.evaluate(() =>
+    document.documentElement.scrollWidth <= document.documentElement.clientWidth));
 check('but the grouping still reads without colour, from the spacing',
   (await page.evaluate(() => {
     const groups = [...document.querySelectorAll('.tab-group')];
-    const gap = parseFloat(getComputedStyle(groups[0].parentElement).gap);
+    const gap = parseFloat(getComputedStyle(groups[0].parentElement).columnGap);
     const inner = parseFloat(getComputedStyle(groups[0]).gap);
     return gap > inner * 2;
   })));
@@ -700,8 +739,8 @@ await page.evaluate(() => document.getElementById('practiceMic').classList.add('
 await page.waitForTimeout(300);
 const micRecording = await page.locator('#practiceMic').evaluate((el) => getComputedStyle(el).backgroundColor);
 await page.evaluate(() => document.getElementById('practiceMic').classList.remove('listening'));
-check('the mic is purple waiting and green recording, not the same colour',
-  micIdle === 'rgb(95, 71, 144)' && micRecording === 'rgb(47, 116, 55)',
+check('the mic changes colour between waiting and recording',
+  micIdle === 'rgb(181, 83, 60)' && micRecording === 'rgb(61, 107, 74)',
   micIdle + ' -> ' + micRecording);
 
 const sessionColours = await page.evaluate(() => ({
@@ -709,9 +748,7 @@ const sessionColours = await page.evaluate(() => ({
   end: getComputedStyle(document.getElementById('endSessionBtn')).backgroundColor
 }));
 check('start and end session are different brand fills, neither ink nor white',
-  sessionColours.start !== sessionColours.end &&
-  !['rgb(36, 31, 27)', 'rgb(255, 255, 255)'].includes(sessionColours.start) &&
-  !['rgb(36, 31, 27)', 'rgb(255, 255, 255)'].includes(sessionColours.end),
+  sessionColours.start === 'rgb(61, 107, 74)' && sessionColours.end === 'rgb(150, 69, 58)',
   JSON.stringify(sessionColours));
 
 check('the coin is present and not stretched', await page.evaluate(() => {
