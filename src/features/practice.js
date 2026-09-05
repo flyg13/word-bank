@@ -3,7 +3,7 @@ import { PRACTICE_WORDS } from '../data/practice-words.js';
 import { normalize, shuffle } from '../lib/text.js';
 import { state, save, onRender, renderAll } from '../lib/store.js';
 import { getBankEntry, recordBankObservation } from '../lib/wordbank.js';
-import { soundsLikeHerWord, addSpelling } from '../lib/phonicbank.js';
+import { soundsLikeHerWord, addSpelling, alreadyRecognised } from '../lib/phonicbank.js';
 import { isWeakSpelling, phoneticKeys } from '../lib/phonetics.js';
 import { speak } from '../lib/speech.js';
 import { bindMic, MIC_IDLE } from './mic.js';
@@ -212,7 +212,7 @@ function handlePracticeResult(heard) {
 
   // The moment the parent is best placed to record a pronunciation is right
   // after hearing her say it, so offer it here rather than only in Word Bank.
-  if (!soundsRight) {
+  if (!alreadyRecognised(target, heard)) {
     const teachBtn = document.createElement('button');
     teachBtn.className = 'btn btn-outline';
     teachBtn.textContent = 'Teach how she says it';

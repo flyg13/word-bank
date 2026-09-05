@@ -215,8 +215,21 @@ await page.click('.tab[data-tab="bank"]');
 await page.fill('#phonicWord', phonicTarget);
 await page.fill('#phonicSpelling', 'yeyo');
 check('a collision-prone spelling is flagged before saving',
-  (await page.locator('#phonicAddNote').textContent()).includes('sounds like a lot of ordinary words'));
+  (await page.locator('#phonicAddNote .warn-block').count()) === 1);
 await page.click('#phonicAddBtn');
+
+// The bug this replaces: the warning fired while typing and was wiped on save,
+// so the moment it actually mattered showed nothing. And in the list its only
+// signal was a title attribute, which a touchscreen cannot reach.
+const savedWarnings = await page.locator('#phonicList .warn-block').count();
+check('the warning survives saving, on the entry itself', savedWarnings >= 1,
+  savedWarnings
+    ? await page.locator('#phonicList .warn-block').first().innerText()
+    : 'no warning on the saved entry');
+check('and it is a visible block, not a tooltip',
+  savedWarnings >= 1 &&
+  (await page.locator('#phonicList .warn-block').first().isVisible()) &&
+  (await page.locator('#phonicList [title*="loosely"]').count()) === 0);
 const phonicList = await page.locator('#phonicList').textContent();
 check('pronunciation is recorded, with its derived key shown',
   phonicList.includes(phonicTarget) && phonicList.includes('yeyo') && phonicList.includes('A'));
@@ -293,6 +306,60 @@ check('removing the pronunciation restores the plain mismatch',
   ' mismatch=' + (await page.locator('#sentenceOutput .wtok.mismatch').count()));
 
 await page.click('.tab[data-tab="bank"]');
+
+// ---- Recording a pronunciation from her voice ----
+
+await page.click('.tab[data-tab="bank"]');
+await page.fill('#phonicWord', '');
+await page.fill('#phonicSpelling', '');
+await page.evaluate(() => { window.__nextError = null; });
+
+// Nothing to listen for until it knows which word she is saying.
+await page.click('#phonicMic');
+check('the mic asks for the word before listening',
+  (await page.locator('#phonicAddNote').textContent()).includes('Type the word first'));
+
+// A sound nothing recognises yet: offer to save it.
+await page.fill('#phonicWord', 'butterfly');
+await page.evaluate(() => { window.__nextTranscript = 'butta fly'; });
+await page.click('#phonicMic');
+await page.waitForFunction(() => document.getElementById('phonicSpelling').value !== '');
+check('an unrecognised sound is captured into the spelling box',
+  (await page.inputValue('#phonicSpelling')) === 'butta fly');
+check('and it says what it heard and what saving would mean',
+  (await page.locator('#phonicAddNote').textContent()).includes('tap Add to save it as how she says'));
+await page.click('#phonicAddBtn');
+check('saving it records the pronunciation',
+  (await page.locator('#phonicList').textContent()).includes('butta fly'));
+
+// Output that is already understood: same gate as Practice, so no offer.
+await page.fill('#phonicWord', 'butterfly');
+await page.fill('#phonicSpelling', '');
+await page.evaluate(() => { window.__nextTranscript = 'butterfly'; });
+await page.click('#phonicMic');
+await page.waitForFunction(() =>
+  document.getElementById('phonicAddNote').textContent.includes('Nothing to record'));
+check('output that already matches the word is not offered for saving',
+  (await page.inputValue('#phonicSpelling')) === '');
+
+// A pronunciation already recorded also counts as recognised.
+await page.evaluate(() => { window.__nextTranscript = 'butta fly'; });
+await page.click('#phonicMic');
+await page.waitForTimeout(200);
+check('a sound an existing pronunciation already covers is not offered again',
+  (await page.locator('#phonicAddNote').textContent()).includes('Nothing to record') &&
+  (await page.inputValue('#phonicSpelling')) === '');
+
+// Shared mic wiring means the error codes land here too.
+await page.evaluate(() => { window.__nextError = 'audio-capture'; });
+await page.click('#phonicMic');
+await page.waitForFunction(() =>
+  !document.getElementById('phonicMicLabel').textContent.includes('Listening'));
+const phonicMicErr = (await page.locator('#phonicMicLabel').textContent()).trim();
+check('recognizer error codes show on this mic too',
+  phonicMicErr.includes('(audio-capture)') && phonicMicErr.includes('No microphone found'),
+  phonicMicErr);
+await page.evaluate(() => { window.__nextError = null; });
 
 // ---- Accent, and recognizer error codes ----
 

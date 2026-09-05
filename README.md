@@ -147,6 +147,22 @@ unsupported choice surfaces on the mic button as
 than failing silently — every recognizer error code reaches that label, since on
 a device that isn't in front of you it is the only diagnostic there is.
 
+### Recording how she says a word
+
+Two ways in, both gated identically by `alreadyRecognised(word, heard)` — the
+word itself, a confirmed correction, or an existing pronunciation all count as
+already understood, so neither offers to record something already covered:
+
+- **Practice** — "Teach how she says it", prefilled with what was just heard.
+- **Word Bank** — type the word, tap the mic, she says it. Both mics share the
+  same wiring, so recognizer error codes appear on either.
+
+A spelling whose Double Metaphone key is a single character ("yeyo" → `A`)
+collides with a, oh, I, you, we, way and who. That is warned about before saving
+**and permanently on the saved entry**: an earlier version put it in a `title`
+attribute and cleared the form warning on save, which meant a touchscreen could
+never see it at the one moment it mattered.
+
 ### Phonetic matching
 
 `src/lib/phonetics.js` (Double Metaphone) and `src/lib/phonicbank.js`.

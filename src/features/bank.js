@@ -8,7 +8,9 @@ import {
   removeSpelling,
   removePhonicEntry
 } from '../lib/phonicbank.js';
+import { alreadyRecognised } from '../lib/phonicbank.js';
 import { isWeakSpelling, phoneticKeys } from '../lib/phonetics.js';
+import { bindMic } from './mic.js';
 import { buildQueue, attemptKey } from './practice.js';
 
 // ---------- Correction list ----------
@@ -145,32 +147,60 @@ export function renderAttemptLog() {
 // ---------- How she says her words ----------
 
 /**
- * Explain what a typed spelling will actually key to. A one-character key
- * collides with a lot of ordinary speech ("a", "oh", "I"), so the parent
- * should know before relying on it.
+ * Why a spelling is a blunt instrument, in words worth interrupting for.
+ *
+ * A one-character Double Metaphone key collides with a great deal of ordinary
+ * speech — "yeyo" keys to "A", the same as a, oh, I, you, we, way and who. The
+ * parent needs to know that before relying on it, and needs to still know it
+ * afterwards, so this text is shown on the entry itself and not only while
+ * typing.
  */
-function describeSpelling(spelling) {
-  const keys = phoneticKeys(spelling);
-  if (!keys.length) return { text: '', warn: false };
-  if (isWeakSpelling(spelling)) {
-    return {
-      warn: true,
-      text:
-        'Heads up: “' +
-        spelling +
-        '” sounds like a lot of ordinary words (a, oh, I), so it will match loosely. ' +
-        'Adding a consonant closer to how she says it makes it sharper.'
-    };
-  }
-  return { warn: false, text: 'Sounds like: ' + keys.join(' or ') };
+function weaknessOf(spelling) {
+  return (
+    '“' + spelling + '” sounds like a, oh and I to the matcher, so it may fire ' +
+    'on almost anything she says. Sounding it out with a consonant in it — ' +
+    '“yeyoh” rather than “yeyo” — makes it much sharper.'
+  );
 }
 
-function setNote(id, spelling) {
+/** An amber block, not a tint and not a tooltip. */
+function warnBlock(text) {
+  const block = document.createElement('div');
+  block.className = 'warn-block';
+  const icon = document.createElement('span');
+  icon.className = 'warn-icon';
+  icon.textContent = '\u26a0';
+  const body = document.createElement('span');
+  body.append(
+    Object.assign(document.createElement('b'), { textContent: 'Matches loosely. ' }),
+    document.createTextNode(text)
+  );
+  block.append(icon, body);
+  return block;
+}
+
+/** Plain informational note under the add form. */
+function showNote(id, text, warn = false) {
   const el = document.getElementById(id);
   if (!el) return;
-  const { text, warn } = spelling ? describeSpelling(spelling) : { text: '', warn: false };
-  el.textContent = text;
-  el.className = 'phonic-note' + (warn ? ' warn' : '');
+  el.innerHTML = '';
+  el.className = 'phonic-note';
+  if (!text) return;
+  if (warn) {
+    el.appendChild(warnBlock(text));
+  } else {
+    el.textContent = text;
+  }
+}
+
+/** Describe whatever is currently in the spelling box. */
+function describeTypedSpelling() {
+  const spelling = document.getElementById('phonicSpelling').value.trim();
+  if (!spelling) return showNote('phonicAddNote', '');
+  const keys = phoneticKeys(spelling);
+  if (!keys.length) return showNote('phonicAddNote', '');
+  if (isWeakSpelling(spelling)) return showNote('phonicAddNote', weaknessOf(spelling), true);
+  showNote('phonicAddNote', 'Sounds like: ' + keys.join(' or '));
 }
 
 export function renderPhonicList() {
@@ -219,8 +249,8 @@ export function renderPhonicList() {
       chip.className = 'spelling';
       chip.appendChild(document.createTextNode(spelling));
       if (isWeakSpelling(spelling)) {
-        chip.title = 'This spelling matches loosely — it sounds like many common words.';
-        chip.style.borderColor = 'var(--amber-dim)';
+        chip.style.borderColor = 'var(--amber)';
+        chip.style.color = 'var(--amber)';
       }
       const drop = document.createElement('button');
       drop.textContent = '×';
@@ -247,6 +277,16 @@ export function renderPhonicList() {
     };
     spellings.appendChild(add);
     row.appendChild(spellings);
+
+    // Shown on the entry, permanently. The previous version put this in a
+    // title attribute, which a touchscreen has no way to reach, and cleared
+    // the form's warning on save — so the one moment it mattered showed
+    // nothing at all.
+    const weak = entry.spellings.filter(isWeakSpelling);
+    if (weak.length) {
+      row.appendChild(warnBlock(weaknessOf(weak.join('” and “'))));
+    }
+
     list.appendChild(row);
   });
 }
@@ -364,23 +404,53 @@ export function initBank() {
   const phonicWordEl = document.getElementById('phonicWord');
   const phonicSpellingEl = document.getElementById('phonicSpelling');
 
-  phonicSpellingEl.addEventListener('input', () =>
-    setNote('phonicAddNote', phonicSpellingEl.value.trim())
-  );
+  phonicSpellingEl.addEventListener('input', describeTypedSpelling);
 
   document.getElementById('phonicAddBtn').addEventListener('click', () => {
     const word = phonicWordEl.value.trim();
     const spelling = phonicSpellingEl.value.trim();
     if (!word || !spelling) return;
     if (!addSpelling(word, spelling)) {
-      setNote('phonicAddNote', spelling);
+      describeTypedSpelling();
       return;
     }
     save('phonic_bank', state.phonicBank);
     phonicWordEl.value = '';
     phonicSpellingEl.value = '';
-    setNote('phonicAddNote', '');
+    // Clearing the form note is safe now: the saved entry carries the warning.
+    showNote('phonicAddNote', '');
     renderAll();
+  });
+
+  // Capture a pronunciation from her voice rather than spelling it out by
+  // hand. Same gate as "Teach how she says it" in Practice: only worth saving
+  // when the output is not already understood as the word.
+  bindMic({
+    buttonId: 'phonicMic',
+    labelId: 'phonicMicLabel',
+    canListen: () => Boolean(phonicWordEl.value.trim()),
+    onBlocked: () =>
+      showNote('phonicAddNote', 'Type the word first, then tap — it needs to know what she is saying.'),
+    onResult: (heard) => {
+      const word = phonicWordEl.value.trim();
+      if (!word) return;
+      if (alreadyRecognised(word, heard)) {
+        showNote(
+          'phonicAddNote',
+          'Heard “' + heard + '”, which already comes through as “' + word + '”. Nothing to record.'
+        );
+        return;
+      }
+      phonicSpellingEl.value = heard;
+      describeTypedSpelling();
+      const el = document.getElementById('phonicAddNote');
+      el.prepend(
+        Object.assign(document.createElement('div'), {
+          textContent: 'Heard “' + heard + '” — tap Add to save it as how she says “' + word + '”.',
+          style: 'margin-bottom:6px;'
+        })
+      );
+    }
   });
 
   document.getElementById('speechLang').addEventListener('change', (e) => {

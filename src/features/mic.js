@@ -36,7 +36,7 @@ export function micErrorLabel(code, lang = state.speechLang) {
  * The original left the label reading "Listening…" forever after the first
  * successful attempt, since only the error path ever reset it.
  */
-export function bindMic({ buttonId, labelId, canListen = () => true, onResult }) {
+export function bindMic({ buttonId, labelId, canListen = () => true, onBlocked, onResult }) {
   const button = document.getElementById(buttonId);
   const label = labelId ? document.getElementById(labelId) : null;
 
@@ -45,7 +45,10 @@ export function bindMic({ buttonId, labelId, canListen = () => true, onResult })
   };
 
   button.addEventListener('click', () => {
-    if (!canListen()) return;
+    if (!canListen()) {
+      if (onBlocked) onBlocked();
+      return;
+    }
 
     let failed = false;
     button.classList.add('listening');

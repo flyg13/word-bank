@@ -2,7 +2,16 @@
 
 **Purpose of this document:** a spec to hand to Claude Code to properly rebuild what's currently a single 1,100-line HTML file into a real, maintainable project — while adding phonetic matching, staleness re-testing, and (later) on-device voice lock. Written by Claude (chat) as the architecture partner; built by Claude Code as the implementation partner.
 
-**Current state:** a working static HTML app (`index.html`) hosted on GitHub Pages, synced via Firebase Firestore using a shared "family code." It has five tabs — Practice, Sentences, Reading Passage, Free Write, Word Bank — and a correction system that requires a mishearing to be confirmed twice before it auto-applies. It works, and Harlie is using it daily. This plan builds *on top of* that, not instead of it.
+**Current state:** a Vite project deployed to Netlify at
+`wordbank.flyinggiraffe.ai`, synced via Firebase Firestore using a shared
+"family code." Five tabs — Practice, Sentences, Reading Passage, Free Write,
+Word Bank — a correction system that requires a mishearing to be confirmed twice
+before it auto-applies, and phonetic matching on top of it. Harlie is using it
+daily. Every branch gets its own preview URL, so changes are testable on an iPad
+before they reach her.
+
+The original single-file app is kept at `legacy/index.html`, and a differential
+test drives both it and the port to prove the Firestore schema never diverged.
 
 ---
 
@@ -166,13 +175,63 @@ Once the sentence corpus from §2 gets compiled into short "stories," each story
 
 This is a lower-priority, purely additive feature — sequence it after the accuracy-focused work (§3, §4), since it's about engagement and delivery, not correctness.
 
-## 7. Suggested build order
+## 7. Roadmap (re-scoped, September 2026)
 
-1. ~~**Scaffold the Vite project structure**~~ — **done.** Ported module-by-module, including the sentence-alignment fix. Schema parity with the original is pinned by a differential test.
-2. ~~**Phonetic matching** (§3)~~ — **built, pending review.** Two deviations from the spec below, both deliberate.
-3. **Staleness reminders** (§4) — small, valuable, low risk. Next.
-4. **Voice Lock via sherpa-onnx** (§5) — biggest lift, do once the foundation is solid.
-5. **Illustrated reading passages / story library** (§6) — additive, do once the content corpus from §2 exists to fill it.
+**Everything below the line waits on evidence from the line above it.** The
+foundation and phonetic matching are built; whether phonetic matching actually
+works is not yet known, and nothing else should be built on top of an unproven
+assumption.
+
+### Done
+
+1. ~~**Scaffold the Vite project structure**~~ — ported module-by-module,
+   including the sentence-alignment fix. Schema parity with the original single-
+   file app is pinned by a differential test, so live data was never at risk.
+2. ~~**Phonetic matching** (§3)~~ — built, with two deliberate deviations
+   documented in §3. Hosting moved to Netlify at `wordbank.flyinggiraffe.ai`
+   with per-branch preview URLs, which is what makes real iPad testing possible
+   at all; speech defaults to en-AU.
+
+### Now: prove it works — 2–3 weeks of real use
+
+The immediate goal is **not** more features. It is finding out whether phonetic
+matching earns its place, through Harlie actually using Practice and Sentences.
+Two questions:
+
+- **Does the bank fill faster?** The complaint phonetic matching answers is that
+  inconsistent transcription stops corrections ever reaching the two sightings
+  they need to activate. So: how many pronunciations get recorded, and how many
+  corrections go from pending to active, compared with the flat line before?
+- **Does Sentences catch homophones?** §2 argues context resolves what isolation
+  structurally cannot — to/too/two, off/of, see/sea. Sentences practice is where
+  that claim gets tested. Does it actually surface and correct them?
+
+What to watch for, and bring back:
+
+- Pronunciations that never fire, or fire on everything — the collision risk in
+  §3 is real, and a one-character key like `A` is the likeliest offender.
+- Phonetic hits confirmed that turn out to be wrong. A false accept is worse
+  than a miss here: it silently teaches the bank something untrue.
+- Whether the amber "sounds like how she says it" state reads clearly in the
+  moment, mid-session, with a 9-year-old waiting.
+- Whether recording a pronunciation actually happens in practice, or whether it
+  is one step too many when she is right there waiting.
+
+If it does not earn its place, the honest options are to tune it or to remove
+it — not to build more on top of it.
+
+### After that, pending results
+
+3. **Staleness reminders** (§4) — small, valuable, low risk. The natural next
+   build once matching is trusted.
+4. **Illustrated reading passages / story library** (§6) — needs the content
+   corpus from §2 to exist first.
+5. **Voice Lock via sherpa-onnx** (§5) — biggest lift and highest uncertainty.
+   Deliberately last: it is infrastructure, not accuracy, and none of the above
+   depends on it.
+
+Reading and stories, staleness, and Voice Lock all sit below the line. None of
+them should start before the two questions above have answers.
 
 ## 8. How to use this document
 

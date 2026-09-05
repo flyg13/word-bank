@@ -166,3 +166,16 @@
 
   .lang-select{ width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--line);
                 background:var(--surface-2); color:var(--ink); font-size:15px; font-family:inherit; }
+
+  /* A warning the parent cannot miss on a touchscreen — no tooltips, no tint. */
+  .warn-block{ display:flex; gap:9px; align-items:flex-start; margin-top:10px;
+               background:rgba(232,163,61,.13); border-left:3px solid var(--amber);
+               border-radius:8px; padding:10px 12px; font-size:13px; line-height:1.5; color:var(--ink); }
+  .warn-block .warn-icon{ color:var(--amber); font-size:15px; line-height:1.35; }
+  .warn-block b{ color:var(--amber); font-weight:600; }
+
+  .capture-row{ display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap; }
+  .capture-label{ font-size:12.5px; color:var(--ink-dim); }
+  .btn-mic{ width:15px; height:15px; fill:currentColor; vertical-align:-2px; margin-right:5px; }
+  #phonicMic{ display:inline-flex; align-items:center; }
+  .btn.listening{ background:var(--sage); color:#10241b; }

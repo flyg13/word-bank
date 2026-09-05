@@ -18,6 +18,7 @@
 
 import { normalize } from './text.js';
 import { phoneticKeys, soundsAlike } from './phonetics.js';
+import { wordsMatch } from './wordbank.js';
 import { state } from './store.js';
 
 /**
@@ -129,5 +130,18 @@ export function soundsLikeHerWord(expectedWord, heardText) {
   const entry = getPhonicEntry(expectedWord);
   if (!entry || !heardText) return false;
   return entry.spellings.some((spelling) => soundsAlike(spelling, heardText));
+}
+
+/**
+ * Is this recognizer output already understood as `word`?
+ *
+ * True when it is the word itself, when a confirmed correction maps it there,
+ * or when a recorded pronunciation already covers it. The one gate for "is
+ * there anything left to record here" — used by Practice's "Teach how she says
+ * it" and by the mic in Word Bank, so the two cannot drift apart.
+ */
+export function alreadyRecognised(word, heard) {
+  if (!word || !heard) return false;
+  return wordsMatch(word, heard) || soundsLikeHerWord(word, heard);
 }
 

@@ -6,7 +6,8 @@ import {
   addSpelling,
   removeSpelling,
   removePhonicEntry,
-  soundsLikeHerWord
+  soundsLikeHerWord,
+  alreadyRecognised
 } from '../lib/phonicbank.js';
 import { wordsMatch, recordBankObservation } from '../lib/wordbank.js';
 import { alignWords, isCleanRead } from '../lib/align.js';
@@ -137,5 +138,37 @@ describe('a phonetic hit never counts as a confirmed correction', () => {
     // The other transcription is still only a phonetic suggestion.
     expect(wordsMatch('yellow', 'ye oh')).toBe(false);
     expect(soundsLikeHerWord('yellow', 'ye oh')).toBe(true);
+  });
+});
+
+describe('alreadyRecognised — the one "is there anything to record" gate', () => {
+  beforeEach(() => {
+    state.phonicBank = {};
+    state.wordBank = {};
+  });
+
+  it('is true when the output is the word itself', () => {
+    expect(alreadyRecognised('yellow', 'Yellow!')).toBe(true);
+  });
+
+  it('is true when a confirmed correction already maps it there', () => {
+    recordBankObservation('yoyo', 'yellow');
+    expect(alreadyRecognised('yellow', 'yoyo')).toBe(false); // pending, not yet trusted
+    recordBankObservation('yoyo', 'yellow');
+    expect(alreadyRecognised('yellow', 'yoyo')).toBe(true);
+  });
+
+  it('is true when a recorded pronunciation already covers it', () => {
+    addSpelling('yellow', 'yeyo');
+    expect(alreadyRecognised('yellow', 'ye oh')).toBe(true);
+  });
+
+  it('is false for a sound nothing knows about yet — the case worth recording', () => {
+    expect(alreadyRecognised('butterfly', 'butta fly')).toBe(false);
+  });
+
+  it('is false when either side is missing', () => {
+    expect(alreadyRecognised('', 'butta fly')).toBe(false);
+    expect(alreadyRecognised('butterfly', '')).toBe(false);
   });
 });
