@@ -44,6 +44,11 @@
         </div>
       </div>
       <div id="sessionSummary" class="session-summary" style="display:none;"></div>
+      <label class="focus-toggle">
+        <input type="checkbox" id="focusToggle">
+        <span>Focus on her words</span>
+        <span class="focus-count" id="focusCount"></span>
+      </label>
     </div>
 
     <div class="card practice-word">
@@ -65,6 +70,17 @@
         <div class="label">Heard</div>
         <div class="heard-text" id="heardText">—</div>
         <div class="action-row" id="matchActions"></div>
+      </div>
+
+      <div class="phonic-panel" id="phonicQuick">
+        <div class="output-label" style="margin-top:0;">How does she say &ldquo;<span id="phonicQuickWord"></span>&rdquo;?</div>
+        <p class="sub" style="margin-bottom:10px;">Sound it out the way it comes out of her mouth &mdash; it doesn&rsquo;t need to be a real word.</p>
+        <input type="text" id="phonicQuickInput" placeholder="e.g. yeyo" autocomplete="off">
+        <div class="phonic-note" id="phonicQuickNote"></div>
+        <div class="row">
+          <button class="btn btn-primary btn-sm" id="phonicQuickSave">Save</button>
+          <button class="btn btn-ghost btn-sm" id="phonicQuickCancel">Cancel</button>
+        </div>
       </div>
     </div>
 
@@ -154,6 +170,7 @@
 
       <div class="output-label">Corrected — tap any word to fix it</div>
       <div id="correctedOutput"><span style="color:var(--ink-dim);">Nothing here yet.</span></div>
+      <div class="write-note" id="writeNote"></div>
 
       <div class="fix-panel" id="fixPanel">
         <div class="output-label" style="margin-top:0;">Fixing: <span id="fixingWord" style="color:var(--ink);"></span></div>
@@ -178,6 +195,25 @@
       <div id="attemptLogList"></div>
     </div>
     <div class="card">
+      <div class="output-label" style="margin-top:0;">How she says her words</div>
+      <p class="sub" style="margin-bottom:14px;">Tell the app how a word sounds coming out of her mouth, without waiting for it to be misheard first. When what she says sounds like this, the app will recognise it &mdash; and ask you to confirm before trusting it.</p>
+      <div class="manual-add">
+        <input type="text" id="phonicWord" placeholder="The word" autocomplete="off">
+        <input type="text" id="phonicSpelling" placeholder="How she says it" autocomplete="off">
+        <button class="btn btn-primary" id="phonicAddBtn">Add</button>
+      </div>
+      <div class="capture-row">
+        <button class="btn btn-ghost btn-sm" id="phonicMic">
+          <svg viewBox="0 0 24 24" class="btn-mic"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+          Hear her say it
+        </button>
+        <span class="capture-label" id="phonicMicLabel">Tap to listen</span>
+      </div>
+      <p class="capture-hint">The mic records what the app hears. If you&rsquo;d spell it differently yourself, add that spelling too &mdash; both help.</p>
+      <div class="phonic-note" id="phonicAddNote"></div>
+      <div id="phonicList"></div>
+    </div>
+    <div class="card">
       <div class="output-label" style="margin-top:0;">Add a correction manually</div>
       <div class="manual-add">
         <input type="text" id="manualRaw" placeholder="What the app hears">
@@ -188,6 +224,12 @@
     <div class="card">
       <div class="output-label" style="margin-top:0;">Recent sessions</div>
       <div class="session-log" id="sessionLogView"><span class="empty-note">No sessions logged yet.</span></div>
+    </div>
+    <div class="card">
+      <div class="output-label" style="margin-top:0;">Her accent</div>
+      <p class="sub" style="margin-bottom:14px;">Sets the accent the app listens for <em>and</em> the voice that reads words out for her to copy. Shared across her devices.</p>
+      <select id="speechLang" class="lang-select"></select>
+      <div class="phonic-note" id="speechLangNote"></div>
     </div>
     <div class="card footer-row">
       <button class="btn btn-outline" id="exportBtn">Export bank (.json)</button>

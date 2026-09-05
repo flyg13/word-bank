@@ -1,0 +1,45 @@
+# Hosting for Harlie's Word Bank.
+#
+# The reason for being here rather than GitHub Pages: every branch and pull
+# request gets its own public HTTPS URL automatically, so the app can be opened
+# on an iPad without a terminal, a certificate, or being on the same network.
+# The microphone needs a secure context, and these URLs are real HTTPS on a
+# public host, so it just works.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Production is what Harlie actually uses, so it does not ship unless the tests
+# pass. Previews skip that — they exist to be looked at quickly, and GitHub
+# Actions is already running the full suite on every pull request.
+[context.production]
+  command = "npm test && npm run build"
+
+# Vite emits content-hashed filenames, so these can never go stale.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# The HTML must not be cached. Safari on iOS holds onto pages aggressively, and
+# a stale index.html during device testing looks exactly like a broken deploy.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "DENY"
+    # Keeps a page titled with a child's name out of search results. It was
+    # obscure at flyg13.github.io/word-bank; on a real domain it would not be.
+    # The data itself is behind the family code either way — this is only about
+    # discoverability. Delete this line if you would rather it be indexed.
+    X-Robots-Tag = "noindex"

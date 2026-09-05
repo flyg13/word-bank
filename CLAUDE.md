@@ -2,7 +2,16 @@
 
 **Purpose of this document:** a spec to hand to Claude Code to properly rebuild what's currently a single 1,100-line HTML file into a real, maintainable project — while adding phonetic matching, staleness re-testing, and (later) on-device voice lock. Written by Claude (chat) as the architecture partner; built by Claude Code as the implementation partner.
 
-**Current state:** a working static HTML app (`index.html`) hosted on GitHub Pages, synced via Firebase Firestore using a shared "family code." It has five tabs — Practice, Sentences, Reading Passage, Free Write, Word Bank — and a correction system that requires a mishearing to be confirmed twice before it auto-applies. It works, and Harlie is using it daily. This plan builds *on top of* that, not instead of it.
+**Current state:** a Vite project deployed to Netlify at
+`wordbank.flyinggiraffe.ai`, synced via Firebase Firestore using a shared
+"family code." Five tabs — Practice, Sentences, Reading Passage, Free Write,
+Word Bank — a correction system that requires a mishearing to be confirmed twice
+before it auto-applies, and phonetic matching on top of it. Harlie is using it
+daily. Every branch gets its own preview URL, so changes are testable on an iPad
+before they reach her.
+
+The original single-file app is kept at `legacy/index.html`, and a differential
+test drives both it and the port to prove the Firestore schema never diverged.
 
 ---
 
@@ -92,6 +101,42 @@ Add a **phonetic key** to the matching system, computed with the **Double Metaph
 
 **New UI in the Word Bank tab:** a "phonic spelling" field next to each entry (or in the manual-add form) where you can type "yeyo" directly — sound it out however makes sense to you, doesn't need to be a real word. This is entered *once, proactively*, rather than only being extractable after the recognizer happens to mishear something.
 
+### As built — two deviations, for review
+
+**1. Stored as a second field, not merged into the bank entry.** The sketch above
+puts `heardExamples` and `phonicSpelling` on one object, which means re-keying
+`word_bank` from heard-text to correct-word — a migration on live data. Instead
+there is a new `phonic_bank` field keyed by word, and `word_bank` is untouched.
+Logically it is the same model (an entry's heard examples are exactly the
+`word_bank` keys pointing at it); it is denormalised so nothing needs migrating.
+A phonic entry has no `count`/`active`: the parent typed it deliberately, so
+there is nothing for the app to confirm about it.
+
+**2. Matching is scoped to one expected word, never a global scan.** The sketch
+says to compare the recognizer's key "against every banked phonicKey". Measured
+against the real 355-word list, that is not safe: 70 key groups collide, `AT`
+covers nine practice words, and the one-character `A` — which is what "yeyo"
+keys to — also covers you/we/way/who and the bare words a, i, oh, e. So the
+question asked is always "does this sound like how she says the word I already
+asked her for", which keeps the collision surface to a single entry.
+
+Free Write, having no expected word, was initially left with no phonetic
+behaviour at all. It now has the narrowest possible version, added after iPad
+testing: a suggestion underlined in amber that one tap accepts, never a rewrite.
+Loose spellings are excluded, and an ambiguous match suggests nothing. Accepting
+counts as one sighting, so it feeds the same pending-then-active path rather
+than bypassing it.
+
+**The confidence buffer is stronger than requested.** A phonetic hit never
+auto-advances and never auto-activates: it shows amber with a one-tap confirm,
+and confirming banks the exact text as *pending*, still needing two sightings.
+Phonetics accelerates accumulation rather than substituting for it.
+
+**One limitation worth knowing:** Double Metaphone models English spelling, not
+her articulation. It will not connect "red" to "wed" or "think" to "fink" on its
+own — the parent supplies the sound, and it absorbs the recognizer's spelling
+variance. That is the actual complaint it answers (§3's problem 2).
+
 **This also directly addresses the homophone/collision risk you raised** — because phonetic matching is *approximate*, it's actually more prone to over-matching than the exact-text system, not less. Claude Code should build a confidence buffer here: a phonetic match should require a slightly higher bar (e.g., exact Double Metaphone key match, not just "close") and should still route through the existing pending→confirm flow before going active, never auto-activate on a single phonetic hit.
 
 ---
@@ -135,13 +180,63 @@ Once the sentence corpus from §2 gets compiled into short "stories," each story
 
 This is a lower-priority, purely additive feature — sequence it after the accuracy-focused work (§3, §4), since it's about engagement and delivery, not correctness.
 
-## 7. Suggested build order
+## 7. Roadmap (re-scoped, September 2026)
 
-1. **Scaffold the Vite project structure**, port existing working logic over module-by-module — including the sentence-alignment fix (§1) — verify parity with the current live site before adding anything new.
-2. **Phonetic matching** (§3) — highest value, directly answers today's real complaints, no external dependencies.
-3. **Staleness reminders** (§4) — small, valuable, low risk.
-4. **Voice Lock via sherpa-onnx** (§5) — biggest lift, do once the foundation is solid.
-5. **Illustrated reading passages / story library** (§6) — additive, do once the content corpus from §2 exists to fill it.
+**Everything below the line waits on evidence from the line above it.** The
+foundation and phonetic matching are built; whether phonetic matching actually
+works is not yet known, and nothing else should be built on top of an unproven
+assumption.
+
+### Done
+
+1. ~~**Scaffold the Vite project structure**~~ — ported module-by-module,
+   including the sentence-alignment fix. Schema parity with the original single-
+   file app is pinned by a differential test, so live data was never at risk.
+2. ~~**Phonetic matching** (§3)~~ — built, with two deliberate deviations
+   documented in §3. Hosting moved to Netlify at `wordbank.flyinggiraffe.ai`
+   with per-branch preview URLs, which is what makes real iPad testing possible
+   at all; speech defaults to en-AU.
+
+### Now: prove it works — 2–3 weeks of real use
+
+The immediate goal is **not** more features. It is finding out whether phonetic
+matching earns its place, through Harlie actually using Practice and Sentences.
+Two questions:
+
+- **Does the bank fill faster?** The complaint phonetic matching answers is that
+  inconsistent transcription stops corrections ever reaching the two sightings
+  they need to activate. So: how many pronunciations get recorded, and how many
+  corrections go from pending to active, compared with the flat line before?
+- **Does Sentences catch homophones?** §2 argues context resolves what isolation
+  structurally cannot — to/too/two, off/of, see/sea. Sentences practice is where
+  that claim gets tested. Does it actually surface and correct them?
+
+What to watch for, and bring back:
+
+- Pronunciations that never fire, or fire on everything — the collision risk in
+  §3 is real, and a one-character key like `A` is the likeliest offender.
+- Phonetic hits confirmed that turn out to be wrong. A false accept is worse
+  than a miss here: it silently teaches the bank something untrue.
+- Whether the amber "sounds like how she says it" state reads clearly in the
+  moment, mid-session, with a 9-year-old waiting.
+- Whether recording a pronunciation actually happens in practice, or whether it
+  is one step too many when she is right there waiting.
+
+If it does not earn its place, the honest options are to tune it or to remove
+it — not to build more on top of it.
+
+### After that, pending results
+
+3. **Staleness reminders** (§4) — small, valuable, low risk. The natural next
+   build once matching is trusted.
+4. **Illustrated reading passages / story library** (§6) — needs the content
+   corpus from §2 to exist first.
+5. **Voice Lock via sherpa-onnx** (§5) — biggest lift and highest uncertainty.
+   Deliberately last: it is infrastructure, not accuracy, and none of the above
+   depends on it.
+
+Reading and stories, staleness, and Voice Lock all sit below the line. None of
+them should start before the two questions above have answers.
 
 ## 8. How to use this document
 

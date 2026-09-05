@@ -1,7 +1,19 @@
-import { MASTERY_THRESHOLD } from '../config.js';
+import { MASTERY_THRESHOLD, SPEECH_LANGS } from '../config.js';
 import { normalize, parsePassage } from '../lib/text.js';
 import { state, save, onRender, renderAll } from '../lib/store.js';
 import { getBankEntry } from '../lib/wordbank.js';
+import {
+  phonicEntries,
+  addSpelling,
+  removeSpelling,
+  removePhonicEntry
+} from '../lib/phonicbank.js';
+import { alreadyRecognised } from '../lib/phonicbank.js';
+import { describeWeakSpelling } from '../lib/collisions.js';
+import { practiceWord } from './practice.js';
+import { activateTab } from './tabs.js';
+import { isWeakSpelling, phoneticKeys } from '../lib/phonetics.js';
+import { bindMic } from './mic.js';
 import { buildQueue, attemptKey } from './practice.js';
 
 // ---------- Correction list ----------
@@ -135,6 +147,162 @@ export function renderAttemptLog() {
   });
 }
 
+// ---------- How she says her words ----------
+
+/** An amber block, not a tint and not a tooltip. */
+function warnBlock({ heading, body }) {
+  const block = document.createElement('div');
+  block.className = 'warn-block';
+  const icon = document.createElement('span');
+  icon.className = 'warn-icon';
+  icon.textContent = '\u26a0';
+  const text = document.createElement('span');
+  text.append(
+    Object.assign(document.createElement('b'), { textContent: heading + ' ' }),
+    document.createTextNode(body)
+  );
+  block.append(icon, text);
+  return block;
+}
+
+/** Plain informational note under the add form. */
+function showNote(id, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = '';
+  el.className = 'phonic-note';
+  if (text) el.textContent = text;
+}
+
+/** The same area, carrying an amber warning block instead. */
+function showWarning(id, description) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = '';
+  el.className = 'phonic-note';
+  el.appendChild(warnBlock(description));
+}
+
+/** Describe whatever is currently in the spelling box. */
+function describeTypedSpelling() {
+  const spelling = document.getElementById('phonicSpelling').value.trim();
+  if (!spelling) return showNote('phonicAddNote', '');
+  const keys = phoneticKeys(spelling);
+  if (!keys.length) return showNote('phonicAddNote', '');
+  if (isWeakSpelling(spelling)) return showWarning('phonicAddNote', describeWeakSpelling(spelling));
+  showNote('phonicAddNote', 'Sounds like: ' + keys.join(' or '));
+}
+
+export function renderPhonicList() {
+  const list = document.getElementById('phonicList');
+  if (!list) return;
+  const entries = phonicEntries();
+
+  if (entries.length === 0) {
+    list.innerHTML =
+      '<div class="empty-note">Nothing recorded yet — add a word above, or use “Teach how she says it” during Practice.</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  entries.forEach(([, entry]) => {
+    const row = document.createElement('div');
+    row.className = 'phonic-row';
+
+    const head = document.createElement('div');
+    head.className = 'head';
+    const word = document.createElement('div');
+    word.className = 'word';
+    word.textContent = entry.word;
+    const right = document.createElement('div');
+    const keys = document.createElement('span');
+    keys.className = 'keys';
+    keys.textContent = entry.keys.join(' · ');
+    keys.title = 'Double Metaphone keys these spellings produce';
+    const practise = document.createElement('button');
+    practise.className = 'practice-this';
+    practise.textContent = 'Practice this word';
+    practise.onclick = () => {
+      practiceWord(entry.word);
+      activateTab('practice');
+    };
+
+    const remove = document.createElement('button');
+    remove.className = 'del-btn';
+    remove.style.marginLeft = '10px';
+    remove.textContent = 'Remove';
+    remove.onclick = () => {
+      removePhonicEntry(entry.word);
+      save('phonic_bank', state.phonicBank);
+      renderAll();
+    };
+    right.append(keys, practise, remove);
+    head.append(word, right);
+    row.appendChild(head);
+
+    const spellings = document.createElement('div');
+    spellings.className = 'spellings';
+    entry.spellings.forEach((spelling) => {
+      const chip = document.createElement('span');
+      chip.className = 'spelling';
+      chip.appendChild(document.createTextNode(spelling));
+      if (isWeakSpelling(spelling)) {
+        chip.style.borderColor = 'var(--amber)';
+        chip.style.color = 'var(--amber)';
+      }
+      const drop = document.createElement('button');
+      drop.textContent = '×';
+      drop.title = 'Remove this spelling';
+      drop.onclick = () => {
+        removeSpelling(entry.word, spelling);
+        save('phonic_bank', state.phonicBank);
+        renderAll();
+      };
+      chip.appendChild(drop);
+      spellings.appendChild(chip);
+    });
+
+    const add = document.createElement('button');
+    add.className = 'add-spelling';
+    add.textContent = '+ another way she says it';
+    add.onclick = () => {
+      const spelling = window.prompt('Another way she says “' + entry.word + '”:');
+      if (!spelling) return;
+      if (addSpelling(entry.word, spelling)) {
+        save('phonic_bank', state.phonicBank);
+        renderAll();
+      }
+    };
+    spellings.appendChild(add);
+    row.appendChild(spellings);
+
+    // Shown on the entry, permanently. The previous version put this in a
+    // title attribute, which a touchscreen has no way to reach, and cleared
+    // the form's warning on save — so the one moment it mattered showed
+    // nothing at all.
+    entry.spellings.filter(isWeakSpelling).forEach((spelling) => {
+      row.appendChild(warnBlock(describeWeakSpelling(spelling)));
+    });
+
+    list.appendChild(row);
+  });
+}
+
+// ---------- Her accent ----------
+
+export function renderSpeechLang() {
+  const select = document.getElementById('speechLang');
+  if (!select) return;
+  if (!select.options.length) {
+    SPEECH_LANGS.forEach(({ code, label }) => {
+      select.appendChild(new Option(label + '  ·  ' + code, code));
+    });
+  }
+  select.value = state.speechLang;
+  document.getElementById('speechLangNote').textContent =
+    'Listening for ' + state.speechLang + ', and reading words out in the same accent.';
+}
+
 // ---------- Import / export ----------
 
 function exportBank() {
@@ -144,7 +312,9 @@ function exportBank() {
     confirm_counts: state.confirmCounts,
     sentence_progress: state.sentenceProgress,
     reading_passage: state.readingPassage,
-    reading_progress: state.readingProgress
+    reading_progress: state.readingProgress,
+    phonic_bank: state.phonicBank,
+    speech_lang: state.speechLang
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -191,6 +361,14 @@ function importBank(file) {
       state.readingProgress = { ...state.readingProgress, ...data.reading_progress };
       save('reading_progress', state.readingProgress);
     }
+    if (data.phonic_bank) {
+      state.phonicBank = { ...state.phonicBank, ...data.phonic_bank };
+      save('phonic_bank', state.phonicBank);
+    }
+    if (data.speech_lang && SPEECH_LANGS.some((l) => l.code === data.speech_lang)) {
+      state.speechLang = data.speech_lang;
+      save('speech_lang', state.speechLang);
+    }
     buildQueue();
     renderAll();
     window.alert('Imported successfully.');
@@ -220,6 +398,64 @@ export function initBank() {
     renderAll();
   });
 
+  const phonicWordEl = document.getElementById('phonicWord');
+  const phonicSpellingEl = document.getElementById('phonicSpelling');
+
+  phonicSpellingEl.addEventListener('input', describeTypedSpelling);
+
+  document.getElementById('phonicAddBtn').addEventListener('click', () => {
+    const word = phonicWordEl.value.trim();
+    const spelling = phonicSpellingEl.value.trim();
+    if (!word || !spelling) return;
+    if (!addSpelling(word, spelling)) {
+      describeTypedSpelling();
+      return;
+    }
+    save('phonic_bank', state.phonicBank);
+    phonicWordEl.value = '';
+    phonicSpellingEl.value = '';
+    // Clearing the form note is safe now: the saved entry carries the warning.
+    showNote('phonicAddNote', '');
+    renderAll();
+  });
+
+  // Capture a pronunciation from her voice rather than spelling it out by
+  // hand. Same gate as "Teach how she says it" in Practice: only worth saving
+  // when the output is not already understood as the word.
+  bindMic({
+    buttonId: 'phonicMic',
+    labelId: 'phonicMicLabel',
+    canListen: () => Boolean(phonicWordEl.value.trim()),
+    onBlocked: () =>
+      showNote('phonicAddNote', 'Type the word first, then tap — it needs to know what she is saying.'),
+    onResult: (heard) => {
+      const word = phonicWordEl.value.trim();
+      if (!word) return;
+      if (alreadyRecognised(word, heard)) {
+        showNote(
+          'phonicAddNote',
+          'Heard “' + heard + '”, which already comes through as “' + word + '”. Nothing to record.'
+        );
+        return;
+      }
+      phonicSpellingEl.value = heard;
+      describeTypedSpelling();
+      const el = document.getElementById('phonicAddNote');
+      el.prepend(
+        Object.assign(document.createElement('div'), {
+          textContent: 'Heard “' + heard + '” — tap Add to save it as how she says “' + word + '”.',
+          style: 'margin-bottom:6px;'
+        })
+      );
+    }
+  });
+
+  document.getElementById('speechLang').addEventListener('change', (e) => {
+    state.speechLang = e.target.value;
+    save('speech_lang', state.speechLang);
+    renderAll();
+  });
+
   document.getElementById('exportBtn').addEventListener('click', exportBank);
 
   document.getElementById('importFile').addEventListener('change', (e) => {
@@ -230,4 +466,6 @@ export function initBank() {
 
   onRender(renderBankList);
   onRender(renderAttemptLog);
+  onRender(renderPhonicList);
+  onRender(renderSpeechLang);
 }

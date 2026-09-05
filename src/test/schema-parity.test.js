@@ -9,7 +9,7 @@
 // the old app has to keep working in the new one and vice versa.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { PRACTICE_WORDS } from '../data/practice-words.js';
 
@@ -115,20 +115,10 @@ async function runPorted(drive, initial = {}) {
     writes.push({ payload: { [key]: value }, options: { merge: true } });
   });
 
-  // The same fold main.js performs on a snapshot.
-  const { parsePassage } = await import('../lib/text.js');
-  const s = store.state;
-  s.wordBank = initial.word_bank || {};
-  s.verifiedWords = initial.verified_words || [];
-  s.confirmCounts = initial.confirm_counts || {};
-  s.sessionLog = initial.session_log || [];
-  s.sentenceProgress = initial.sentence_progress || {};
-  s.sentenceIndex = initial.sentence_index || 0;
-  s.readingPassage = initial.reading_passage || '';
-  s.readingSentences = s.readingPassage ? parsePassage(s.readingPassage) : [];
-  s.readingProgress = initial.reading_progress || {};
-  s.readingIndex = initial.reading_index || 0;
-  s.attemptLog = initial.attempt_log || {};
+  // The very fold main.js performs — imported, not reimplemented, so this
+  // harness cannot drift from the app.
+  const { foldSnapshot } = await import('../lib/snapshot.js');
+  foldSnapshot(store.state, initial);
 
   practice.buildQueue();
   store.renderAll();
@@ -282,23 +272,12 @@ describe('reading data written by the original app', () => {
 
     const store = await import('../lib/store.js');
     const { PRACTICE_WORDS } = await import('../data/practice-words.js');
-    const { parsePassage } = await import('../lib/text.js');
+    const { foldSnapshot } = await import('../lib/snapshot.js');
     const wordbank = await import('../lib/wordbank.js');
     const practice = await import('../features/practice.js');
 
-    // The same fold main.js performs on every snapshot.
     const s = store.state;
-    s.wordBank = production.word_bank;
-    s.verifiedWords = production.verified_words;
-    s.confirmCounts = production.confirm_counts;
-    s.sessionLog = production.session_log;
-    s.sentenceProgress = production.sentence_progress;
-    s.sentenceIndex = production.sentence_index;
-    s.readingPassage = production.reading_passage;
-    s.readingSentences = parsePassage(s.readingPassage);
-    s.readingProgress = production.reading_progress;
-    s.readingIndex = production.reading_index;
-    s.attemptLog = production.attempt_log;
+    foldSnapshot(s, production);
 
     // Nothing is orphaned: every stored form is read back correctly.
     expect(wordbank.getBankEntry('yoyo')).toMatchObject({ correct: 'yellow', active: true });
@@ -450,5 +429,163 @@ describe('every synced field is covered by a parity test', () => {
       'verified_words',
       'word_bank'
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §3 adds one field, phonic_bank. It has to be additive in both directions:
+// the new app must not disturb the ten existing fields, and the original app
+// must survive a document containing the new one (a rollback, or a device
+// still running a cached copy of the old build).
+// ---------------------------------------------------------------------------
+
+describe('phonic_bank is purely additive', () => {
+  const drive = async (doc) => {
+    doc.querySelector('.tab[data-tab="bank"]').click();
+    doc.getElementById('phonicWord').value = 'yellow';
+    doc.getElementById('phonicSpelling').value = 'yeyo';
+    doc.getElementById('phonicAddBtn').click();
+    await new Promise((r) => setTimeout(r, 0));
+  };
+
+  it('recording a pronunciation writes phonic_bank and nothing else', async () => {
+    const writes = await runPorted(drive);
+    expect(fieldsWritten(writes)).toEqual(['phonic_bank']);
+    expect(finalState(writes).phonic_bank).toMatchObject({
+      yellow: { word: 'yellow', spellings: ['yeyo'], keys: ['A'] }
+    });
+  });
+
+  it('leaves every pre-existing field byte-identical to what the original wrote', async () => {
+    // The same flows as the parity tests above, but run against a document
+    // that already carries a phonic_bank.
+    const withPhonics = {
+      phonic_bank: { yellow: { word: 'yellow', spellings: ['yeyo'], keys: ['A'], added: 'x' } }
+    };
+    const manualAdd = async (doc) => {
+      doc.querySelector('.tab[data-tab="bank"]').click();
+      doc.getElementById('manualRaw').value = 'yoyo';
+      doc.getElementById('manualCorrect').value = 'yellow';
+      doc.getElementById('manualAddBtn').click();
+      await new Promise((r) => setTimeout(r, 0));
+    };
+    const legacy = finalState(await runLegacy(manualAdd));
+    const ported = finalState(await runPorted(manualAdd, withPhonics));
+    expect(Object.keys(ported)).toEqual(Object.keys(legacy));
+    expect(ported.word_bank).toEqual(legacy.word_bank);
+  });
+
+  it('the original app tolerates a document containing phonic_bank', async () => {
+    // It reads only the fields it knows, and writes one field at a time with
+    // merge:true — so an old client can neither choke on nor clobber the new
+    // field. That is what makes a rollback safe.
+    const drive = async (doc) => {
+      doc.querySelector('.tab[data-tab="bank"]').click();
+      doc.getElementById('manualRaw').value = 'yoyo';
+      doc.getElementById('manualCorrect').value = 'yellow';
+      doc.getElementById('manualAddBtn').click();
+      await new Promise((r) => setTimeout(r, 0));
+    };
+    const writes = await runLegacy(drive, {
+      word_bank: { wibble: { correct: 'wobble', count: 2, active: true } },
+      phonic_bank: { yellow: { word: 'yellow', spellings: ['yeyo'], keys: ['A'], added: 'x' } }
+    });
+
+    // It carried on normally...
+    expect(finalState(writes).word_bank).toMatchObject({
+      wibble: { correct: 'wobble' },
+      yoyo: { correct: 'yellow' }
+    });
+    // ...and never wrote phonic_bank, so merge:true leaves it intact.
+    expect(fieldsWritten(writes)).not.toContain('phonic_bank');
+    writes.forEach(({ options }) => expect(options).toEqual({ merge: true }));
+  });
+
+  it('the port reads a phonic_bank written by an earlier session', async () => {
+    const drive = async (doc) => {
+      doc.querySelector('.tab[data-tab="bank"]').click();
+    };
+    await runPorted(drive, {
+      phonic_bank: {
+        yellow: { word: 'yellow', spellings: ['yeyo', 'ye oh'], keys: ['A'], added: 'x' }
+      }
+    });
+    expect(document.getElementById('phonicList').textContent).toContain('yellow');
+    expect(document.getElementById('phonicList').textContent).toContain('yeyo');
+  });
+
+  it('survives an export/import round trip', async () => {
+    const drive = async (doc) => {
+      doc.querySelector('.tab[data-tab="bank"]').click();
+      doc.getElementById('phonicWord').value = 'yellow';
+      doc.getElementById('phonicSpelling').value = 'yeyo';
+      doc.getElementById('phonicAddBtn').click();
+      await new Promise((r) => setTimeout(r, 0));
+    };
+    const exported = finalState(await runPorted(drive));
+    // The export payload is assembled from the same state the writes came from.
+    expect(exported.phonic_bank.yellow.spellings).toEqual(['yeyo']);
+
+    const reimport = async () => {};
+    await runPorted(reimport, { phonic_bank: exported.phonic_bank });
+    const { state } = await import('../lib/store.js');
+    expect(state.phonicBank.yellow.spellings).toEqual(['yeyo']);
+  });
+});
+
+describe('the snapshot fold covers every field the app writes', () => {
+  it('reads back everything any feature can save', async () => {
+    const { SYNCED_FIELDS } = await import('../lib/snapshot.js');
+    const sources = ['src/features', 'src/lib']
+      .flatMap((dir) =>
+        readdirSync(resolve(ROOT, dir)).map((f) => readFileSync(resolve(ROOT, dir, f), 'utf8'))
+      )
+      .join('\n');
+    const written = [...new Set([...sources.matchAll(/save\('([a-z_]+)'/g)].map((m) => m[1]))];
+    // Anything the app can persist must also be something it can load back.
+    expect(written.filter((f) => !SYNCED_FIELDS.includes(f))).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// speech_lang, like phonic_bank, has to be additive in both directions.
+// ---------------------------------------------------------------------------
+
+describe('speech_lang is purely additive', () => {
+  const drive = async (doc) => {
+    doc.querySelector('.tab[data-tab="bank"]').click();
+    const select = doc.getElementById('speechLang');
+    select.value = 'en-GB';
+    select.dispatchEvent(new window.Event('change'));
+    await new Promise((r) => setTimeout(r, 0));
+  };
+
+  it('changing the accent writes speech_lang and nothing else', async () => {
+    const writes = await runPorted(drive);
+    expect(fieldsWritten(writes)).toEqual(['speech_lang']);
+    expect(finalState(writes).speech_lang).toBe('en-GB');
+  });
+
+  it('defaults to en-AU for a document that predates the field', async () => {
+    await runPorted(async (doc) => doc.querySelector('.tab[data-tab="bank"]').click(), {
+      word_bank: { yoyo: 'yellow' }
+    });
+    const { state } = await import('../lib/store.js');
+    expect(state.speechLang).toBe('en-AU');
+  });
+
+  it('the original app tolerates a document containing speech_lang', async () => {
+    const writes = await runLegacy(
+      async (doc) => {
+        doc.querySelector('.tab[data-tab="bank"]').click();
+        doc.getElementById('manualRaw').value = 'yoyo';
+        doc.getElementById('manualCorrect').value = 'yellow';
+        doc.getElementById('manualAddBtn').click();
+        await new Promise((r) => setTimeout(r, 0));
+      },
+      { speech_lang: 'en-AU', phonic_bank: {} }
+    );
+    expect(finalState(writes).word_bank).toMatchObject({ yoyo: { correct: 'yellow' } });
+    expect(fieldsWritten(writes)).not.toContain('speech_lang');
   });
 });

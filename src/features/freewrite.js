@@ -1,7 +1,31 @@
 import { state, save, onRender, renderAll } from '../lib/store.js';
-import { applyBankToText, recordBankObservation } from '../lib/wordbank.js';
+import { applyBankToText, recordBankObservation, getBankEntry } from '../lib/wordbank.js';
+import { suggestFromSound } from '../lib/phonicbank.js';
+import { normalize } from '../lib/text.js';
 import { bindMic } from './mic.js';
 import { activateTab } from './tabs.js';
+
+function showWriteNote(text) {
+  const note = document.getElementById('writeNote');
+  if (note) note.textContent = text || '';
+}
+
+/**
+ * Accept a suggestion. This is the same evidence a confirmation in Practice
+ * gives — one sighting of "this text means that word" — so it goes through the
+ * same pending-then-active path rather than applying outright.
+ */
+function acceptSuggestion(rawKey, word) {
+  recordBankObservation(rawKey, word);
+  save('word_bank', state.wordBank);
+  const entry = getBankEntry(rawKey);
+  showWriteNote(
+    entry && entry.active
+      ? 'Confirmed — “' + rawKey + '” now reads as “' + word + '” on its own.'
+      : 'Noted — “' + rawKey + '” means “' + word + '”. One more sighting and it will apply on its own.'
+  );
+  renderAll();
+}
 
 export function renderCorrectedOutput() {
   const input = document.getElementById('rawInput');
@@ -20,11 +44,21 @@ export function renderCorrectedOutput() {
       return;
     }
     const span = document.createElement('span');
-    span.className = 'wtok' + (part.fixed ? ' fixed' : '');
     span.textContent = part.display;
     span.dataset.rawKey = part.key;
     span.dataset.original = part.raw;
-    span.addEventListener('click', () => openFixPanel(span, false));
+
+    // A recorded pronunciation can suggest what a loose word probably was, but
+    // never rewrites it. One tap accepts, and that counts as a sighting.
+    const suggestion = part.fixed ? null : suggestFromSound(part.raw);
+    if (suggestion) {
+      span.className = 'wtok suggest';
+      span.title = 'Sounds like “' + suggestion + '” — tap to accept';
+      span.addEventListener('click', () => acceptSuggestion(normalize(part.raw), suggestion));
+    } else {
+      span.className = 'wtok' + (part.fixed ? ' fixed' : '');
+      span.addEventListener('click', () => openFixPanel(span, false));
+    }
     out.appendChild(span);
   });
 }
@@ -57,7 +91,10 @@ export function openFixPanel(span, fromSentence) {
 
 export function initFreeWrite() {
   const rawInput = document.getElementById('rawInput');
-  rawInput.addEventListener('input', renderCorrectedOutput);
+  rawInput.addEventListener('input', () => {
+    showWriteNote('');
+    renderCorrectedOutput();
+  });
 
   document.getElementById('cancelFix').addEventListener('click', () => {
     document.getElementById('fixPanel').classList.remove('show');
