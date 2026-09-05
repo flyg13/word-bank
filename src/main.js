@@ -1,3 +1,12 @@
+// Self-hosted: a missing font on her reading surface is worse than a slow one.
+// Latin subset only — the app is English-only, and the full set drags in
+// Cyrillic and Vietnamese faces nothing here will ever render.
+import '@fontsource/atkinson-hyperlegible/latin-400.css';
+import '@fontsource/atkinson-hyperlegible/latin-700.css';
+import '@fontsource/andika/latin-400.css';
+import '@fontsource/andika/latin-400-italic.css';
+import '@fontsource/andika/latin-700.css';
+
 import './style.css';
 
 import { state, setSaveErrorHandler, setSaver, renderAll } from './lib/store.js';

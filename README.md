@@ -2,7 +2,7 @@
 
 A personal speech-to-text trainer that learns her voice, one correction at a time.
 
-Five modes — Practice, Sentences, Reading, Free Write, Word Bank — synced across
+Five modes — Practice, Sentences, Reading, Speech-To-Text, Word Bank — synced across
 devices through Firebase Firestore using a shared family code.
 
 See [CLAUDE.md](CLAUDE.md) for the architecture and build plan.
@@ -77,6 +77,22 @@ The e2e suite needs a browser: `npx playwright install chromium` once, or set
 `CHROMIUM_PATH` to an existing Chromium binary. It builds nothing itself, so run
 `npm run build` first.
 
+## Design
+
+The Flying Giraffe brand, applied per `DESIGN.md`. Tokens come from
+`docs/worksheet-mockups/`; `src/test/brand.test.js` pins the palette, the
+contrast ratios and the two-weight type rule, and the browser suite checks the
+44px hit minimum, the 13px text minimum and that colour never carries meaning
+alone.
+
+Two faces, self-hosted from npm so nothing depends on a CDN: **Andika** for what
+she reads (the practice word, sentences, the heard-back text) and **Atkinson
+Hyperlegible** for the parent's interface. Latin subset only.
+
+Six tabs in three groups, separated by spacing rather than colour: build the
+bank (Practice, Sentences, Reading), use it (Speech-To-Text), teach it
+(Corrections), and the brain (Word Bank).
+
 ## Layout
 
 ```
@@ -91,6 +107,7 @@ src/
     similarity.js       how much two words resemble each other
     phonetics.js        Double Metaphone keys and sound-alike comparison
     speech.js           recognizer and voice, both tagged with her accent
+    collisions.js       which real words a phonic spelling cannot be told from
     phonicbank.js       how she says her words (word -> spellings)
     snapshot.js         the one place stored and in-memory shapes meet
     text.js             normalize / tokenize / passage splitting
@@ -218,7 +235,7 @@ unusable. So every phonetic comparison is scoped to one expected word — "does
 this sound like how she says the word I already asked her for" — and the answer
 is never applied silently:
 
-| | Practice | Sentences / Reading | Free Write |
+| | Practice | Sentences / Reading | Speech-To-Text |
 |---|---|---|---|
 | Exact text, active correction | advances automatically | counts as a match | applied |
 | Sounds like how she says it | amber, one tap to confirm | amber, not a clean read | amber, one tap to accept |
@@ -227,7 +244,7 @@ Confirming a phonetic hit banks the exact text as a *pending* correction, so the
 precise text still needs two sightings before it is trusted on its own. The
 phonetic layer accelerates that accumulation; it never replaces it.
 
-Free Write is the one place with no expected word to scope against, so it gets
+Speech-To-Text is the one place with no expected word to scope against, so it gets
 the narrowest version: a suggestion, never a rewrite. Two guards make that safe,
 both in `suggestFromSound`. Spellings flagged as loose are excluded entirely —
 unscoped, a key like `A` would underline half a sentence. And if two different

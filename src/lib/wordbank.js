@@ -5,7 +5,7 @@ import { state } from './store.js';
 // A freshly banked correction starts PENDING — seen once, not yet trusted.
 // It only becomes ACTIVE (auto-applied everywhere) once the same heard→correct
 // pairing shows up a second time, whether that's a retry in Practice or a
-// matching correction made in Sentences/Reading/Free Write. This stops a single
+// matching correction made in Sentences/Reading/Speech-To-Text. This stops a single
 // noisy mishearing from silently rewriting every future correct instance of a
 // common word.
 const ACTIVATION_THRESHOLD = 2;

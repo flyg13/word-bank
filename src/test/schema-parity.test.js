@@ -180,7 +180,7 @@ describe('schema parity: manually adding a correction', () => {
   });
 });
 
-describe('schema parity: correcting a word in Free Write', () => {
+describe('schema parity: correcting a word in Speech-To-Text', () => {
   const drive = async (doc) => {
     doc.querySelector('.tab[data-tab="write"]').click();
     const input = doc.getElementById('rawInput');

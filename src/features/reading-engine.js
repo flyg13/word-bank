@@ -21,7 +21,7 @@ export function renderCleanDots(containerId, cleanCount) {
 
 export function clearReadOutput(outputId) {
   document.getElementById(outputId).innerHTML =
-    '<span style="color:var(--ink-dim);">Nothing yet.</span>';
+    '<span class="empty-note">Nothing yet.</span>';
 }
 
 function makeToken(className, text) {

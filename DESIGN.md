@@ -45,8 +45,8 @@ The worksheet generator is linear; it never needed tabs. The closest pattern in 
 Restructure into the groups agreed with the parent:
 
 ```
-[ Practice ] [ Sentences ] [ Reading ]   [ Free Write ]   [ Corrections ] [ Word Bank ]
- ─── build the bank ───                   use it           teach it        the brain
+[ Practice ] [ Sentences ] [ Reading ]   [ Speech-To-Text ]   [ Corrections ] [ Word Bank ]
+ ─── build the bank ───                    use it              teach it        the brain
 ```
 
 Grouping is carried by **spacing** (a wider gap between groups), optionally reinforced by a quiet 12px eyebrow above each group. Not by colour — the brand rule is "colour never carries meaning alone," and a colour-coded tab bar fails that on its own.
@@ -87,7 +87,9 @@ On narrow screens the bar scrolls horizontally; the selected tab is always broug
 
 **Sentences / Reading.** Sentence in Andika, 22–28px, generous line height. Clean-read dots same as repeat dots. Per-word result: matched words plain ink; mismatched words ink with a dotted underline *and* a small ✗ before them (icon + treatment, not colour); dropped words shown struck through in Quiet; extra words in Quiet italics. Reading Passage's textarea: white card with 1px border, Andika, so what she'll read looks like what she'll read.
 
-**Free Write.** Unchanged behaviour. Output box white card; auto-applied corrections marked with a small ✓ before the word rather than coloured green.
+**Speech-To-Text.** Named for the term teachers and schools already use, so the
+app is legible to them; the tab was "Free Write" during early parent-only use.
+Unchanged behaviour. Output box white card; auto-applied corrections marked with a small ✓ before the word rather than coloured green.
 
 **Corrections (new).** Two sections, each a white card with a section title: "How she says her words" (word + how-she-says-it inputs, mic button, Add; existing entries as chips — chip = white, 1px border, 999px radius; the collision warning as a gold notice box beneath the input, unmissable) and "Add a correction manually."
 
@@ -112,6 +114,33 @@ On narrow screens the bar scrolls horizontally; the selected tab is always broug
 - The giraffe mascot is **not used**. The brand reserves it for a waiting state; Word Bank's only true wait (sync connecting) is a second long. Leave it out rather than misuse it.
 
 ---
+
+## 7b. As built
+
+Everything above is implemented except the entry screen, and two things came out
+differently once measured.
+
+**Deferred: the family-code entry screen (§5).** It is the one item in §5 that is
+not a restyle — replacing `prompt()` means changing `getFamilyCode()` in
+`src/lib/firestore.js` and the boot sequence, which §7 puts out of bounds and the
+brief ruled out. The `prompt()` remains. Worth doing, as its own change.
+
+**Corrected: gold text on gold wash does not clear 4.5:1.** §6 asserts it does;
+measured, it is 4.39:1, and none of the sizes here qualify as large text. Gold on
+a wash is now carried by the border and the icon, with the text itself ink
+(14.21:1). `--gold-text` is still used on white, where it reaches 5.05:1.
+
+**Corrected: Quiet is not a text colour.** `#9A9188` is 2.93:1 on shell and
+3.10:1 on white — below AA at every size the app renders. Everything readable
+that was specced as Quiet is Muted instead (5.6–6.0:1); Quiet survives only as a
+non-text mark. `src/test/brand.test.js` pins both findings.
+
+**Also:** the attempt log ("Recurring sounds not yet in her bank") went to
+Corrections. §3 does not place it; it is a queue of sounds waiting to be taught,
+which is what that tab is for.
+
+The coin was re-exported at 192px (58 KB). The source is 2000px and 4.1 MB —
+too heavy to ship for a 44px mark. Not recoloured, not cropped.
 
 ## 8. Open decisions (parent's call — defaults chosen if unanswered)
 

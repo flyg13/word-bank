@@ -159,9 +159,9 @@ export function focusWords() {
 }
 
 /**
- * What a loose word in Free Write probably was, or null.
+ * What a loose word in Speech-To-Text probably was, or null.
  *
- * Free Write has no expected word to scope against, which is why phonetics is
+ * Speech-To-Text has no expected word to scope against, which is why phonetics is
  * kept out of the matching there entirely. This is the one narrow exception,
  * and it is a suggestion the parent taps to accept — never applied on its own:
  *
