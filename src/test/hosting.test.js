@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
 import toml from '@iarna/toml';
 
 const ROOT = resolve(__dirname, '../..');
@@ -11,6 +12,27 @@ const redirectPage = readFileSync(resolve(ROOT, 'redirect/index.html'), 'utf8');
 const pagesWorkflow = readFileSync(resolve(ROOT, '.github/workflows/deploy.yml'), 'utf8');
 
 const PRODUCTION = 'https://wordbank.flyinggiraffe.ai/';
+
+describe('the transcription function', () => {
+  it('is where Netlify will look for it', () => {
+    expect(netlify.functions.directory).toBe('netlify/functions');
+    expect(existsSync(resolve(ROOT, 'netlify/functions/transcribe.mjs'))).toBe(true);
+  });
+
+  it('is at the path the app posts to', () => {
+    const endpoint = readFileSync(resolve(ROOT, 'src/config.js'), 'utf8')
+      .match(/TRANSCRIBE_ENDPOINT = '([^']+)'/)[1];
+    // Netlify serves a function at /.netlify/functions/<filename>.
+    expect(endpoint).toBe('/.netlify/functions/transcribe');
+  });
+
+  it('keeps the local key file out of the repository', () => {
+    // The one mistake here that deleting the commit does not undo.
+    const ignored = readFileSync(resolve(ROOT, '.gitignore'), 'utf8');
+    expect(ignored).toMatch(/^\.env$/m);
+    expect(existsSync(resolve(ROOT, '.env'))).toBe(false);
+  });
+});
 
 describe('netlify.toml', () => {
   it('publishes the directory Vite actually builds into', () => {

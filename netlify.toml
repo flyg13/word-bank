@@ -13,6 +13,13 @@
 [build.environment]
   NODE_VERSION = "22"
 
+# Audio in, text out. The provider's API key lives in a Netlify environment
+# variable (OPENAI_API_KEY) and is read only here — it is never in the repo and
+# never in the browser bundle. See CLAUDE.md §9.
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
 # Production is what Harlie actually uses, so it does not ship unless the tests
 # pass. Previews skip that — they exist to be looked at quickly, and GitHub
 # Actions is already running the full suite on every pull request.

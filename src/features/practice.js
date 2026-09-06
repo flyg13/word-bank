@@ -338,6 +338,9 @@ export function initPractice() {
   bindMic({
     buttonId: 'practiceMic',
     labelId: 'practiceMicLabel',
+    // One word: the shortest pause counts as finished, and the ceiling is low.
+    mode: 'word',
+    expected: () => state.practiceQueue[0] || '',
     canListen: () => state.practiceQueue.length > 0,
     onResult: handlePracticeResult
   });
