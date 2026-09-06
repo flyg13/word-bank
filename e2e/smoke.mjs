@@ -23,10 +23,38 @@ function check(name, ok, detail = '') {
 const browser = await chromium.launch({ executablePath });
 const page = await browser.newPage();
 
-// This sandbox has no outbound access to Firebase, so its network errors are
-// expected here — and the run doubles as a check that the app stays usable
-// when sync is unavailable.
-const IGNORE = /firebase|firestore|googleapis|ERR_CONNECTION|favicon/i;
+// CI runners are far slower than a dev machine, and a race that never shows
+// locally fails there every time. E2E_CPU_THROTTLE=10 reproduces that without
+// needing a second machine.
+if (process.env.E2E_CPU_THROTTLE) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: Number(process.env.E2E_CPU_THROTTLE) });
+}
+
+// Sync is blocked outright, for two reasons.
+//
+// The first is safety. The family code this run types is a real one, and on a
+// machine with working internet the app connects to the real Firestore project
+// and both reads and writes `families/smoke-test-`. A browser test must never
+// write to the production sync backend.
+//
+// The second is that it made the suite unrepeatable. State written by one run
+// came back in the next: a pronunciation recorded here is loaded at startup
+// there, so a check that records one and expects it to be new finds it already
+// present and stalls. That is invisible in a sandbox with no outbound access
+// and deterministic on a runner with it — exactly the shape of a failure that
+// passes locally and fails on CI every single time.
+//
+// Blocking it also makes every run double as a check that the app stays usable
+// when sync is unavailable, which this suite already claimed to be doing.
+await page.route(
+  (url) => /(^|\.)googleapis\.com$|(^|\.)firebaseio\.com$|(^|\.)firebaseinstallations\.com$/
+    .test(url.hostname),
+  (route) => route.abort()
+);
+
+// An aborted request surfaces as net::ERR_FAILED rather than ERR_CONNECTION.
+const IGNORE = /firebase|firestore|googleapis|net::ERR_|ERR_CONNECTION|favicon/i;
 const errors = [];
 const netErrors = [];
 page.on('pageerror', (e) => (IGNORE.test(e.message) ? netErrors : errors).push('pageerror: ' + e.message));
@@ -42,11 +70,120 @@ page.on('requestfailed', (r) => netErrors.push('net: ' + r.url()));
 const badResponses = [];
 page.on('response', (r) => { if (r.status() >= 400) badResponses.push(r.status() + ' ' + r.url()); });
 
-// Fake SpeechRecognition so we can drive the mic paths deterministically.
+async function finish(code) {
+  const failed = results.filter((r) => !r.ok);
+  await browser.close().catch(() => {});
+  await server.close().catch(() => {});
+  console.log('\n' + (results.length - failed.length) + '/' + results.length + ' checks passed');
+  process.exit(code || (failed.length ? 1 : 0));
+}
+
+/**
+ * A wait that times out here says only which line gave up. That is not enough
+ * to diagnose a failure that only happens on a CI runner, so dump what the app
+ * was actually showing — the mic labels are where every speech failure
+ * surfaces, and the banner is where an outage does.
+ */
+process.on('uncaughtException', async (e) => {
+  console.log('\nFAIL  ' + (e && e.message));
+  results.push({ name: 'the run completed', ok: false, detail: e && e.message });
+  try {
+    const state = await page.evaluate(() => {
+      const text = (id) => {
+        const el = document.getElementById(id);
+        return el ? (el.value !== undefined && el.tagName === 'INPUT' ? el.value : el.textContent).trim() : null;
+      };
+      return {
+        tab: (document.querySelector('.tab.active') || {}).textContent,
+        micLabels: ['practiceMicLabel', 'sentenceMicLabel', 'readingMicLabel', 'writeMicLabel', 'phonicMicLabel']
+          .reduce((acc, id) => { acc[id] = text(id); return acc; }, {}),
+        listening: [...document.querySelectorAll('.listening')].map((el) => el.id),
+        phonicWord: text('phonicWord'),
+        phonicSpelling: text('phonicSpelling'),
+        phonicNote: (text('phonicAddNote') || '').slice(0, 240),
+        heard: (text('heardText') || '').slice(0, 160),
+        banner: document.getElementById('accuracyBanner').className + ' | ' +
+          document.getElementById('accuracyBanner').textContent.slice(0, 200),
+        // What alreadyRecognised() reads, via the UI that renders it — no
+        // debug hook in the app itself.
+        phonicList: (text('phonicList') || '').replace(/\s+/g, ' ').slice(0, 400),
+        bankList: (text('bankList') || '').replace(/\s+/g, ' ').slice(0, 400),
+        serviceCalls: window.__serviceCalls,
+        lastHints: (window.__lastHints || []).slice(0, 5)
+      };
+    });
+    console.log('      app state at failure: ' + JSON.stringify(state, null, 2));
+  } catch (e2) {
+    console.log('      (could not read app state: ' + e2.message + ')');
+  }
+  if (errors.length) console.log('      page errors: ' + errors.slice(0, 5).join(' ;; '));
+  await finish(1);
+});
+
+// Fake the whole speech stack so the mic paths run deterministically:
+//   - MediaRecorder / getUserMedia / AudioContext, so a clip is captured
+//   - fetch to the transcription function, so a transcript comes back
+//   - SpeechRecognition, which is now only the fallback
+// Nothing else is mocked, and the real capture.js / mic.js run throughout.
+// The practice queue is shuffled, so each run exercises a different arrangement
+// of words — which is good coverage and terrible for reproducing a failure.
+// E2E_SEED pins it.
+if (process.env.E2E_SEED) {
+  await page.addInitScript((seed) => {
+    let state = Number(seed) || 1;
+    Math.random = () => {
+      state = (state * 1103515245 + 12345) & 0x7fffffff;
+      return state / 0x7fffffff;
+    };
+  }, process.env.E2E_SEED);
+}
+
 await page.addInitScript(() => {
   window.__nextTranscript = '';
-  window.__nextError = null;
+  window.__nextError = null;      // makes the service reply with this code
+  window.__serviceDown = false;   // makes the service fail the way an outage does
+  window.__serviceCalls = 0;
   window.__lastLang = null;
+  window.__lastHints = [];
+
+  class FakeMediaRecorder {
+    static isTypeSupported() { return true; }
+    constructor() { this.state = 'inactive'; this.mimeType = 'audio/webm'; }
+    start() {
+      this.state = 'recording';
+      this.ondataavailable({ data: new Blob(['fake audio']) });
+    }
+    stop() { this.state = 'inactive'; this.onstop(); }
+  }
+  window.MediaRecorder = FakeMediaRecorder;
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: { getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] }) }
+  });
+  // Always "speaking", so only a tap or the ceiling ends a recording. The
+  // silence path has its own coverage in the unit tests, where the clock can
+  // be moved rather than waited out.
+  window.AudioContext = class {
+    createAnalyser() { return { fftSize: 2048, getFloatTimeDomainData(b) { b.fill(1); } }; }
+    createMediaStreamSource() { return { connect() {} }; }
+    close() {}
+  };
+
+  const realFetch = window.fetch.bind(window);
+  window.fetch = async (url, init) => {
+    if (!String(url).includes('/functions/transcribe')) return realFetch(url, init);
+    window.__serviceCalls += 1;
+    window.__lastLang = init.body.get('language');
+    window.__lastHints = JSON.parse(init.body.get('hints') || '[]');
+    if (window.__serviceDown) return new Response('gateway', { status: 503 });
+    if (window.__nextError) {
+      return new Response(JSON.stringify({ error: window.__nextError }), { status: 400 });
+    }
+    return new Response(
+      JSON.stringify({ text: window.__nextTranscript, provider: 'stub', model: 'stub' }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  };
   class FakeRecognition {
     constructor() { this.continuous = false; this.interimResults = false; }
     start() {
@@ -100,6 +237,26 @@ check('the app behind it is now usable',
   await page.locator('.tabs').isVisible());
 
 /**
+ * Tap the mic, then tap it again to finish — which is how it now works.
+ *
+ * The wait between is for the button to actually be recording, not a fixed
+ * pause: getUserMedia is asynchronous, and on a loaded CI runner a fixed pause
+ * is a race. The catch covers the case where the mic refuses to start at all
+ * (nothing to say yet, permission denied), where the second tap is the point.
+ */
+async function tapMic(micId) {
+  const selector = micId.startsWith('#') ? micId : '#' + micId;
+  await page.click(selector);
+  await page.waitForSelector(selector + '.listening', { timeout: 2000 }).catch(() => {});
+  // Only tap again if it is still recording. Two cases must not get a second
+  // tap: a mic that refused to start (nothing typed yet), and the browser
+  // recogniser, which finishes by itself. Tapping either again starts a fresh
+  // capture that nothing stops, which then resolves seconds later in the
+  // middle of a later check.
+  if (await page.locator(selector + '.listening').count()) await page.click(selector);
+}
+
+/**
  * Say something into a sentence/reading mic and wait for THIS result.
  * Clearing first matters: without it, waiting for "some tokens exist" passes
  * instantly against the previous read's tokens.
@@ -107,7 +264,7 @@ check('the app behind it is now usable',
 async function readInto(outputId, micId, transcript) {
   await page.evaluate((id) => { document.getElementById(id).innerHTML = ''; }, outputId);
   await page.evaluate((t) => { window.__nextTranscript = t; }, transcript);
-  await page.click('#' + micId);
+  await tapMic(micId);
   await page.waitForFunction(
     (id) => document.querySelectorAll('#' + id + ' .wtok').length > 0,
     outputId
@@ -131,7 +288,7 @@ check('mastery dots rendered', (await page.locator('#repeatDots .repeat-dot').co
 
 // A correct utterance advances the word.
 await page.evaluate((w) => { window.__nextTranscript = w; }, target);
-await page.click('#practiceMic');
+await tapMic('practiceMic');
 await page.waitForFunction(() => document.getElementById('heardText').textContent.includes('matched'));
 check('correct utterance is accepted', true);
 await page.waitForFunction(
@@ -144,7 +301,7 @@ check('session attempt counted',
 // A mishearing offers to bank it.
 const target2 = (await page.locator('#targetWord').textContent()).trim();
 await page.evaluate(() => { window.__nextTranscript = 'zzquump'; });
-await page.click('#practiceMic');
+await tapMic('practiceMic');
 await page.waitForSelector('#matchActions button');
 const actionLabels = await page.locator('#matchActions button').allTextContents();
 check('mishearing offers bank / retry / skip / teach',
@@ -273,7 +430,7 @@ check('pronunciation is recorded, with its derived key shown',
 // A different transcription of the same sound is recognised...
 await page.click('.tab[data-tab="practice"]');
 await page.evaluate(() => { window.__nextTranscript = 'yo yo'; });
-await page.click('#practiceMic');
+await tapMic('practiceMic');
 await page.waitForFunction(() => document.getElementById('heardBox').classList.contains('show'));
 check('a transcription variant is recognised as how she says it',
   (await page.locator('#heardText').textContent()).includes('sounds like how she says it'));
@@ -301,7 +458,7 @@ check('and banks the exact text as pending, not active',
 await page.click('.tab[data-tab="practice"]');
 const teachTarget = (await page.locator('#targetWord').textContent()).trim();
 await page.evaluate(() => { window.__nextTranscript = 'blorptastic'; });
-await page.click('#practiceMic');
+await tapMic('practiceMic');
 await page.waitForSelector('#matchActions button');
 await page.locator('#matchActions button', { hasText: 'Teach how she says it' }).click();
 check('the teach panel opens prefilled with what was heard',
@@ -367,14 +524,14 @@ await page.fill('#phonicSpelling', '');
 await page.evaluate(() => { window.__nextError = null; });
 
 // Nothing to listen for until it knows which word she is saying.
-await page.click('#phonicMic');
+await tapMic('phonicMic');
 check('the mic asks for the word before listening',
   (await page.locator('#phonicAddNote').textContent()).includes('Type the word first'));
 
 // A sound nothing recognises yet: offer to save it.
 await page.fill('#phonicWord', 'butterfly');
 await page.evaluate(() => { window.__nextTranscript = 'butta fly'; });
-await page.click('#phonicMic');
+await tapMic('phonicMic');
 await page.waitForFunction(() => document.getElementById('phonicSpelling').value !== '');
 check('an unrecognised sound is captured into the spelling box',
   (await page.inputValue('#phonicSpelling')) === 'butta fly');
@@ -388,7 +545,7 @@ check('saving it records the pronunciation',
 await page.fill('#phonicWord', 'butterfly');
 await page.fill('#phonicSpelling', '');
 await page.evaluate(() => { window.__nextTranscript = 'butterfly'; });
-await page.click('#phonicMic');
+await tapMic('phonicMic');
 await page.waitForFunction(() =>
   document.getElementById('phonicAddNote').textContent.includes('Nothing to record'));
 check('output that already matches the word is not offered for saving',
@@ -396,7 +553,7 @@ check('output that already matches the word is not offered for saving',
 
 // A pronunciation already recorded also counts as recognised.
 await page.evaluate(() => { window.__nextTranscript = 'butta fly'; });
-await page.click('#phonicMic');
+await tapMic('phonicMic');
 await page.waitForTimeout(200);
 check('a sound an existing pronunciation already covers is not offered again',
   (await page.locator('#phonicAddNote').textContent()).includes('Nothing to record') &&
@@ -404,22 +561,43 @@ check('a sound an existing pronunciation already covers is not offered again',
 
 // Shared mic wiring means the error codes land here too.
 await page.evaluate(() => { window.__nextError = 'audio-capture'; });
-await page.click('#phonicMic');
-await page.waitForFunction(() =>
-  !document.getElementById('phonicMicLabel').textContent.includes('Listening'));
+await tapMic('phonicMic');
+await page.waitForFunction(() => {
+  const t = document.getElementById('phonicMicLabel').textContent;
+  return !t.includes('Recording') && !t.includes('Working it out');
+});
 const phonicMicErr = (await page.locator('#phonicMicLabel').textContent()).trim();
 check('recognizer error codes show on this mic too',
   phonicMicErr.includes('(audio-capture)') && phonicMicErr.includes('No microphone found'),
   phonicMicErr);
 await page.evaluate(() => { window.__nextError = null; });
 
+// ---- What actually goes to the speech service ----
+
+await page.click('.tab[data-tab="practice"]');
+const hintTarget = (await page.locator('#targetWord').textContent()).trim();
+await page.evaluate(() => { window.__nextTranscript = 'anything'; window.__serviceCalls = 0; });
+await page.click('#practiceMic');
+await page.waitForTimeout(250);
+check('one tap starts recording and says how to finish',
+  (await page.locator('#practiceMicLabel').textContent()).trim() === 'Recording — tap when done',
+  await page.locator('#practiceMicLabel').textContent());
+check('and nothing has been sent yet — it is still recording',
+  (await page.evaluate(() => window.__serviceCalls)) === 0);
+await page.click('#practiceMic');
+await page.waitForFunction(() => window.__serviceCalls === 1);
+check('the second tap is what sends it', true);
+check('the word she was asked for leads the vocabulary hints',
+  (await page.evaluate(() => window.__lastHints))[0] === hintTarget,
+  JSON.stringify(await page.evaluate(() => window.__lastHints)));
+
 // ---- Accent, and recognizer error codes ----
 
 await page.click('.tab[data-tab="practice"]');
 await page.evaluate(() => { window.__nextTranscript = 'anything'; });
-await page.click('#practiceMic');
+await tapMic('practiceMic');
 await page.waitForFunction(() => window.__lastLang !== null);
-check('the recognizer is asked for Australian English by default',
+check('the speech service is asked for Australian English by default',
   (await page.evaluate(() => window.__lastLang)) === 'en-AU',
   await page.evaluate(() => window.__lastLang));
 
@@ -430,7 +608,7 @@ check('the accent note reflects the change',
   (await page.locator('#speechLangNote').textContent()).includes('en-GB'));
 await page.click('.tab[data-tab="practice"]');
 await page.evaluate(() => { window.__lastLang = null; window.__nextTranscript = 'anything'; });
-await page.click('#practiceMic');
+await tapMic('practiceMic');
 await page.waitForFunction(() => window.__lastLang !== null);
 check('a changed accent applies to the next listen, with no reload',
   (await page.evaluate(() => window.__lastLang)) === 'en-GB',
@@ -442,10 +620,11 @@ await page.selectOption('#speechLang', 'en-AU');
 await page.click('.tab[data-tab="practice"]');
 async function micError(code) {
   await page.evaluate((c) => { window.__nextError = c; }, code);
-  await page.click('#practiceMic');
-  await page.waitForFunction(
-    () => !document.getElementById('practiceMicLabel').textContent.includes('Listening')
-  );
+  await tapMic('practiceMic');
+  await page.waitForFunction(() => {
+    const t = document.getElementById('practiceMicLabel').textContent;
+    return !t.includes('Recording') && !t.includes('Working it out');
+  });
   return (await page.locator('#practiceMicLabel').textContent()).trim();
 }
 const noSpeech = await micError('no-speech');
@@ -462,10 +641,42 @@ check('an unsupported language names the language and where to change it',
   unsupported.includes('en-AU') && unsupported.includes('(language-not-supported)') &&
   unsupported.includes('Word Bank'), unsupported);
 
-const aborted = await micError('aborted');
-check('a cancelled listen is not reported as a failure', aborted === 'Tap to record', aborted);
-
 await page.evaluate(() => { window.__nextError = null; });
+
+// ---- When the speech service cannot be reached ----
+// The fallback is the browser's own recogniser: the engine that was mishearing
+// her in the first place. It must work, and it must never be mistaken for the
+// real thing.
+await page.evaluate(() => {
+  window.__serviceDown = true;
+  window.__nextTranscript = 'from the browser engine';
+});
+await tapMic('practiceMic');
+await page.waitForFunction(() =>
+  document.getElementById('accuracyBanner').classList.contains('show'));
+const notice = (await page.locator('#accuracyBanner').textContent()).trim();
+check('an outage is announced, not swallowed',
+  notice.includes('Reduced accuracy') && notice.includes('less reliable'), notice);
+check('and it names the code, so a failure on a device across the room is diagnosable',
+  notice.includes('http-503') || notice.includes('503'), notice);
+
+// The fallback recogniser still produces a transcript for this attempt.
+// Wait for THIS transcript, not for "some text exists" — heardText is still
+// showing the previous attempt's, so the loose wait passes instantly.
+await page.waitForFunction(() =>
+  document.getElementById('heardText').textContent.includes('from the browser engine'),
+  null, { timeout: 5000 });
+check('the attempt is not lost — the browser recogniser stands in', true);
+
+// And it clears itself the moment the service answers again.
+await page.evaluate(() => { window.__serviceDown = false; window.__nextTranscript = 'anything'; });
+await tapMic('practiceMic');   // consumes the armed fallback
+await page.waitForTimeout(300);
+await tapMic('practiceMic');   // back on the service
+await page.waitForFunction(() =>
+  !document.getElementById('accuracyBanner').classList.contains('show'), null, { timeout: 5000 });
+check('and the notice clears itself once a real transcript comes back', true);
+
 await page.click('.tab[data-tab="bank"]');
 
 // ---- Reaching a specific word, and focusing the queue ----
@@ -833,9 +1044,4 @@ check('the coin is present and not stretched', await page.evaluate(() => {
 check('no uncaught application errors', errors.length === 0, errors.slice(0, 3).join(' ;; '));
 
 if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT, fullPage: true });
-await browser.close();
-await server.close();
-
-const failed = results.filter((r) => !r.ok);
-console.log('\n' + (results.length - failed.length) + '/' + results.length + ' checks passed');
-process.exit(failed.length ? 1 : 0);
+await finish(0);

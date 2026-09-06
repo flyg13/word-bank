@@ -52,6 +52,8 @@ export function initSentences() {
   bindMic({
     buttonId: 'sentenceMic',
     labelId: 'sentenceMicLabel',
+    mode: 'sentence',
+    expected: currentSentence,
     onResult: handleSentenceResult
   });
 
