@@ -23,6 +23,14 @@ function check(name, ok, detail = '') {
 const browser = await chromium.launch({ executablePath });
 const page = await browser.newPage();
 
+// CI runners are far slower than a dev machine, and a race that never shows
+// locally fails there every time. E2E_CPU_THROTTLE=10 reproduces that without
+// needing a second machine.
+if (process.env.E2E_CPU_THROTTLE) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: Number(process.env.E2E_CPU_THROTTLE) });
+}
+
 // This sandbox has no outbound access to Firebase, so its network errors are
 // expected here — and the run doubles as a check that the app stays usable
 // when sync is unavailable.
@@ -41,6 +49,52 @@ page.on('requestfailed', (r) => netErrors.push('net: ' + r.url()));
 // the response side instead.
 const badResponses = [];
 page.on('response', (r) => { if (r.status() >= 400) badResponses.push(r.status() + ' ' + r.url()); });
+
+async function finish(code) {
+  const failed = results.filter((r) => !r.ok);
+  await browser.close().catch(() => {});
+  await server.close().catch(() => {});
+  console.log('\n' + (results.length - failed.length) + '/' + results.length + ' checks passed');
+  process.exit(code || (failed.length ? 1 : 0));
+}
+
+/**
+ * A wait that times out here says only which line gave up. That is not enough
+ * to diagnose a failure that only happens on a CI runner, so dump what the app
+ * was actually showing — the mic labels are where every speech failure
+ * surfaces, and the banner is where an outage does.
+ */
+process.on('uncaughtException', async (e) => {
+  console.log('\nFAIL  ' + (e && e.message));
+  results.push({ name: 'the run completed', ok: false, detail: e && e.message });
+  try {
+    const state = await page.evaluate(() => {
+      const text = (id) => {
+        const el = document.getElementById(id);
+        return el ? (el.value !== undefined && el.tagName === 'INPUT' ? el.value : el.textContent).trim() : null;
+      };
+      return {
+        tab: (document.querySelector('.tab.active') || {}).textContent,
+        micLabels: ['practiceMicLabel', 'sentenceMicLabel', 'readingMicLabel', 'writeMicLabel', 'phonicMicLabel']
+          .reduce((acc, id) => { acc[id] = text(id); return acc; }, {}),
+        listening: [...document.querySelectorAll('.listening')].map((el) => el.id),
+        phonicWord: text('phonicWord'),
+        phonicSpelling: text('phonicSpelling'),
+        phonicNote: (text('phonicAddNote') || '').slice(0, 240),
+        heard: (text('heardText') || '').slice(0, 160),
+        banner: document.getElementById('accuracyBanner').className + ' | ' +
+          document.getElementById('accuracyBanner').textContent.slice(0, 200),
+        serviceCalls: window.__serviceCalls,
+        lastHints: (window.__lastHints || []).slice(0, 5)
+      };
+    });
+    console.log('      app state at failure: ' + JSON.stringify(state, null, 2));
+  } catch (e2) {
+    console.log('      (could not read app state: ' + e2.message + ')');
+  }
+  if (errors.length) console.log('      page errors: ' + errors.slice(0, 5).join(' ;; '));
+  await finish(1);
+});
 
 // Fake the whole speech stack so the mic paths run deterministically:
 //   - MediaRecorder / getUserMedia / AudioContext, so a clip is captured
@@ -156,8 +210,13 @@ check('the app behind it is now usable',
 async function tapMic(micId) {
   const selector = micId.startsWith('#') ? micId : '#' + micId;
   await page.click(selector);
-  await page.waitForSelector(selector + '.listening', { timeout: 5000 }).catch(() => {});
-  await page.click(selector);
+  await page.waitForSelector(selector + '.listening', { timeout: 2000 }).catch(() => {});
+  // Only tap again if it is still recording. Two cases must not get a second
+  // tap: a mic that refused to start (nothing typed yet), and the browser
+  // recogniser, which finishes by itself. Tapping either again starts a fresh
+  // capture that nothing stops, which then resolves seconds later in the
+  // middle of a later check.
+  if (await page.locator(selector + '.listening').count()) await page.click(selector);
 }
 
 /**
@@ -948,9 +1007,4 @@ check('the coin is present and not stretched', await page.evaluate(() => {
 check('no uncaught application errors', errors.length === 0, errors.slice(0, 3).join(' ;; '));
 
 if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT, fullPage: true });
-await browser.close();
-await server.close();
-
-const failed = results.filter((r) => !r.ok);
-console.log('\n' + (results.length - failed.length) + '/' + results.length + ' checks passed');
-process.exit(failed.length ? 1 : 0);
+await finish(0);
