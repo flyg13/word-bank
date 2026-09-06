@@ -121,12 +121,24 @@ export function bindMic({
   // second tap can stop it; `fallbackArmed` survives between taps so a failed
   // attempt's retry goes straight to the browser recogniser instead of
   // spending another recording and timeout on a service that is down.
+  //
+  // `starting` covers the gap between the first tap and the microphone being
+  // live — getUserMedia is asynchronous, so without it a second tap in that
+  // window finds no active capture and starts a second one, opening two
+  // streams and producing two transcripts for one attempt. A child tapping
+  // twice because nothing happened yet is the likeliest way to hit it.
+  // `stopRequested` is why the tap is remembered rather than dropped: it still
+  // means "finish", it just arrived before there was anything to finish.
   let active = null;
+  let starting = false;
+  let stopRequested = false;
   let fallbackArmed = false;
 
   const finishIdle = () => {
     button.classList.remove('listening');
     active = null;
+    starting = false;
+    stopRequested = false;
   };
 
   /** The browser's own recogniser — the fallback, and never the first choice. */
@@ -179,6 +191,8 @@ export function bindMic({
   };
 
   const runCapture = async () => {
+    starting = true;
+    stopRequested = false;
     button.classList.add('listening');
     setLabel(MIC_RECORDING);
 
@@ -194,6 +208,11 @@ export function bindMic({
     }
 
     active = capture;
+    starting = false;
+    // A tap that arrived while the microphone was coming up still meant
+    // "finish" — honour it now rather than leaving the recording running.
+    if (stopRequested) capture.stop('tap');
+
     try {
       const { text } = await capture.result;
       finishIdle();
@@ -218,6 +237,13 @@ export function bindMic({
     if (active) {
       setLabel(MIC_WORKING);
       active.stop('tap');
+      return;
+    }
+
+    // Tapped again before the microphone was live. Remembered, not dropped.
+    if (starting) {
+      stopRequested = true;
+      setLabel(MIC_WORKING);
       return;
     }
 

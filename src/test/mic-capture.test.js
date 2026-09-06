@@ -86,6 +86,32 @@ describe('the mic button', () => {
     expect(document.getElementById('m').classList.contains('listening')).toBe(false);
   });
 
+  it('does not open a second microphone when tapped twice before it is live', async () => {
+    // getUserMedia is asynchronous. Without a guard, the second tap finds no
+    // active capture and starts another one — two streams, two transcripts,
+    // for one attempt. A child tapping again because nothing happened yet is
+    // the likeliest way there.
+    serviceReturns('yellow');
+    tap();
+    tap();          // same tick, before the microphone can be live
+    await settle();
+    await settle();
+    expect(globalThis.fetch.mock.calls).toHaveLength(1);
+    expect(heard).toEqual(['yellow']);
+  });
+
+  it('honours a stop that arrived before there was anything to stop', async () => {
+    // The tap still meant "finish"; it was just early. Dropping it would
+    // leave the recording running to the mode's ceiling.
+    serviceReturns('yellow');
+    tap();
+    tap();
+    await settle();
+    await settle();
+    expect(heard).toEqual(['yellow']);
+    expect(label()).toBe(MIC_IDLE);
+  });
+
   it('stops on its own when she goes quiet, without a second tap', async () => {
     serviceReturns('yellow');
     // Speech, then silence past the word mode's 1.2s pause.

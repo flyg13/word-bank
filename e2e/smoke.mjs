@@ -146,14 +146,17 @@ check('the app behind it is now usable',
   await page.locator('.tabs').isVisible());
 
 /**
- * Tap the mic, then tap it again to finish — which is how it now works. The
- * pause between is so the first tap's getUserMedia has resolved and the button
- * is holding a live capture; without it the second tap reads as a fresh start.
+ * Tap the mic, then tap it again to finish — which is how it now works.
+ *
+ * The wait between is for the button to actually be recording, not a fixed
+ * pause: getUserMedia is asynchronous, and on a loaded CI runner a fixed pause
+ * is a race. The catch covers the case where the mic refuses to start at all
+ * (nothing to say yet, permission denied), where the second tap is the point.
  */
 async function tapMic(micId) {
   const selector = micId.startsWith('#') ? micId : '#' + micId;
   await page.click(selector);
-  await page.waitForTimeout(150);
+  await page.waitForSelector(selector + '.listening', { timeout: 5000 }).catch(() => {});
   await page.click(selector);
 }
 
