@@ -31,10 +31,30 @@ if (process.env.E2E_CPU_THROTTLE) {
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: Number(process.env.E2E_CPU_THROTTLE) });
 }
 
-// This sandbox has no outbound access to Firebase, so its network errors are
-// expected here — and the run doubles as a check that the app stays usable
-// when sync is unavailable.
-const IGNORE = /firebase|firestore|googleapis|ERR_CONNECTION|favicon/i;
+// Sync is blocked outright, for two reasons.
+//
+// The first is safety. The family code this run types is a real one, and on a
+// machine with working internet the app connects to the real Firestore project
+// and both reads and writes `families/smoke-test-`. A browser test must never
+// write to the production sync backend.
+//
+// The second is that it made the suite unrepeatable. State written by one run
+// came back in the next: a pronunciation recorded here is loaded at startup
+// there, so a check that records one and expects it to be new finds it already
+// present and stalls. That is invisible in a sandbox with no outbound access
+// and deterministic on a runner with it — exactly the shape of a failure that
+// passes locally and fails on CI every single time.
+//
+// Blocking it also makes every run double as a check that the app stays usable
+// when sync is unavailable, which this suite already claimed to be doing.
+await page.route(
+  (url) => /(^|\.)googleapis\.com$|(^|\.)firebaseio\.com$|(^|\.)firebaseinstallations\.com$/
+    .test(url.hostname),
+  (route) => route.abort()
+);
+
+// An aborted request surfaces as net::ERR_FAILED rather than ERR_CONNECTION.
+const IGNORE = /firebase|firestore|googleapis|net::ERR_|ERR_CONNECTION|favicon/i;
 const errors = [];
 const netErrors = [];
 page.on('pageerror', (e) => (IGNORE.test(e.message) ? netErrors : errors).push('pageerror: ' + e.message));
@@ -84,6 +104,10 @@ process.on('uncaughtException', async (e) => {
         heard: (text('heardText') || '').slice(0, 160),
         banner: document.getElementById('accuracyBanner').className + ' | ' +
           document.getElementById('accuracyBanner').textContent.slice(0, 200),
+        // What alreadyRecognised() reads, via the UI that renders it — no
+        // debug hook in the app itself.
+        phonicList: (text('phonicList') || '').replace(/\s+/g, ' ').slice(0, 400),
+        bankList: (text('bankList') || '').replace(/\s+/g, ' ').slice(0, 400),
         serviceCalls: window.__serviceCalls,
         lastHints: (window.__lastHints || []).slice(0, 5)
       };
@@ -101,6 +125,19 @@ process.on('uncaughtException', async (e) => {
 //   - fetch to the transcription function, so a transcript comes back
 //   - SpeechRecognition, which is now only the fallback
 // Nothing else is mocked, and the real capture.js / mic.js run throughout.
+// The practice queue is shuffled, so each run exercises a different arrangement
+// of words — which is good coverage and terrible for reproducing a failure.
+// E2E_SEED pins it.
+if (process.env.E2E_SEED) {
+  await page.addInitScript((seed) => {
+    let state = Number(seed) || 1;
+    Math.random = () => {
+      state = (state * 1103515245 + 12345) & 0x7fffffff;
+      return state / 0x7fffffff;
+    };
+  }, process.env.E2E_SEED);
+}
+
 await page.addInitScript(() => {
   window.__nextTranscript = '';
   window.__nextError = null;      // makes the service reply with this code
