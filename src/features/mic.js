@@ -1,7 +1,7 @@
 import { listen } from '../lib/speech.js';
 import { state } from '../lib/store.js';
 
-export const MIC_IDLE = 'Tap to listen';
+export const MIC_IDLE = 'Tap to record';
 const MIC_LISTENING = 'Listening…';
 
 // What the recognizer's error codes actually mean, in words the person holding

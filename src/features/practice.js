@@ -239,7 +239,9 @@ function handlePracticeResult(heard) {
   renderAll();
 
   const bankBtn = document.createElement('button');
-  bankBtn.className = 'btn btn-primary';
+  // Gold outline is reserved for the confirm-again class of action, which is
+  // exactly what accepting a phonetic hit is.
+  bankBtn.className = soundsRight ? 'btn btn-gold' : 'btn btn-primary';
   if (soundsRight) {
     bankBtn.textContent = "Yes — that's her saying it";
   } else {
@@ -256,7 +258,7 @@ function handlePracticeResult(heard) {
   };
 
   const retryBtn = document.createElement('button');
-  retryBtn.className = 'btn btn-ghost';
+  retryBtn.className = 'btn btn-outline';
   retryBtn.textContent = 'Try again';
   retryBtn.onclick = () => {
     clearHeard();
@@ -264,7 +266,7 @@ function handlePracticeResult(heard) {
   };
 
   const skipBtn = document.createElement('button');
-  skipBtn.className = 'btn btn-outline';
+  skipBtn.className = 'btn btn-link';
   skipBtn.textContent = 'Skip';
   skipBtn.onclick = () => {
     releasePinned(state.practiceQueue[0]);

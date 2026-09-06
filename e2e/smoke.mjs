@@ -71,6 +71,34 @@ page.on('dialog', (d) => d.dismiss());
 
 await page.goto(BASE, { waitUntil: 'networkidle' });
 
+// ---- Entry screen ----
+// It replaces a browser prompt(), so the app is gated behind it on a device
+// with no code stored — which is every preview URL, since each is its own origin.
+check('a device with no family code is met by the entry screen, not a prompt',
+  (await page.locator('#entryScreen').isVisible()) &&
+  (await page.locator('#entryScreen .wordmark').textContent()).trim() === 'Flying Giraffe');
+check('the entry screen carries the coin and the product title',
+  (await page.locator('.entry-coin').isVisible()) &&
+  (await page.locator('.entry-title').textContent()).trim() === 'Word Bank');
+check('and says what the code is for',
+  (await page.locator('.entry-meta').textContent()).includes('only key to her data'));
+
+// A code of pure punctuation normalises to nothing, so it is refused rather
+// than stored empty.
+await page.fill('#entryCode', '!!!');
+await page.click('#entryContinue');
+check('a code that normalises to nothing is refused',
+  (await page.locator('#entryError').textContent()).includes('letters and numbers') &&
+  (await page.locator('#entryScreen').isVisible()));
+
+await page.fill('#entryCode', 'Smoke Test!');
+await page.click('#entryContinue');
+await page.waitForFunction(() => document.getElementById('entryScreen').hidden);
+check('a valid code dismisses it and is normalised the way the prompt did',
+  (await page.evaluate(() => localStorage.getItem('word_bank_family_code'))) === 'smoke-test-');
+check('the app behind it is now usable',
+  await page.locator('.tabs').isVisible());
+
 /**
  * Say something into a sentence/reading mic and wait for THIS result.
  * Clearing first matters: without it, waiting for "some tokens exist" passes
@@ -88,7 +116,9 @@ async function readInto(outputId, micId, transcript) {
 
 // ---- Shell ----
 check('title renders', (await page.title()) === "Harlie's Word Bank");
-check('five tabs present', (await page.locator('.tab').count()) === 5);
+check('six tabs, in three groups', (await page.locator('.tab').count()) === 6 &&
+  (await page.locator('.tab-group').count()) === 3,
+  (await page.locator('.tab').allTextContents()).join(' | '));
 check('progress reads 0 / 355', (await page.locator('#bankCountLabel').textContent()).includes('355'));
 check('speech supported banner hidden',
   !(await page.locator('#unsupportedBanner').evaluate((el) => el.classList.contains('show'))));
@@ -127,7 +157,7 @@ const bankText = await page.locator('#bankList').textContent();
 check('banked correction appears, pending confirmation',
   bankText.includes('zzquump') && bankText.includes(target2) && bankText.includes('needs confirming'));
 
-// ---- Free Write, and the pending -> active flow ----
+// ---- Speech-To-Text, and the pending -> active flow ----
 await page.click('.tab[data-tab="write"]');
 await page.fill('#rawInput', 'zzquump is here');
 check('pending correction is NOT applied',
@@ -211,7 +241,7 @@ check('session is logged',
 // Record how she says the word Practice is currently showing.
 await page.click('.tab[data-tab="practice"]');
 const phonicTarget = (await page.locator('#targetWord').textContent()).trim();
-await page.click('.tab[data-tab="bank"]');
+await page.click('.tab[data-tab="corrections"]');
 await page.fill('#phonicWord', phonicTarget);
 await page.fill('#phonicSpelling', 'yeyo');
 check('a collision-prone spelling is flagged before saving',
@@ -278,12 +308,12 @@ check('the teach panel opens prefilled with what was heard',
   (await page.inputValue('#phonicQuickInput')) === 'blorptastic' &&
   (await page.locator('#phonicQuickNote').textContent()).includes('Sounds like'));
 await page.click('#phonicQuickSave');
-await page.click('.tab[data-tab="bank"]');
+await page.click('.tab[data-tab="corrections"]');
 check('teaching from Practice records the pronunciation',
   (await page.locator('#phonicList').textContent()).includes(teachTarget));
 
 // Sentences: a phonetically-close word reads amber, and the read is not clean.
-await page.click('.tab[data-tab="bank"]');
+await page.click('.tab[data-tab="corrections"]');
 await page.fill('#phonicWord', 'cat');
 await page.fill('#phonicSpelling', 'kat');
 await page.click('#phonicAddBtn');
@@ -300,7 +330,7 @@ check('but the read is still NOT scored clean',
   (await page.locator('#sentenceOutput .read-note').count()) === 0);
 
 // Removing it puts the word back to a plain mismatch.
-await page.click('.tab[data-tab="bank"]');
+await page.click('.tab[data-tab="corrections"]');
 await page.locator('.phonic-row').filter({ has: page.locator('.word', { hasText: /^cat$/ }) })
   .locator('button', { hasText: 'Remove' }).click();
 await page.click('.tab[data-tab="sentences"]');
@@ -311,7 +341,7 @@ check('removing the pronunciation restores the plain mismatch',
   'close=' + (await page.locator('#sentenceOutput .wtok.close').count()) +
   ' mismatch=' + (await page.locator('#sentenceOutput .wtok.mismatch').count()));
 
-await page.click('.tab[data-tab="bank"]');
+await page.click('.tab[data-tab="corrections"]');
 
 // A different spelling must describe itself, not the first one's example.
 await page.fill('#phonicWord', 'blue');
@@ -331,7 +361,7 @@ check('the mic explains what it records and that a typed spelling also helps',
 
 // ---- Recording a pronunciation from her voice ----
 
-await page.click('.tab[data-tab="bank"]');
+await page.click('.tab[data-tab="corrections"]');
 await page.fill('#phonicWord', '');
 await page.fill('#phonicSpelling', '');
 await page.evaluate(() => { window.__nextError = null; });
@@ -433,14 +463,14 @@ check('an unsupported language names the language and where to change it',
   unsupported.includes('Word Bank'), unsupported);
 
 const aborted = await micError('aborted');
-check('a cancelled listen is not reported as a failure', aborted === 'Tap to listen', aborted);
+check('a cancelled listen is not reported as a failure', aborted === 'Tap to record', aborted);
 
 await page.evaluate(() => { window.__nextError = null; });
 await page.click('.tab[data-tab="bank"]');
 
 // ---- Reaching a specific word, and focusing the queue ----
 
-await page.click('.tab[data-tab="bank"]');
+await page.click('.tab[data-tab="corrections"]');
 await page.fill('#phonicWord', 'flobber');
 await page.fill('#phonicSpelling', 'flibber');
 await page.click('#phonicAddBtn');
@@ -475,7 +505,7 @@ await page.waitForTimeout(100);
 check('turning it off restores the full queue',
   (await page.locator('#practiceMic').isVisible()));
 
-// ---- Free Write: pronunciations as suggestions, never applied ----
+// ---- Speech-To-Text: pronunciations as suggestions, never applied ----
 
 await page.click('.tab[data-tab="write"]');
 await page.fill('#rawInput', 'the flibber and the yo yo');
@@ -488,7 +518,7 @@ check('a strong pronunciation suggests what a loose word probably was',
 check('and it is offered, not applied',
   (await page.locator('#correctedOutput').textContent()).includes('flibber') &&
   !(await page.locator('#correctedOutput').textContent()).includes('flobber'));
-check('a loose pronunciation stays out of Free Write entirely',
+check('a loose pronunciation stays out of Speech-To-Text entirely',
   !suggested.includes('yo') && !suggested.includes('yeyo'));
 
 // Accepting is one sighting, not an instant correction.
@@ -533,15 +563,19 @@ check('export carries the recorded pronunciations',
   Object.keys(exported.phonic_bank || {}).length > 0,
   JSON.stringify(exported.phonic_bank));
 
-// Wipe the pronunciations, then restore from that file.
+// Wipe the pronunciations, then restore from that file. The pronunciations
+// live on Corrections; Export/Import stayed on Word Bank.
 const beforeWipe = Object.keys(exported.phonic_bank);
+await page.click('.tab[data-tab="corrections"]');
 let guard = 0;
 while ((await page.locator('.phonic-row').count()) > 0 && guard++ < 20) {
   await page.locator('.phonic-row button', { hasText: 'Remove' }).first().click();
 }
 check('pronunciations can be cleared', (await page.locator('.phonic-row').count()) === 0);
 
+await page.click('.tab[data-tab="bank"]');
 await page.setInputFiles('#importFile', exportPath);
+await page.click('.tab[data-tab="corrections"]');
 await page.waitForFunction(() => document.querySelectorAll('.phonic-row').length > 0);
 const restored = await page.evaluate(() =>
   [...document.querySelectorAll('.phonic-row .word')].map((el) => el.textContent)
@@ -567,6 +601,235 @@ const unexpectedResponses = badResponses.filter((r) => !IGNORE.test(r));
 check('every failed request is a blocked sync call, not an app asset',
   unexpectedResponses.length === 0, unexpectedResponses.join(' ;; ') || badResponses.join(' ;; '));
 check('app is fully usable with sync unavailable', true, netErrors.length + ' network errors tolerated');
+// ---- Brand rules from DESIGN.md §6, so a later change cannot quietly break them ----
+
+await page.click('.tab[data-tab="practice"]');
+const faces = await page.evaluate(() => {
+  const face = (sel) => {
+    const el = document.querySelector(sel);
+    return el ? getComputedStyle(el).fontFamily.split(',')[0].replace(/['"]/g, '') : null;
+  };
+  return { word: face('#targetWord'), sentence: face('.sentence-text'), tab: face('.tab'), body: face('body') };
+});
+check('what she reads is set in Andika, the chrome in Atkinson',
+  faces.word === 'Andika' && faces.sentence === 'Andika' &&
+  faces.tab === 'Atkinson Hyperlegible' && faces.body === 'Atkinson Hyperlegible',
+  JSON.stringify(faces));
+
+const tooSmall = await page.evaluate(() => {
+  const bad = [];
+  document.querySelectorAll('button, .btn, .tab, input, select, textarea').forEach((el) => {
+    if (!el.offsetParent && el.id !== 'importFile') return; // not on screen
+    // A control wrapped in a label is tapped via the label, so that is the
+    // hit target that has to clear 44px — not the 19px checkbox inside it.
+    const target = el.closest('label') || el;
+    const r = target.getBoundingClientRect();
+    if (r.height > 0 && r.height < 44) bad.push((el.id || el.className) + ' ' + Math.round(r.height) + 'px');
+  });
+  return bad;
+});
+check('every visible control clears the 44px minimum hit height',
+  tooSmall.length === 0, tooSmall.slice(0, 5).join(', '));
+
+const tinyText = await page.evaluate(() => {
+  const bad = [];
+  document.querySelectorAll('body *').forEach((el) => {
+    if (!el.offsetParent || !el.textContent.trim()) return;
+    if (el.children.length) return; // leaf nodes only
+    const cs = getComputedStyle(el);
+    const size = parseFloat(cs.fontSize);
+    // Four documented exceptions, all at 15px: the section label, the entry
+    // screen's field label, the brand wordmark, and the tabs.
+    const exempt = el.classList.contains('eyebrow') || el.classList.contains('tab') ||
+      el.classList.contains('entry-label') || el.classList.contains('wordmark');
+    if (size < 16 && !exempt) bad.push((el.className || el.tagName) + ' ' + size + 'px');
+    if (exempt && size < 15) bad.push((el.className || el.tagName) + ' ' + size + 'px (exempt, still too small)');
+  });
+  return bad;
+});
+check('nothing renders below 16px, bar the four 15px exceptions', tinyText.length === 0,
+  tinyText.slice(0, 6).join(', '));
+
+check('section labels are sentence case, not all-caps',
+  await page.evaluate(() => [...document.querySelectorAll('.eyebrow')].every((el) => {
+    const cs = getComputedStyle(el);
+    return cs.textTransform === 'none' && cs.fontWeight === '700' &&
+           parseFloat(cs.fontSize) === 15;
+  })));
+
+await page.click('.tab[data-tab="bank"]');
+check('the fullness bar is always paired with words and numerals',
+  /\d+\s*\/\s*\d+ words mastered/.test(await page.locator('#bankCount').textContent()),
+  (await page.locator('#bankCount').textContent()).trim());
+
+// Pending must carry background, border AND the words — never colour alone.
+const pendingRow = page.locator('#bankList .bank-row.pending').first();
+if (await pendingRow.count()) {
+  const marks = await pendingRow.evaluate((el) => ({
+    text: el.textContent.includes('needs confirming'),
+    bg: getComputedStyle(el).backgroundColor,
+    border: getComputedStyle(el).borderLeftWidth
+  }));
+  check('a pending correction is marked by background, border and words together',
+    marks.text && marks.bg !== 'rgba(0, 0, 0, 0)' && parseFloat(marks.border) >= 3,
+    JSON.stringify(marks));
+} else {
+  check('a pending correction is marked by background, border and words together',
+    false, 'no pending row present to check');
+}
+
+// Colour reinforces the tab grouping; it must not be the only signal.
+// Tabs and the mic both transition over ~150ms, so let them settle first —
+// otherwise these read an intermediate blend rather than the real colour.
+await page.waitForTimeout(300);
+const tabColours = await page.evaluate(() =>
+  Object.fromEntries([...document.querySelectorAll('.tab')].map((t) => [
+    t.dataset.tab,
+    t.classList.contains('active') ? 'active' : getComputedStyle(t).backgroundImage !== 'none'
+      ? 'gradient' : getComputedStyle(t).backgroundColor
+  ])));
+check('the build-the-bank group shares one wash stop',
+  tabColours.sentences === tabColours.reading, JSON.stringify(tabColours));
+check('Corrections and Word Bank each get their own, all three different',
+  new Set([tabColours.sentences, tabColours.corrections, tabColours.bank]).size === 3,
+  JSON.stringify(tabColours));
+check('the six tabs sit on one row at iPad width',
+  (await page.evaluate(() => new Set([...document.querySelectorAll('.tab')]
+    .map((t) => { const r = t.getBoundingClientRect(); return Math.round(r.top + r.height / 2); })).size)) === 1);
+// Speech-To-Text is the giraffe now, not a labelled tab.
+const giraffe = page.locator('.tab-giraffe');
+check('Speech-To-Text is the giraffe, with no visible label',
+  (await giraffe.count()) === 1 &&
+  (await giraffe.textContent()).trim() === '' &&
+  (await page.locator('.tab[data-tab="write"]').count()) === 1);
+check('but it still has an accessible name',
+  (await giraffe.getAttribute('aria-label')) === 'Speech-To-Text');
+
+const geometry = await page.evaluate(() => {
+  const bar = document.querySelector('.tabs').getBoundingClientRect();
+  const g = document.querySelector('.tab-giraffe').getBoundingClientRect();
+  const labelled = [...document.querySelectorAll('.tab:not(.tab-giraffe)')].map((t) => t.getBoundingClientRect());
+  const t = labelled[0];
+  return {
+    ratio: g.height / t.height,
+    centred: Math.abs((g.top + g.height / 2) - (t.top + t.height / 2)) < 1,
+    circle: Math.round(g.width) === Math.round(g.height),
+    width: g.width,
+    atFarLeft: Math.round(g.left - bar.left) === 0,
+    tabsRightJustified: Math.round(bar.right - labelled[labelled.length - 1].right) <= 1,
+    // The group gap between Reading and Corrections survives the reflow.
+    groupGap: Math.round(labelled[3].left - labelled[2].right)
+  };
+});
+check('the tap target stays 88px square, twice the tab height and centred',
+  geometry.ratio === 2 && geometry.centred && geometry.circle &&
+  Math.round(geometry.width) === 88, JSON.stringify(geometry));
+check('it leads the row, with the five tabs right-justified beside it',
+  geometry.atFarLeft && geometry.tabsRightJustified, JSON.stringify(geometry));
+check('and the group gap between Reading and Corrections is kept',
+  geometry.groupGap === 26, String(geometry.groupGap));
+
+// Nothing is drawn around her in either state: no ring, no fill, no border.
+const bare = await page.evaluate(() => {
+  const el = document.querySelector('.tab-giraffe');
+  const cs = getComputedStyle(el);
+  const ring = getComputedStyle(el, '::before');
+  return {
+    noFill: cs.backgroundImage === 'none' && cs.backgroundColor === 'rgba(0, 0, 0, 0)',
+    noBorder: cs.borderTopWidth === '0px',
+    noRing: ring.content === 'none',
+    colourShowing: getComputedStyle(document.querySelector('.fg-body')).display !== 'none',
+    silhouetteHidden: getComputedStyle(document.querySelector('.fg-body-ink')).display === 'none'
+  };
+});
+check('unselected, she flies on the shell with no ring and nothing behind her',
+  bare.noFill && bare.noBorder && bare.noRing &&
+  bare.colourShowing && bare.silhouetteHidden, JSON.stringify(bare));
+
+check('the wing flaps at the brand beat while she is elsewhere',
+  await page.locator('.fg-wing').evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return cs.animationName === 'fg-flap' && cs.animationDuration === '0.95s';
+  }));
+
+await giraffe.click();
+await page.waitForTimeout(300);
+check('tapping the giraffe opens Speech-To-Text', await page.locator('#tab-write').isVisible());
+const selected = await page.evaluate(() => {
+  const el = document.querySelector('.tab-giraffe');
+  const cs = getComputedStyle(el);
+  const body = getComputedStyle(document.querySelector('.fg-body-ink'));
+  const wing = getComputedStyle(document.querySelector('.fg-wing-ink'));
+  return {
+    // Still no box: the shape carries the state, not a fill behind it.
+    noFill: cs.backgroundImage === 'none' && cs.backgroundColor === 'rgba(0, 0, 0, 0)',
+    colourHidden: getComputedStyle(document.querySelector('.fg-body')).display === 'none' &&
+                  getComputedStyle(document.querySelector('.fg-wing')).display === 'none',
+    silhouette: body.display !== 'none' && wing.display !== 'none',
+    inkBody: body.backgroundColor,
+    inkWing: wing.backgroundColor,
+    masked: body.maskImage.includes('giraffe-body') && wing.maskImage.includes('giraffe-wing'),
+    // Nothing animates: both silhouette layers are static.
+    still: body.animationName === 'none' && wing.animationName === 'none'
+  };
+});
+check('selected, the whole giraffe becomes a still ink silhouette, with no box',
+  selected.noFill && selected.colourHidden && selected.silhouette && selected.masked &&
+  selected.still && selected.inkBody === 'rgb(36, 31, 27)' &&
+  selected.inkWing === 'rgb(36, 31, 27)', JSON.stringify(selected));
+
+check('while the other five still fill with ink when selected',
+  await page.evaluate(async () => {
+    document.querySelector('.tab[data-tab="bank"]').click();
+    await new Promise((r) => setTimeout(r, 300));
+    const el = document.querySelector('.tab[data-tab="bank"]');
+    return getComputedStyle(el).backgroundColor === 'rgb(36, 31, 27)';
+  }));
+check('no tab is clipped off the edge of the bar',
+  await page.evaluate(() => {
+    const bar = document.querySelector('.tabs').getBoundingClientRect();
+    return [...document.querySelectorAll('.tab')].every((t) => {
+      const b = t.getBoundingClientRect();
+      return b.right <= bar.right + 1 && b.left >= bar.left - 1;
+    });
+  }));
+check('and the page itself never scrolls sideways',
+  await page.evaluate(() =>
+    document.documentElement.scrollWidth <= document.documentElement.clientWidth));
+check('but the grouping still reads without colour, from the spacing',
+  (await page.evaluate(() => {
+    const groups = [...document.querySelectorAll('.tab-group')];
+    const gap = parseFloat(getComputedStyle(groups[0].parentElement).columnGap);
+    const inner = parseFloat(getComputedStyle(groups[0]).gap);
+    return gap > inner * 2;
+  })));
+
+await page.click('.tab[data-tab="practice"]');
+await page.waitForTimeout(300);
+const micIdle = await page.locator('#practiceMic').evaluate((el) => getComputedStyle(el).backgroundColor);
+await page.evaluate(() => document.getElementById('practiceMic').classList.add('listening'));
+await page.waitForTimeout(300);
+const micRecording = await page.locator('#practiceMic').evaluate((el) => getComputedStyle(el).backgroundColor);
+await page.evaluate(() => document.getElementById('practiceMic').classList.remove('listening'));
+check('the mic changes colour between waiting and recording',
+  micIdle === 'rgb(181, 83, 60)' && micRecording === 'rgb(61, 107, 74)',
+  micIdle + ' -> ' + micRecording);
+
+const sessionColours = await page.evaluate(() => ({
+  start: getComputedStyle(document.getElementById('startSessionBtn')).backgroundColor,
+  end: getComputedStyle(document.getElementById('endSessionBtn')).backgroundColor
+}));
+check('start and end session are different brand fills, neither ink nor white',
+  sessionColours.start === 'rgb(61, 107, 74)' && sessionColours.end === 'rgb(222, 140, 66)',
+  JSON.stringify(sessionColours));
+check('End session takes ink text, because white fails on a mid orange',
+  (await page.locator('#endSessionBtn').evaluate((el) => getComputedStyle(el).color)) === 'rgb(36, 31, 27)');
+
+check('the coin is present and not stretched', await page.evaluate(() => {
+  const img = document.querySelector('.coin');
+  return Boolean(img && img.complete && img.naturalWidth === img.naturalHeight);
+}));
+
 check('no uncaught application errors', errors.length === 0, errors.slice(0, 3).join(' ;; '));
 
 if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT, fullPage: true });

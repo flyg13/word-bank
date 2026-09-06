@@ -43,7 +43,7 @@ export function renderBankList() {
   list.innerHTML = '';
   entries.forEach(([raw, entry]) => {
     const row = document.createElement('div');
-    row.className = 'bank-row';
+    row.className = 'bank-row' + (entry.active ? '' : ' pending');
 
     const pair = document.createElement('div');
     pair.className = 'pair';
@@ -55,7 +55,7 @@ export function renderBankList() {
     );
     if (!entry.active) {
       const note = document.createElement('span');
-      note.style.cssText = 'color:var(--amber);font-size:12px;';
+      note.className = 'pending-note';
       note.textContent = ' — needs confirming';
       pair.appendChild(note);
     }
@@ -64,8 +64,7 @@ export function renderBankList() {
     const buttons = document.createElement('div');
     if (!entry.active) {
       const confirmBtn = document.createElement('button');
-      confirmBtn.className = 'del-btn';
-      confirmBtn.style.color = 'var(--sage)';
+      confirmBtn.className = 'del-btn affirm';
       confirmBtn.textContent = 'Confirm';
       confirmBtn.onclick = () => {
         state.wordBank[raw] = {
@@ -114,7 +113,7 @@ export function renderAttemptLog() {
   container.innerHTML = '';
   entries.forEach((entry) => {
     const row = document.createElement('div');
-    row.className = 'bank-row';
+    row.className = 'bank-row' + (entry.active ? '' : ' pending');
 
     const pair = document.createElement('div');
     pair.className = 'pair';
@@ -128,8 +127,7 @@ export function renderAttemptLog() {
     row.appendChild(pair);
 
     const addBtn = document.createElement('button');
-    addBtn.className = 'del-btn';
-    addBtn.style.color = 'var(--sage)';
+    addBtn.className = 'del-btn affirm';
     addBtn.textContent = 'Add to bank';
     addBtn.onclick = () => {
       state.wordBank[normalize(entry.heard)] = {
@@ -246,10 +244,7 @@ export function renderPhonicList() {
       const chip = document.createElement('span');
       chip.className = 'spelling';
       chip.appendChild(document.createTextNode(spelling));
-      if (isWeakSpelling(spelling)) {
-        chip.style.borderColor = 'var(--amber)';
-        chip.style.color = 'var(--amber)';
-      }
+      if (isWeakSpelling(spelling)) chip.classList.add('loose');
       const drop = document.createElement('button');
       drop.textContent = '×';
       drop.title = 'Remove this spelling';

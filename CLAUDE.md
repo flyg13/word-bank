@@ -4,7 +4,7 @@
 
 **Current state:** a Vite project deployed to Netlify at
 `wordbank.flyinggiraffe.ai`, synced via Firebase Firestore using a shared
-"family code." Five tabs — Practice, Sentences, Reading Passage, Free Write,
+"family code." Five tabs — Practice, Sentences, Reading Passage, Speech-To-Text,
 Word Bank — a correction system that requires a mishearing to be confirmed twice
 before it auto-applies, and phonetic matching on top of it. Harlie is using it
 daily. Every branch gets its own preview URL, so changes are testable on an iPad
@@ -120,7 +120,7 @@ keys to — also covers you/we/way/who and the bare words a, i, oh, e. So the
 question asked is always "does this sound like how she says the word I already
 asked her for", which keeps the collision surface to a single entry.
 
-Free Write, having no expected word, was initially left with no phonetic
+Speech-To-Text, having no expected word, was initially left with no phonetic
 behaviour at all. It now has the narrowest possible version, added after iPad
 testing: a suggestion underlined in amber that one tap accepts, never a rewrite.
 Loose spellings are excluded, and an ambiguous match suggests nothing. Accepting

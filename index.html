@@ -3,44 +3,74 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<meta name="theme-color" content="#FBF8F4">
 <title>Harlie's Word Bank</title>
 </head>
 <body>
 
-  <h1>Harlie's Word Bank <span class="seed">🌱</span></h1>
-  <p class="sub">A personal speech-to-text trainer that learns her voice, one correction at a time.</p>
+  <!-- Shown only until a family code exists. DESIGN.md §5: no mascot — that is
+       a waiting-state device and nothing here is waiting. -->
+  <div class="entry" id="entryScreen" hidden>
+    <form class="entry-card" id="entryForm">
+      <img class="entry-coin" src="/flying-giraffe-coin.png" alt="" width="104" height="104">
+      <p class="wordmark">Flying Giraffe</p>
+      <h1 class="entry-title">Word Bank</h1>
+      <label class="entry-label" for="entryCode">Family code</label>
+      <input type="text" id="entryCode" name="code" autocomplete="off"
+             autocapitalize="none" autocorrect="off" spellcheck="false"
+             placeholder="e.g. harlie-home">
+      <p class="entry-error" id="entryError" role="alert"></p>
+      <button class="btn btn-primary entry-go" type="submit" id="entryContinue">Continue</button>
+      <p class="entry-meta">Type the same code on every device she uses. Your code is the only key to her data &mdash; keep it private.</p>
+    </form>
+  </div>
+
+  <header class="app-head">
+    <img class="coin" src="/flying-giraffe-coin.png" alt="" width="44" height="44">
+    <div class="app-head-text">
+      <h1>Harlie&rsquo;s Word Bank</h1>
+      <p class="sync-status"><span class="sync-dot" id="syncDot"></span><span id="syncLabel">Connecting&hellip;</span></p>
+    </div>
+  </header>
+  <p class="tagline">A personal speech-to-text trainer that learns her voice, one correction at a time.</p>
 
   <div id="setupBanner" class="banner setup-needed">
     <b>Setup needed:</b> paste your Firebase config into <code>FIREBASE_CONFIG</code> in <code>src/config.js</code> and rebuild (see setup steps provided separately). Until then, nothing will save.
   </div>
   <div id="unsupportedBanner" class="banner">
-    Speech recognition needs Chrome, Edge, or Safari (used directly in the browser tab — not installed to the home screen) with a microphone. You can still add corrections manually below.
-  </div>
-  <div class="sync-status"><div class="sync-dot" id="syncDot"></div><span id="syncLabel">Connecting…</span></div>
-
-  <div class="tabs">
-    <div class="tab active" data-tab="practice">Practice</div>
-    <div class="tab" data-tab="sentences">Sentences</div>
-    <div class="tab" data-tab="reading">Reading</div>
-    <div class="tab" data-tab="write">Free Write</div>
-    <div class="tab" data-tab="bank">Word Bank</div>
+    Speech recognition needs Chrome, Edge, or Safari (used directly in the browser tab &mdash; not installed to the home screen) with a microphone. You can still add corrections manually below.
   </div>
 
-  <div class="card">
-    <div class="garden-head">
-      <div class="count" id="bankCount">0 <span id="bankCountLabel">/ 250 words mastered</span></div>
+  <nav class="tabs" aria-label="Sections">
+    <div class="tab-group tab-group-giraffe">
+      <button type="button" class="tab tab-giraffe" data-tab="write" aria-label="Speech-To-Text">
+        <span class="fg">
+          <img class="fg-layer fg-body" src="/giraffe-body.png" alt="" width="250" height="280">
+          <img class="fg-layer fg-wing" src="/giraffe-wing.png" alt="" width="250" height="280">
+          <span class="fg-layer fg-body-ink" aria-hidden="true"></span>
+          <span class="fg-layer fg-wing-ink" aria-hidden="true"></span>
+        </span>
+      </button>
     </div>
-    <div class="bar-track"><div class="bar-fill" id="barFill" style="width:0%"></div></div>
-  </div>
+    <div class="tab-group">
+      <div class="tab active" data-tab="practice">Practice</div>
+      <div class="tab" data-tab="sentences">Sentences</div>
+      <div class="tab" data-tab="reading">Reading</div>
+    </div>
+    <div class="tab-group">
+      <div class="tab" data-tab="corrections">Corrections</div>
+      <div class="tab" data-tab="bank">Word Bank</div>
+    </div>
+  </nav>
 
   <!-- PRACTICE TAB -->
   <div id="tab-practice">
     <div class="card">
       <div class="session-bar">
         <div class="session-stat">Session: <b id="sessionAttemptedStat">0</b> attempted, <b id="sessionMasteredStat">0</b> newly mastered</div>
-        <div>
-          <button class="btn btn-primary btn-sm" id="startSessionBtn">Start session</button>
-          <button class="btn btn-outline btn-sm" id="endSessionBtn" style="display:none;">End session</button>
+        <div class="session-buttons">
+          <button class="btn btn-primary" id="startSessionBtn">Start session</button>
+          <button class="btn btn-outline" id="endSessionBtn" style="display:none;">End session</button>
         </div>
       </div>
       <div id="sessionSummary" class="session-summary" style="display:none;"></div>
@@ -53,67 +83,67 @@
 
     <div class="card practice-word">
       <div class="word-row">
-        <div class="word" id="targetWord">—</div>
-        <button class="speak-btn" id="speakWordBtn" title="Hear the word">
-          <svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12z"/></svg>
+        <div class="word" id="targetWord">&mdash;</div>
+        <button class="speak-btn" id="speakWordBtn" title="Hear the word" aria-label="Hear the word">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12z"/></svg>
         </button>
       </div>
       <div class="hint">Say the word after you hear it</div>
       <div class="repeat-dots" id="repeatDots"></div>
 
-      <button class="mic-btn" id="practiceMic">
-        <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+      <button class="mic-btn" id="practiceMic" aria-label="Tap to record">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
       </button>
-      <div class="mic-label" id="practiceMicLabel">Tap to listen</div>
+      <div class="mic-label" id="practiceMicLabel">Tap to record</div>
 
       <div class="heard-box" id="heardBox">
-        <div class="label">Heard</div>
-        <div class="heard-text" id="heardText">—</div>
+        <div class="eyebrow">Heard</div>
+        <div class="heard-text" id="heardText">&mdash;</div>
         <div class="action-row" id="matchActions"></div>
       </div>
 
       <div class="phonic-panel" id="phonicQuick">
-        <div class="output-label" style="margin-top:0;">How does she say &ldquo;<span id="phonicQuickWord"></span>&rdquo;?</div>
-        <p class="sub" style="margin-bottom:10px;">Sound it out the way it comes out of her mouth &mdash; it doesn&rsquo;t need to be a real word.</p>
+        <div class="eyebrow">How does she say &ldquo;<span id="phonicQuickWord"></span>&rdquo;?</div>
+        <p class="sub">Sound it out the way it comes out of her mouth &mdash; it doesn&rsquo;t need to be a real word.</p>
         <input type="text" id="phonicQuickInput" placeholder="e.g. yeyo" autocomplete="off">
         <div class="phonic-note" id="phonicQuickNote"></div>
         <div class="row">
-          <button class="btn btn-primary btn-sm" id="phonicQuickSave">Save</button>
-          <button class="btn btn-ghost btn-sm" id="phonicQuickCancel">Cancel</button>
+          <button class="btn btn-primary" id="phonicQuickSave">Save</button>
+          <button class="btn btn-ghost" id="phonicQuickCancel">Cancel</button>
         </div>
       </div>
     </div>
 
-    <div class="card" style="text-align:center;">
-      <button class="btn btn-outline btn-sm" id="skipWord">Skip this word</button>
-      <button class="btn btn-outline btn-sm" id="resetProgress">Reset practice progress</button>
+    <div class="card link-row">
+      <button class="btn btn-link" id="skipWord">Skip this word</button>
+      <button class="btn btn-link" id="resetProgress">Reset practice progress</button>
     </div>
   </div>
 
   <!-- SENTENCES TAB -->
   <div id="tab-sentences" style="display:none;">
     <div class="card">
-      <p class="sub" style="margin-bottom:14px;">Words said in a sentence often come out differently than words said alone. These use her already-familiar words in short, natural sentences.</p>
-      <div class="sentence-text" id="targetSentence">—</div>
-      <div style="text-align:center; margin-top:8px;">
-        <button class="speak-btn" id="speakSentenceBtn" title="Hear the sentence" style="display:inline-flex;">
-          <svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12z"/></svg>
+      <p class="sub">Words said in a sentence often come out differently than words said alone. These use her already-familiar words in short, natural sentences.</p>
+      <div class="sentence-text" id="targetSentence">&mdash;</div>
+      <div class="centre-row">
+        <button class="speak-btn" id="speakSentenceBtn" title="Hear the sentence" aria-label="Hear the sentence">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12z"/></svg>
         </button>
       </div>
       <div class="clean-dots" id="cleanDots"></div>
 
-      <button class="mic-btn" id="sentenceMic">
-        <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+      <button class="mic-btn" id="sentenceMic" aria-label="Tap to record">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
       </button>
-      <div class="mic-label" id="sentenceMicLabel">Tap to listen</div>
+      <div class="mic-label" id="sentenceMicLabel">Tap to record</div>
 
-      <div class="output-label">She said — tap a red word to fix it</div>
-      <div id="sentenceOutput"><span style="color:var(--ink-dim);">Nothing yet.</span></div>
+      <div class="eyebrow">She said &mdash; tap a marked word to fix it</div>
+      <div class="read-out" id="sentenceOutput"><span class="empty-note">Nothing yet.</span></div>
 
       <div class="sentence-nav">
-        <button class="btn btn-outline btn-sm" id="prevSentence">← Previous</button>
+        <button class="btn btn-outline" id="prevSentence">&larr; Previous</button>
         <span id="sentenceCounter">1 / 24</span>
-        <button class="btn btn-outline btn-sm" id="nextSentence">Next →</button>
+        <button class="btn btn-outline" id="nextSentence">Next &rarr;</button>
       </div>
     </div>
   </div>
@@ -121,59 +151,59 @@
   <!-- READING PASSAGE TAB -->
   <div id="tab-reading" style="display:none;">
     <div class="card" id="readingSetupCard">
-      <p class="sub" style="margin-bottom:14px;">Paste a page from her actual book — anything she's reading for school works better than made-up sentences, since it's already familiar to her.</p>
-      <div class="output-label" style="margin-top:0;">Passage text</div>
-      <textarea id="readingPassageInput" style="width:100%;min-height:110px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:12px;font-size:15px;font-family:inherit;resize:vertical;" placeholder="Paste a page or a few sentences here…"></textarea>
-      <div style="text-align:right;margin-top:10px;">
-        <button class="btn btn-primary btn-sm" id="saveReadingBtn">Save passage</button>
+      <p class="sub">Paste a page from her actual book &mdash; anything she&rsquo;s reading for school works better than made-up sentences, since it&rsquo;s already familiar to her.</p>
+      <div class="eyebrow">Passage text</div>
+      <textarea id="readingPassageInput" class="reading-input" placeholder="Paste a page or a few sentences here&hellip;"></textarea>
+      <div class="right-row">
+        <button class="btn btn-primary" id="saveReadingBtn">Save passage</button>
       </div>
     </div>
 
     <div class="card" id="readingPracticeCard" style="display:none;">
-      <div class="sentence-text" id="readingTargetSentence">—</div>
-      <div style="text-align:center; margin-top:8px;">
-        <button class="speak-btn" id="speakReadingBtn" title="Hear this line" style="display:inline-flex;">
-          <svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12z"/></svg>
+      <div class="sentence-text" id="readingTargetSentence">&mdash;</div>
+      <div class="centre-row">
+        <button class="speak-btn" id="speakReadingBtn" title="Hear this line" aria-label="Hear this line">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12z"/></svg>
         </button>
       </div>
       <div class="clean-dots" id="readingCleanDots"></div>
 
-      <button class="mic-btn" id="readingMic">
-        <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+      <button class="mic-btn" id="readingMic" aria-label="Tap to record">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
       </button>
-      <div class="mic-label" id="readingMicLabel">Tap to listen</div>
+      <div class="mic-label" id="readingMicLabel">Tap to record</div>
 
-      <div class="output-label">She said — tap a red word to fix it</div>
-      <div id="readingOutput"><span style="color:var(--ink-dim);">Nothing yet.</span></div>
+      <div class="eyebrow">She said &mdash; tap a marked word to fix it</div>
+      <div class="read-out" id="readingOutput"><span class="empty-note">Nothing yet.</span></div>
 
       <div class="sentence-nav">
-        <button class="btn btn-outline btn-sm" id="prevReading">← Previous</button>
+        <button class="btn btn-outline" id="prevReading">&larr; Previous</button>
         <span id="readingCounter">1 / 1</span>
-        <button class="btn btn-outline btn-sm" id="nextReading">Next →</button>
+        <button class="btn btn-outline" id="nextReading">Next &rarr;</button>
       </div>
-      <div style="text-align:center; margin-top:14px;">
-        <button class="btn btn-outline btn-sm" id="editReadingBtn">Paste a different passage</button>
+      <div class="centre-row">
+        <button class="btn btn-link" id="editReadingBtn">Paste a different passage</button>
       </div>
     </div>
   </div>
 
-  <!-- FREE WRITE TAB -->
+  <!-- SPEECH-TO-TEXT TAB -->
   <div id="tab-write" style="display:none;">
     <div class="card">
-      <div class="output-label">Say a sentence, or type it here to test corrections</div>
-      <textarea id="rawInput" placeholder="Tap the mic, or type here…"></textarea>
-      <div style="text-align:center; margin-top:12px;">
-        <button class="mic-btn" id="writeMic" style="width:60px;height:60px;">
-          <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+      <div class="eyebrow">Say a sentence, or type it here to test corrections</div>
+      <textarea id="rawInput" placeholder="Tap the mic, or type here&hellip;"></textarea>
+      <div class="centre-row">
+        <button class="mic-btn mic-btn-sm" id="writeMic" aria-label="Tap to record">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
         </button>
       </div>
 
-      <div class="output-label">Corrected — tap any word to fix it</div>
-      <div id="correctedOutput"><span style="color:var(--ink-dim);">Nothing here yet.</span></div>
+      <div class="eyebrow">Corrected &mdash; tap any word to fix it</div>
+      <div class="read-out" id="correctedOutput"><span class="empty-note">Nothing here yet.</span></div>
       <div class="write-note" id="writeNote"></div>
 
       <div class="fix-panel" id="fixPanel">
-        <div class="output-label" style="margin-top:0;">Fixing: <span id="fixingWord" style="color:var(--ink);"></span></div>
+        <div class="eyebrow">Fixing: <span id="fixingWord"></span></div>
         <input type="text" id="fixInput" placeholder="What word should this be?">
         <div class="row">
           <button class="btn btn-primary" id="saveFix">Save correction</button>
@@ -183,63 +213,73 @@
     </div>
   </div>
 
-  <!-- BANK TAB -->
-  <div id="tab-bank" style="display:none;">
+  <!-- CORRECTIONS TAB -->
+  <div id="tab-corrections" style="display:none;">
     <div class="card">
-      <div class="bank-controls"><input type="text" id="bankSearch" placeholder="Search her word bank…"></div>
-      <div id="bankList"></div>
-    </div>
-    <div class="card">
-      <div class="output-label" style="margin-top:0;">Recurring sounds not yet in her bank</div>
-      <p class="sub" style="margin-bottom:14px;">When the same word gets misheard the same way more than once during Practice, it shows up here — even before you've confirmed a correction for it.</p>
-      <div id="attemptLogList"></div>
-    </div>
-    <div class="card">
-      <div class="output-label" style="margin-top:0;">How she says her words</div>
-      <p class="sub" style="margin-bottom:14px;">Tell the app how a word sounds coming out of her mouth, without waiting for it to be misheard first. When what she says sounds like this, the app will recognise it &mdash; and ask you to confirm before trusting it.</p>
+      <h2 class="section-title">How she says her words</h2>
+      <p class="sub">Tell the app how a word sounds coming out of her mouth, without waiting for it to be misheard first. When what she says sounds like this, the app will recognise it &mdash; and ask you to confirm before trusting it.</p>
       <div class="manual-add">
         <input type="text" id="phonicWord" placeholder="The word" autocomplete="off">
         <input type="text" id="phonicSpelling" placeholder="How she says it" autocomplete="off">
         <button class="btn btn-primary" id="phonicAddBtn">Add</button>
       </div>
       <div class="capture-row">
-        <button class="btn btn-ghost btn-sm" id="phonicMic">
-          <svg viewBox="0 0 24 24" class="btn-mic"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+        <button class="btn btn-outline" id="phonicMic">
+          <svg viewBox="0 0 24 24" class="btn-mic" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
           Hear her say it
         </button>
-        <span class="capture-label" id="phonicMicLabel">Tap to listen</span>
+        <span class="capture-label" id="phonicMicLabel">Tap to record</span>
       </div>
       <p class="capture-hint">The mic records what the app hears. If you&rsquo;d spell it differently yourself, add that spelling too &mdash; both help.</p>
       <div class="phonic-note" id="phonicAddNote"></div>
       <div id="phonicList"></div>
     </div>
+
     <div class="card">
-      <div class="output-label" style="margin-top:0;">Add a correction manually</div>
+      <h2 class="section-title">Recurring sounds not yet in her bank</h2>
+      <p class="sub">When the same word gets misheard the same way more than once during Practice, it shows up here &mdash; even before you&rsquo;ve confirmed a correction for it.</p>
+      <div id="attemptLogList"></div>
+    </div>
+
+    <div class="card">
+      <h2 class="section-title">Add a correction manually</h2>
       <div class="manual-add">
         <input type="text" id="manualRaw" placeholder="What the app hears">
         <input type="text" id="manualCorrect" placeholder="What it should say">
         <button class="btn btn-primary" id="manualAddBtn">Add</button>
       </div>
     </div>
+  </div>
+
+  <!-- WORD BANK TAB -->
+  <div id="tab-bank" style="display:none;">
     <div class="card">
-      <div class="output-label" style="margin-top:0;">Recent sessions</div>
-      <div class="session-log" id="sessionLogView"><span class="empty-note">No sessions logged yet.</span></div>
+      <div class="count" id="bankCount">0 <span id="bankCountLabel">/ 250 words mastered</span></div>
+      <div class="bar-track"><div class="bar-fill" id="barFill" style="width:0%"></div></div>
     </div>
     <div class="card">
-      <div class="output-label" style="margin-top:0;">Her accent</div>
-      <p class="sub" style="margin-bottom:14px;">Sets the accent the app listens for <em>and</em> the voice that reads words out for her to copy. Shared across her devices.</p>
+      <h2 class="section-title">Her corrections</h2>
+      <div class="bank-controls"><input type="text" id="bankSearch" placeholder="Search her word bank&hellip;"></div>
+      <div id="bankList"></div>
+    </div>
+    <div class="card">
+      <h2 class="section-title">Her accent</h2>
+      <p class="sub">Sets the accent the app listens for <em>and</em> the voice that reads words out for her to copy. Shared across her devices.</p>
       <select id="speechLang" class="lang-select"></select>
       <div class="phonic-note" id="speechLangNote"></div>
     </div>
+    <div class="card">
+      <h2 class="section-title">Recent sessions</h2>
+      <div class="session-log" id="sessionLogView"><span class="empty-note">No sessions logged yet.</span></div>
+    </div>
     <div class="card footer-row">
       <button class="btn btn-outline" id="exportBtn">Export bank (.json)</button>
-      <label class="btn btn-outline" style="cursor:pointer;">
+      <label class="btn btn-outline file-btn">
         Import
-        <input type="file" id="importFile" accept="application/json" style="display:none;">
+        <input type="file" id="importFile" accept="application/json">
       </label>
     </div>
   </div>
-
 
 <script type="module" src="/src/main.js"></script>
 </body>

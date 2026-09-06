@@ -156,9 +156,39 @@ describe('Firestore document path and write options', () => {
     const src = readFileSync(resolve(ROOT, 'src/lib/firestore.js'), 'utf8');
     expect(src).toContain("doc(db, 'families', code)");
     expect(src).toContain('{ merge: true }');
-    expect(src).toContain("localStorage.getItem('word_bank_family_code')");
-    // Same normalisation of a typed code, so an existing device's code still resolves.
-    expect(src).toContain("replace(/[^a-z0-9-]/g, '-')");
+
+    // The code itself lives in family-code.js, apart from the SDK, so the entry
+    // screen can read it without pulling Firebase into the main chunk. Same key
+    // and same normalisation, so a device that already has a code carries on.
+    const codeSrc = readFileSync(resolve(ROOT, 'src/lib/family-code.js'), 'utf8');
+    expect(codeSrc).toContain("'word_bank_family_code'");
+    expect(codeSrc).toContain("replace(/[^a-z0-9-]/g, '-')");
+    expect(src).toContain('getStoredFamilyCode()');
+  });
+
+  it('normalises a typed code exactly as the original prompt did', async () => {
+    const { saveFamilyCode, getStoredFamilyCode } = await import('../lib/family-code.js');
+    localStorage.clear();
+    // The original: trim, lowercase, then anything outside [a-z0-9-] becomes a
+    // hyphen. A device set up under the old prompt has to resolve to the same
+    // document under the new screen.
+    expect(saveFamilyCode('  Harlie Home!  ')).toBe('harlie-home-');
+    expect(getStoredFamilyCode()).toBe('harlie-home-');
+    expect(saveFamilyCode('ALREADY-fine')).toBe('already-fine');
+    expect(saveFamilyCode('   ')).toBe('');
+    expect(saveFamilyCode(null)).toBe('');
+  });
+
+  it('refuses a code with no letter or digit left after normalising', async () => {
+    const { saveFamilyCode, getStoredFamilyCode } = await import('../lib/family-code.js');
+    localStorage.clear();
+    // "!!!" normalises to "---". The original prompt stored that and pointed
+    // sync at `families/---`; the entry screen refuses it instead.
+    expect(saveFamilyCode('!!!')).toBe('');
+    expect(saveFamilyCode('  ...  ')).toBe('');
+    expect(getStoredFamilyCode()).toBeNull();
+    // A code that already contains one is still fine, hyphens and all.
+    expect(saveFamilyCode('a-1')).toBe('a-1');
   });
 });
 
@@ -180,7 +210,7 @@ describe('schema parity: manually adding a correction', () => {
   });
 });
 
-describe('schema parity: correcting a word in Free Write', () => {
+describe('schema parity: correcting a word in Speech-To-Text', () => {
   const drive = async (doc) => {
     doc.querySelector('.tab[data-tab="write"]').click();
     const input = doc.getElementById('rawInput');

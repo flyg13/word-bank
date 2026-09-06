@@ -33,7 +33,7 @@ export function renderCorrectedOutput() {
   const text = input ? input.value : '';
 
   if (!text.trim()) {
-    out.innerHTML = '<span style="color:var(--ink-dim);">Nothing here yet.</span>';
+    out.innerHTML = '<span class="empty-note">Nothing here yet.</span>';
     return;
   }
 
@@ -64,9 +64,9 @@ export function renderCorrectedOutput() {
 }
 
 /**
- * Open the correction panel for a word token. Called from Free Write and, for
+ * Open the correction panel for a word token. Called from Speech-To-Text and, for
  * a mis-read word, from Sentences and Reading — which is why it jumps to the
- * Free Write tab where the panel lives.
+ * Speech-To-Text tab where the panel lives.
  *
  * @param {HTMLElement} span   the clicked token
  * @param {boolean} fromSentence  prefill with the expected word rather than the

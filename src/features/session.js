@@ -60,7 +60,7 @@ export function initSession() {
     box.innerHTML =
       '<div class="big">' +
       mastered +
-      '</div><div style="color:var(--ink-dim);font-size:13px;">newly mastered this session (' +
+      '</div><div class="session-note">newly mastered this session (' +
       state.sessionAttempted +
       ' words attempted)</div>';
     renderSession();

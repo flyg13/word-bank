@@ -1,3 +1,12 @@
+// Self-hosted: a missing font on her reading surface is worse than a slow one.
+// Latin subset only — the app is English-only, and the full set drags in
+// Cyrillic and Vietnamese faces nothing here will ever render.
+import '@fontsource/atkinson-hyperlegible/latin-400.css';
+import '@fontsource/atkinson-hyperlegible/latin-700.css';
+import '@fontsource/andika/latin-400.css';
+import '@fontsource/andika/latin-400-italic.css';
+import '@fontsource/andika/latin-700.css';
+
 import './style.css';
 
 import { state, setSaveErrorHandler, setSaver, renderAll } from './lib/store.js';
@@ -12,6 +21,7 @@ import { initSentences } from './features/sentences.js';
 import { initReading } from './features/reading.js';
 import { initFreeWrite } from './features/freewrite.js';
 import { initBank } from './features/bank.js';
+import { requireFamilyCode } from './features/entry.js';
 
 let firstSnapshotReceived = false;
 
@@ -49,6 +59,10 @@ async function main() {
   // first snapshot arrives.
   buildQueue();
   renderAll();
+
+  // Ask for the family code before connecting — without one there is no
+  // document to sync with, and the shell behind is already usable.
+  await requireFamilyCode();
 
   // The Firebase SDK is the bulk of the bundle and nothing on screen needs it,
   // so it loads in its own chunk after the shell is up.
