@@ -79,8 +79,30 @@ describe('the giraffe', () => {
     expect(css).toContain('70%{ transform:rotate(16deg) scaleY(1.04); }');
   });
 
-  it('is still once Speech-To-Text is the tab she is on', () => {
-    expect(css).toContain('.tab-giraffe.active .fg-wing{ animation:none; }');
+  it('turns into a still ink silhouette once Speech-To-Text is the tab she is on', () => {
+    // The five text tabs fill with ink when selected; she gets the same
+    // treatment in her own shape. Parent's decision — see DESIGN.md.
+    expect(css).toContain('.tab-giraffe.active .fg-body, .tab-giraffe.active .fg-wing{ display:none; }');
+    expect(css).toContain('.tab-giraffe.active .fg-body-ink, .tab-giraffe.active .fg-wing-ink{ display:block; }');
+    const ink = css.slice(css.indexOf('.fg-body-ink, .fg-wing-ink{'));
+    expect(ink.slice(0, ink.indexOf('}'))).toContain('background:var(--ink)');
+    // The silhouette is her outline, painted through the artwork's own alpha.
+    expect(css).toContain('mask-image:url(/giraffe-body.png)');
+    expect(css).toContain('mask-image:url(/giraffe-wing.png)');
+    // Nothing animates on the silhouette layers.
+    expect(ink).not.toMatch(/\.fg-(body|wing)-ink\{[^}]*animation:/);
+  });
+
+  it('has nothing drawn around her in either state', () => {
+    // Parent's decision: no ring, no fill, no box — the shape carries the
+    // selected state on its own.
+    expect(css).not.toContain('.tab-giraffe::before');
+    const giraffe = css.slice(css.indexOf('.tab-giraffe{'));
+    const block = giraffe.slice(0, giraffe.indexOf('}'));
+    expect(block).toContain('background:none');
+    expect(block).toContain('border:none');
+    expect(block).not.toContain('border-radius');
+    expect(css).toContain(`.tab.tab-giraffe.active[data-tab='write']{ background:none; box-shadow:none; }`);
   });
 
   it('does not flap when reduced motion is asked for', () => {

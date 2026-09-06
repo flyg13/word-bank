@@ -143,47 +143,54 @@ h1{ font-size:25px; font-weight:700; letter-spacing:-.01em; margin:0; }
 .tab.active[data-tab]{ background:var(--ink); }
 
 /* ---------- The giraffe ---------- */
-/* Speech-To-Text is not a labelled tab: it is the flying giraffe in a circle,
-   at twice the height of the tabs, leading the row. Parent's decisions, with
-   the reasoning in DESIGN.md — every other tab is an input, the giraffe is the
+/* Speech-To-Text is not a labelled tab: it is the flying giraffe itself, at
+   twice the height of the tabs, leading the row. Parent's decisions, with the
+   reasoning in DESIGN.md — every other tab is an input, the giraffe is the
    result, and it takes the primary position because most use will be the
    giraffe and little else. Its accessible name is carried by aria-label; there
-   is deliberately no visible text. */
+   is deliberately no visible text.
+
+   Nothing is drawn around her: no ring, no fill, in either state. The 88px
+   square is kept as the tap target even though nothing marks its edges — a
+   child's finger needs the area whether or not the area is visible. */
 .tab-group-giraffe{ margin-right:auto; }
 .tab-giraffe{
   position:relative; padding:0; border:none; background:none; min-height:0;
-  width:88px; height:88px; flex:none; border-radius:50%;
+  width:88px; height:88px; flex:none;
   display:flex; align-items:center; justify-content:center;
 }
 .tab-giraffe:hover{ border:none; }
 
-/* A thin ring, drawn as a masked pseudo-element so the inside of the circle is
-   genuinely transparent rather than painted the background colour. */
-.tab-giraffe::before{
-  content:''; position:absolute; inset:0; border-radius:50%; padding:3px;
-  background:var(--wash);
-  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite:xor;
-  mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite:exclude;
-}
-
 .tab-giraffe .fg{ position:relative; display:block; height:66px; width:59px; }
-.fg-body, .fg-wing{ position:absolute; inset:0; width:100%; height:100%; }
+.fg-layer{ position:absolute; inset:0; width:100%; height:100%; }
 
 /* The brand's own flap, beat and pivot included, lifted from the mockups. */
-.fg-wing{ transform-origin:52.4% 38.3%; animation:fg-flap .95s ease-in-out infinite; }
+.fg-wing, .fg-wing-ink{ transform-origin:52.4% 38.3%; }
+.fg-wing{ animation:fg-flap .95s ease-in-out infinite; }
 @keyframes fg-flap{
   0%,100%{ transform:rotate(0deg) scaleY(1); }
   35%{ transform:rotate(-34deg) scaleY(.9); }
   70%{ transform:rotate(16deg) scaleY(1.04); }
 }
 
-/* Selected: she has arrived. The gradient moves from the ring to the fill, the
-   ring turns ink, and the giraffe settles. */
-.tab.tab-giraffe.active[data-tab='write']{ background:var(--wash); box-shadow:none; }
-.tab.tab-giraffe.active[data-tab='write']::before{ background:var(--ink); }
-.tab-giraffe.active .fg-wing{ animation:none; }
+/* The selected state is the same treatment the five text tabs get — filled
+   ink — in the giraffe's shape rather than a box's. Drawn as ink painted
+   through the artwork's own alpha, so the silhouette is exactly her outline
+   and exactly --ink, which a filter chain could only approximate. */
+.fg-body-ink, .fg-wing-ink{
+  display:none; background:var(--ink);
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  -webkit-mask-position:center; mask-position:center;
+  -webkit-mask-size:contain; mask-size:contain;
+}
+.fg-body-ink{ -webkit-mask-image:url(/giraffe-body.png); mask-image:url(/giraffe-body.png); }
+.fg-wing-ink{ -webkit-mask-image:url(/giraffe-wing.png); mask-image:url(/giraffe-wing.png); }
+
+/* Selected: she has arrived, and settles into silhouette. The tab's own
+   ink fill is turned off — the shape carries the state, not a box. */
+.tab.tab-giraffe.active[data-tab='write']{ background:none; box-shadow:none; }
+.tab-giraffe.active .fg-body, .tab-giraffe.active .fg-wing{ display:none; }
+.tab-giraffe.active .fg-body-ink, .tab-giraffe.active .fg-wing-ink{ display:block; }
 @media (prefers-reduced-motion: reduce){
   .fg-wing{ animation:none; }
 }

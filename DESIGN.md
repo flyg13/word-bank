@@ -125,24 +125,32 @@ mockups' year selector.
 
 ### The giraffe (parent's decision)
 
-**Speech-To-Text is not a labelled tab. It is the flying giraffe in a circle**,
-leading the row, at twice the height of the tabs and vertically centred on them.
-The circle is the button.
+**Speech-To-Text is not a labelled tab. It is the flying giraffe**, leading the
+row, at twice the height of the tabs and vertically centred on them. The giraffe
+is the button.
 
 *Why:* every other tab is an input — say a word, read a sentence, teach a
 correction, look something up. The giraffe is the **result**: the thing all of
 that was for. And "tap the giraffe" is something a nine-year-old learns in one
 go and never needs told twice.
 
-**The ring (parent's decision).** Thin, and it carries the state:
+**Nothing is drawn around her (parent's decision).** No ring, no fill, no box,
+in either state — an earlier version enclosed her in a circle with a gradient
+ring, and that is gone. The state is carried by the giraffe herself:
 
-| | ring | fill |
+| | the giraffe | around her |
 |---|---|---|
-| Not selected | holographic gradient | none — the circle is genuinely transparent |
-| Selected | ink | holographic gradient |
+| Not selected | full colour, wing flapping | nothing — she flies on the shell |
+| Selected | solid ink silhouette, still | nothing |
 
-Drawn as a masked pseudo-element rather than a border, so "no fill" means no
-fill rather than the circle being painted the background colour.
+*Why this reads as selection:* it is exactly the treatment the five text tabs
+get — filled ink — applied in the giraffe's shape instead of a box's. So the
+selected state is one idea across the whole row, not a special case for her, and
+it survives greyscale for the same reason the tabs do.
+
+**The 88px tap target is kept even though nothing marks its edges.** A child's
+finger needs the area whether or not the area is visible; shrinking the hit
+region to the drawn artwork would make the primary action the hardest to hit.
 
 - `giraffe-body.png` and `giraffe-wing.png` are layered on one canvas (both
   840×940 in source, so `inset:0` aligns them), which is what lets the wing move
@@ -150,10 +158,10 @@ fill rather than the circle being painted the background colour.
 - **Not selected: the wing flaps** on the brand's own `fg-flap` keyframe, its
   `.95s` beat and its `52.4% 38.3%` pivot, all lifted from
   `docs/worksheet-mockups/` rather than invented.
-- **Selected: it is still**, sitting on the holographic gradient with a 2px
-  inset ink ring. Light-on-light cannot carry selection on background alone, so
-  the ring is what marks it selected; the gradient is what makes it the tab it
-  is.
+- **Selected: a still silhouette.** The colour layers are swapped for two ink
+  layers masked by the artwork's own alpha (`mask-image` on each PNG), so the
+  outline is exactly hers and the colour is exactly `--ink`. A `filter` chain
+  could only approximate the token; masking hits it. Neither ink layer animates.
 - `prefers-reduced-motion` stops the flap.
 
 **No visible text label (parent's decision, to be revisited if it proves a

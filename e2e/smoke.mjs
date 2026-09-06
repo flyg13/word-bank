@@ -714,29 +714,37 @@ const geometry = await page.evaluate(() => {
     ratio: g.height / t.height,
     centred: Math.abs((g.top + g.height / 2) - (t.top + t.height / 2)) < 1,
     circle: Math.round(g.width) === Math.round(g.height),
+    width: g.width,
     atFarLeft: Math.round(g.left - bar.left) === 0,
     tabsRightJustified: Math.round(bar.right - labelled[labelled.length - 1].right) <= 1,
     // The group gap between Reading and Corrections survives the reflow.
     groupGap: Math.round(labelled[3].left - labelled[2].right)
   };
 });
-check('it is a circle, twice the height of the tabs and centred against them',
-  geometry.ratio === 2 && geometry.centred && geometry.circle, JSON.stringify(geometry));
+check('the tap target stays 88px square, twice the tab height and centred',
+  geometry.ratio === 2 && geometry.centred && geometry.circle &&
+  Math.round(geometry.width) === 88, JSON.stringify(geometry));
 check('it leads the row, with the five tabs right-justified beside it',
   geometry.atFarLeft && geometry.tabsRightJustified, JSON.stringify(geometry));
 check('and the group gap between Reading and Corrections is kept',
   geometry.groupGap === 26, String(geometry.groupGap));
 
-// The ring is a masked pseudo-element, so the inside of the circle is genuinely
-// transparent when she is elsewhere rather than painted the background colour.
-const ringIdle = await page.evaluate(() => {
+// Nothing is drawn around her in either state: no ring, no fill, no border.
+const bare = await page.evaluate(() => {
   const el = document.querySelector('.tab-giraffe');
+  const cs = getComputedStyle(el);
   const ring = getComputedStyle(el, '::before');
-  return { ringIsGradient: ring.backgroundImage.includes('gradient'),
-           noFill: getComputedStyle(el).backgroundImage === 'none' };
+  return {
+    noFill: cs.backgroundImage === 'none' && cs.backgroundColor === 'rgba(0, 0, 0, 0)',
+    noBorder: cs.borderTopWidth === '0px',
+    noRing: ring.content === 'none',
+    colourShowing: getComputedStyle(document.querySelector('.fg-body')).display !== 'none',
+    silhouetteHidden: getComputedStyle(document.querySelector('.fg-body-ink')).display === 'none'
+  };
 });
-check('unselected, the ring is the gradient and nothing fills the circle',
-  ringIdle.ringIsGradient && ringIdle.noFill, JSON.stringify(ringIdle));
+check('unselected, she flies on the shell with no ring and nothing behind her',
+  bare.noFill && bare.noBorder && bare.noRing &&
+  bare.colourShowing && bare.silhouetteHidden, JSON.stringify(bare));
 
 check('the wing flaps at the brand beat while she is elsewhere',
   await page.locator('.fg-wing').evaluate((el) => {
@@ -749,17 +757,26 @@ await page.waitForTimeout(300);
 check('tapping the giraffe opens Speech-To-Text', await page.locator('#tab-write').isVisible());
 const selected = await page.evaluate(() => {
   const el = document.querySelector('.tab-giraffe');
-  const ring = getComputedStyle(el, '::before');
+  const cs = getComputedStyle(el);
+  const body = getComputedStyle(document.querySelector('.fg-body-ink'));
+  const wing = getComputedStyle(document.querySelector('.fg-wing-ink'));
   return {
-    fill: getComputedStyle(el).backgroundImage.includes('gradient'),
-    ringInk: ring.backgroundColor === 'rgb(36, 31, 27)' || ring.backgroundImage === 'none',
-    ringColour: ring.backgroundColor,
-    wing: getComputedStyle(document.querySelector('.fg-wing')).animationName
+    // Still no box: the shape carries the state, not a fill behind it.
+    noFill: cs.backgroundImage === 'none' && cs.backgroundColor === 'rgba(0, 0, 0, 0)',
+    colourHidden: getComputedStyle(document.querySelector('.fg-body')).display === 'none' &&
+                  getComputedStyle(document.querySelector('.fg-wing')).display === 'none',
+    silhouette: body.display !== 'none' && wing.display !== 'none',
+    inkBody: body.backgroundColor,
+    inkWing: wing.backgroundColor,
+    masked: body.maskImage.includes('giraffe-body') && wing.maskImage.includes('giraffe-wing'),
+    // Nothing animates: both silhouette layers are static.
+    still: body.animationName === 'none' && wing.animationName === 'none'
   };
 });
-check('selected, the gradient moves to the fill, the ring turns ink, and it settles',
-  selected.fill && selected.ringColour === 'rgb(36, 31, 27)' && selected.wing === 'none',
-  JSON.stringify(selected));
+check('selected, the whole giraffe becomes a still ink silhouette, with no box',
+  selected.noFill && selected.colourHidden && selected.silhouette && selected.masked &&
+  selected.still && selected.inkBody === 'rgb(36, 31, 27)' &&
+  selected.inkWing === 'rgb(36, 31, 27)', JSON.stringify(selected));
 
 check('while the other five still fill with ink when selected',
   await page.evaluate(async () => {
