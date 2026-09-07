@@ -211,6 +211,9 @@ h1{ font-size:25px; font-weight:700; letter-spacing:-.01em; margin:0; }
 .sub{ color:var(--muted); font-size:16px; margin:0 0 14px; }
 .empty-note{ color:var(--muted); font-size:16px; }
 .centre-row{ display:flex; justify-content:center; margin-top:12px; }
+/* Speech-To-Text's mic carries a state label like the others do, now that the
+   button is a start/stop toggle rather than a fire-and-forget press. */
+.centre-col{ flex-direction:column; align-items:center; gap:8px; }
 .right-row{ text-align:right; margin-top:12px; }
 
 /* ---------- Buttons ---------- */

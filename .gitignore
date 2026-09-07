@@ -2,3 +2,11 @@ node_modules/
 dist/
 .DS_Store
 *.local
+
+# Netlify CLI's local state, and the local key file `netlify dev` reads.
+# A committed key is the one mistake here that cannot be undone by deleting
+# the commit — it has to be rotated.
+.env
+.env.*
+!.env.example
+.netlify/

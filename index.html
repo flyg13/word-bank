@@ -37,8 +37,12 @@
   <div id="setupBanner" class="banner setup-needed">
     <b>Setup needed:</b> paste your Firebase config into <code>FIREBASE_CONFIG</code> in <code>src/config.js</code> and rebuild (see setup steps provided separately). Until then, nothing will save.
   </div>
+  <!-- Shown when a recording could not be transcribed by the speech service and
+       the browser's own recogniser stood in. Never dismissable by accident: it
+       clears itself the moment a real transcript comes back. -->
+  <div id="accuracyBanner" class="banner" role="status"></div>
   <div id="unsupportedBanner" class="banner">
-    Speech recognition needs Chrome, Edge, or Safari (used directly in the browser tab &mdash; not installed to the home screen) with a microphone. You can still add corrections manually below.
+    This browser can neither record audio nor recognise speech. Use Chrome, Edge, or Safari directly in the browser tab &mdash; not installed to the home screen &mdash; with a microphone. You can still add corrections manually below.
   </div>
 
   <nav class="tabs" aria-label="Sections">
@@ -192,10 +196,11 @@
     <div class="card">
       <div class="eyebrow">Say a sentence, or type it here to test corrections</div>
       <textarea id="rawInput" placeholder="Tap the mic, or type here&hellip;"></textarea>
-      <div class="centre-row">
+      <div class="centre-row centre-col">
         <button class="mic-btn mic-btn-sm" id="writeMic" aria-label="Tap to record">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
         </button>
+        <div class="mic-label" id="writeMicLabel">Tap to record</div>
       </div>
 
       <div class="eyebrow">Corrected &mdash; tap any word to fix it</div>

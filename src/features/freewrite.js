@@ -113,6 +113,10 @@ export function initFreeWrite() {
 
   bindMic({
     buttonId: 'writeMic',
+    labelId: 'writeMicLabel',
+    // Nothing is expected here, so there is no target to hint with and no
+    // reason to be impatient about a pause.
+    mode: 'freeform',
     onResult: (heard) => {
       rawInput.value = (rawInput.value ? rawInput.value + ' ' : '') + heard;
       renderCorrectedOutput();

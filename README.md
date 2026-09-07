@@ -16,6 +16,64 @@ npm run build      # static build into dist/
 npm run preview    # serve the build locally
 ```
 
+## The speech service (one-time setup)
+
+Speech goes to a Netlify Function in this repo, which calls OpenAI and returns
+text. The function needs an API key, and the key must never be in the repo.
+
+**1. Get the key.** Sign in at <https://platform.openai.com>, open **API keys**
+(<https://platform.openai.com/api-keys>), and click **Create new secret key**.
+Name it something like `word-bank`. Copy it when it is shown — it is shown
+once. It starts with `sk-`. The account needs credit on it: **Settings →
+Billing**. Transcription is charged per minute of audio, and a child's practice
+session is a few minutes, so this runs at cents per week, not dollars.
+
+**2. Put it in Netlify.** In the Netlify dashboard, open the Word Bank site,
+then:
+
+> **Site configuration → Environment variables → Add a variable → Add a single
+> variable**
+
+| Field | Value |
+|---|---|
+| Key | `OPENAI_API_KEY` |
+| Value | the `sk-…` key you copied |
+| Scopes | leave as **All scopes** (it must include Functions) |
+| Deploy contexts | **All deploy contexts** — so branch previews work too |
+
+Save it. **Then redeploy** (Deploys → Trigger deploy → Deploy site); functions
+only pick up a new variable on a new deploy.
+
+**3. Check it.** Open the site, tap a mic, say a word. If the key is missing or
+wrong, the app says so specifically rather than failing silently: a banner
+reading *Reduced accuracy … (not-configured)* or *(not-authorised)*.
+
+Two optional variables, neither of which is needed to start:
+
+| Variable | Default | What it does |
+|---|---|---|
+| `OPENAI_TRANSCRIBE_MODEL` | `gpt-4o-transcribe` | Set to `whisper-1` to try the older model without a code change |
+| `TRANSCRIBE_PROVIDER` | `openai` | Selects the provider module in `netlify/functions/providers/` |
+
+The key is read only inside the function, in `netlify/functions/providers/`.
+It is never in the repo, never in the built bundle, and never sent to the
+browser — there is a test asserting each of those. See [CLAUDE.md](CLAUDE.md)
+§9 for why this provider and this model, and what to watch for.
+
+### Running the function locally
+
+`npm run dev` serves the app but not the function, so speech falls back to the
+browser recogniser (with the banner saying so — that is the fallback working,
+not a bug). To run both:
+
+```bash
+npm install -g netlify-cli
+netlify dev                    # app + functions, on one port
+```
+
+`netlify dev` reads the key from your linked site, or from a local `.env`
+holding `OPENAI_API_KEY=sk-…`. **`.env` is gitignored; keep it that way.**
+
 ## Testing it by hand
 
 ```bash
@@ -103,6 +161,10 @@ src/
   style.css
   data/                 the built-in practice word list and sentences
   lib/
+    recorder.js         MediaRecorder plus Web Audio silence detection
+    capture.js          record -> gate -> send, and the Voice Lock seam
+    transcribe.js       client for the transcription function
+    vocab.js            her bank, as vocabulary hints for the recogniser
     align.js            word-sequence alignment (see below)
     similarity.js       how much two words resemble each other
     phonetics.js        Double Metaphone keys and sound-alike comparison
@@ -118,7 +180,10 @@ src/
   features/             one module per tab, plus shared session/mic/progress
   test/                 unit tests
 e2e/smoke.mjs           browser smoke test
-netlify.toml            hosting: build, previews, cache headers
+netlify/functions/
+  transcribe.mjs        audio in, text out — holds nothing, delegates
+  providers/openai.mjs  the only file that knows a provider exists
+netlify.toml            hosting: build, previews, functions, cache headers
 redirect/index.html     what the old GitHub Pages URL now serves
 legacy/index.html       the original single-file app, kept for reference
 ```

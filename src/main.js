@@ -12,6 +12,7 @@ import './style.css';
 import { state, setSaveErrorHandler, setSaver, renderAll } from './lib/store.js';
 import { foldSnapshot } from './lib/snapshot.js';
 import { speechRecognitionSupported } from './lib/speech.js';
+import { mediaRecordingSupported } from './lib/capture.js';
 
 import { initTabs } from './features/tabs.js';
 import { initProgress, setSyncStatus } from './features/progress.js';
@@ -40,7 +41,11 @@ function applySnapshot(data) {
 }
 
 async function main() {
-  if (!speechRecognitionSupported) {
+  // Speech now has two routes: record and send to the transcription service
+  // (the accurate one), or the browser's own recogniser (the fallback). Either
+  // is enough to use the app, so the banner is only for a browser with
+  // neither.
+  if (!mediaRecordingSupported() && !speechRecognitionSupported) {
     document.getElementById('unsupportedBanner').classList.add('show');
   }
 

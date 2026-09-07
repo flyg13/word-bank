@@ -197,6 +197,12 @@ assumption.
    with per-branch preview URLs, which is what makes real iPad testing possible
    at all; speech defaults to en-AU.
 
+3. ~~**API-based speech recognition** (§9)~~ — the browser's recogniser is now
+   the fallback, not the primary path. This lands *before* the evaluation
+   below rather than after it, because the two questions there are about how
+   well corrections accumulate, and they were being asked of a recogniser that
+   was itself the largest source of error.
+
 ### Now: prove it works — 2–3 weeks of real use
 
 The immediate goal is **not** more features. It is finding out whether phonetic
@@ -210,6 +216,12 @@ Two questions:
 - **Does Sentences catch homophones?** §2 argues context resolves what isolation
   structurally cannot — to/too/two, off/of, see/sea. Sentences practice is where
   that claim gets tested. Does it actually surface and correct them?
+
+A third question, from §9: **does it transcribe what she said, or what she
+meant?** The new recogniser is an LLM and LLMs tidy. Say a word wrong on
+purpose; if the transcript reads it as correct, the accuracy gain has come at
+the cost of the thing the app exists to notice, and the model needs changing
+(one environment variable) rather than the app.
 
 What to watch for, and bring back:
 
@@ -241,3 +253,78 @@ them should start before the two questions above have answers.
 ## 8. How to use this document
 
 Point Claude Code at the current GitHub repo, hand it this file, and start with step 1. When Claude Code finishes a milestone, bring the result back here — I'll review the approach, sanity-check the phonetic-matching logic and data model, and help think through anything that doesn't feel right before you build further on it. That loop — Claude Code builds and tests, you bring it back for review — is where this partnership actually works best.
+
+## 9. Speech recognition: API-based, not the browser's (parent's decision)
+
+**The decision.** The browser's built-in recogniser is gone from the primary
+path. The browser captures audio and sends it to a Netlify Function in this
+repo; the function holds the API key and calls a transcription provider;
+what comes back is text. Everything downstream — corrections, pronunciations,
+phonetic matching, the bank — operates on text and is unchanged.
+
+**Why.** The Web Speech API is the same engine Seesaw uses, and it is what has
+been mishearing her. Every accuracy feature built so far (§3, §4) sits on top
+of its output; improving the input is the largest single accuracy gain
+available, and it is the one that makes the rest of the work worth more rather
+than less.
+
+**Provider: OpenAI now, for accuracy. Self-hosted Whisper on AWS Sydney later
+if a school requires Australian data residency.** Parent's decision. The
+function is written behind a provider interface — audio in, language hint in,
+vocabulary hints in, text out — so that swap is one file
+(`netlify/functions/providers/`), not a rewrite. Nothing above the interface
+knows which provider answered.
+
+**Model: `gpt-4o-transcribe`, not `whisper-1`.** Three reasons, in order of how
+much they matter here:
+
+1. **Short clips.** whisper-1's best-documented failure mode is inventing text
+   on near-silent or very short audio — it was trained on 30-second windows and
+   pads shorter ones. Practice sends single words of about a second. That is
+   precisely the input that triggers it, and a confidently hallucinated word is
+   worse for this app than no answer, because the bank would learn from it.
+2. **Accent.** gpt-4o-transcribe reports materially lower error rates on
+   non-US English than whisper-1, which matters for an Australian child.
+3. **Nothing is given up.** The only whisper-1 features this app would lose are
+   word timestamps and verbose JSON, neither of which it uses. Both models take
+   the same prompt-based vocabulary hint.
+
+`OPENAI_TRANSCRIBE_MODEL` overrides the model without a code change, so testing
+whisper-1 against her actual voice costs one environment variable.
+
+**The risk to watch, and it is a real one.** gpt-4o-transcribe is an LLM, and
+LLMs tidy. It may transcribe what she *meant* rather than what she *said* —
+turning "yeyo" into "yellow" on its own. For an app whose entire purpose is
+noticing the difference, that is a false accept, and §7 already names false
+accepts as worse than misses. Two things are done about it in the code:
+`temperature: 0`, and a prompt that states her vocabulary without ever asking
+the model to correct anything. Neither is a guarantee. **This is the first
+thing to check on the iPad:** say a word wrong on purpose and see whether the
+transcript says so.
+
+**What the vocabulary hints contain.** The correct words of active corrections,
+and the words she has pronunciations for, capped and with the word she was just
+asked for first. Deliberately *not* the heard text or the sounded-out
+spellings: priming the decoder with "yeyo" invites it to emit "yeyo", and the
+bank cannot map back from a non-word.
+
+**Recording control (parent's decision).** Tap to start, tap to stop. Auto-stop
+exists only so a recording can never be left running: a trailing-silence
+threshold tuned per mode (short for Practice's single word, longer for
+Sentences, Reading and Speech-To-Text) plus a hard ceiling. Silence is detected
+in the browser with Web Audio, and a clip in which nothing was ever heard is
+refused locally rather than sent — see the hallucination risk above.
+
+**Fallback (parent's decision).** If the function cannot be reached, the
+browser's own recogniser stands in for that attempt, and a banner says so,
+naming the error code, and says plainly that it is the engine that was
+mishearing her before. It clears itself when a real transcript comes back.
+One constraint worth recording: Safari only starts its recogniser from a user
+gesture, and awaiting the upload spends the tap's. So the fallback auto-starts
+where the browser allows it, and where it does not, the next tap goes straight
+to the browser recogniser instead of paying for another timeout.
+
+**Voice Lock (§5) has its seam.** The recorded clip is a value in the app
+before anything is sent: `addClipGate()` registers a check that runs on the
+clip, and a refusal means nothing leaves the device. Enrolment plus one gate is
+the whole integration.

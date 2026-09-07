@@ -89,7 +89,10 @@ export function initReading() {
   bindMic({
     buttonId: 'readingMic',
     labelId: 'readingMicLabel',
-    canListen: () => state.readingSentences.length > 0,
+    // A line of a passage can be long and can have real pauses inside it, so
+    // this is the most patient of the timed modes.
+    mode: 'passage',
+    expected: currentLine,
     onResult: handleReadingResult
   });
 

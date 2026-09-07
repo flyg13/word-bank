@@ -420,6 +420,8 @@ export function initBank() {
   bindMic({
     buttonId: 'phonicMic',
     labelId: 'phonicMicLabel',
+    mode: 'word',
+    expected: () => phonicWordEl.value.trim(),
     canListen: () => Boolean(phonicWordEl.value.trim()),
     onBlocked: () =>
       showNote('phonicAddNote', 'Type the word first, then tap — it needs to know what she is saying.'),
