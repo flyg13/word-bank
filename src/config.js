@@ -90,3 +90,19 @@ export const NO_SPEECH_MS = 6000;
 // field is bounded (whisper-1 truncates past 224 tokens), and a hint list long
 // enough to describe the whole bank would start biasing every transcript.
 export const VOCAB_HINT_LIMIT = 90;
+
+// ---------- Context-aware correction ----------
+
+// Where Speech-To-Text sends a transcript to be read with its own sentence in
+// view. A second Netlify Function; the model's credentials never reach the
+// browser, same as the recogniser's.
+export const CONTEXT_ENDPOINT = '/.netlify/functions/contextual-correct';
+
+// Longer than the transcription timeout: this call reads and reasons, and it
+// happens after she has finished speaking rather than while she waits to be
+// heard. Still short enough that the corrected text is not a mystery.
+export const CONTEXT_TIMEOUT_MS = 25000;
+
+// How many of Claude's changes the rolling log keeps. Enough to see a pattern
+// across a few sessions, few enough to read in one go.
+export const CORRECTION_LOG_LIMIT = 40;

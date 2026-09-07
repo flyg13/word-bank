@@ -13,6 +13,7 @@ import { describeWeakSpelling } from '../lib/collisions.js';
 import { practiceWord } from './practice.js';
 import { activateTab } from './tabs.js';
 import { isWeakSpelling, phoneticKeys } from '../lib/phonetics.js';
+import { readCorrectionLog, clearCorrectionLog } from '../lib/correction-log.js';
 import { bindMic } from './mic.js';
 import { buildQueue, attemptKey } from './practice.js';
 
@@ -461,8 +462,70 @@ export function initBank() {
     e.target.value = '';
   });
 
+  document.getElementById('clearContextLog').addEventListener('click', () => {
+    clearCorrectionLog();
+    renderContextLog();
+  });
+
   onRender(renderBankList);
   onRender(renderAttemptLog);
   onRender(renderPhonicList);
   onRender(renderSpeechLang);
+  onRender(renderContextLog);
+}
+
+/**
+ * What Claude changed in Speech-To-Text, newest first.
+ *
+ * Built with DOM nodes rather than markup, like the bank list: every value here
+ * is text a recogniser produced or a model returned, and none of it is ever
+ * treated as HTML.
+ */
+export function renderContextLog() {
+  const view = document.getElementById('contextLogView');
+  if (!view) return;
+  const entries = readCorrectionLog();
+
+  view.innerHTML = '';
+  if (!entries.length) {
+    view.append(
+      Object.assign(document.createElement('span'), {
+        className: 'empty-note',
+        textContent: 'Nothing changed yet.'
+      })
+    );
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const row = document.createElement('div');
+    row.className = 'ctx-row';
+
+    const heading = document.createElement('div');
+    heading.append(
+      Object.assign(document.createElement('b'), { textContent: '“' + entry.from + '”' }),
+      document.createTextNode(' → '),
+      Object.assign(document.createElement('b'), { textContent: '“' + entry.to + '”' })
+    );
+    if (entry.reverted) {
+      heading.append(
+        document.createTextNode(' '),
+        Object.assign(document.createElement('span'), {
+          className: 'ctx-undone',
+          textContent: '— you put it back'
+        })
+      );
+    }
+    row.append(heading);
+
+    if (entry.reason) {
+      row.append(
+        Object.assign(document.createElement('span'), {
+          className: 'ctx-reason',
+          textContent: entry.reason
+        })
+      );
+    }
+    view.append(row);
+  });
 }

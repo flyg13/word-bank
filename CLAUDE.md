@@ -328,3 +328,79 @@ to the browser recogniser instead of paying for another timeout.
 before anything is sent: `addClipGate()` registers a check that runs on the
 clip, and a refusal means nothing leaves the device. Enrolment plus one gate is
 the whole integration.
+
+## 10. Context-aware correction in Speech-To-Text (parent's decision)
+
+**The problem.** The correction bank has no context. Once "liquor → little" is
+confirmed, it rewrites *every* "liquor" — including a real one, in a sentence
+where she plainly meant it. The same is true of every entry: a find-and-replace
+cannot read the rest of the sentence, and the more the bank fills, the more
+often it will be wrong about a word it has no business touching.
+
+This is the mirror of §3's collision risk. Phonetic matching was scoped to a
+single expected word precisely because a global scan over-matches. Speech-To-Text
+has no expected word, so the bank fires there with nothing to check it against.
+
+**The decision.** Use Claude to apply corrections with the sentence in view, so
+the bank becomes knowledge Claude weighs rather than rules that fire blindly.
+
+**The flow.** After the recogniser returns a Speech-To-Text transcript, the
+browser sends it to a second Netlify Function along with her pronunciations and
+her *confirmed* corrections. Claude gets the transcript and the patterns with a
+plain instruction: using the sentence, decide which words are her known
+mispronunciations and which are the real word. Each changed word is marked, and
+one tap puts it back.
+
+**Claude's changes never feed the bank.** Learning stays in Practice, Sentences
+and Reading, which know the word she was asked for and can therefore tell a
+correction from a guess. This step only ever changes what is on screen. Nothing
+it does is saved to Firestore, and the schema is unchanged by this feature.
+
+**Provider: Claude Sonnet 5 on Amazon Bedrock, ap-southeast-2 (Sydney).**
+Parent's decision, and the same residency reasoning as §9's future move: a
+school asking where a child's speech is processed gets "Sydney" as the answer
+for this half already. Behind the same provider-interface pattern as the
+recogniser — one file in `netlify/functions/providers/` — so model or platform
+is a swap, not a rewrite. Authentication is a Bedrock API key (bearer token),
+which the Messages-API Bedrock endpoint takes as `x-api-key`; that is what the
+standard Anthropic client sends, so this is the official SDK pointed at a base
+URL rather than a hand-rolled HTTP call. Netlify reserves `AWS_`-prefixed
+variable names, so the key is `BEDROCK_API_KEY`.
+
+### Three things that were not obvious, and are load-bearing
+
+**1. Claude reports decisions against word positions, never a rewritten string.**
+The transcript goes over numbered, and what comes back is `{index, to, reason}`.
+A rewritten sentence would have to be re-aligned against the original — the
+exact class of bug §1's alignment fix existed to remove — and a model that
+quietly reordered, dropped or added a word would not be noticed. Positions
+cannot do either. Both the function and the browser then check every change
+against their own copy of the words; neither takes the other on trust.
+
+**2. The prompt says the bank is evidence, not an instruction.** Without that,
+this becomes a general autocorrect, and an app whose entire job is noticing how
+she actually speaks would start hiding it. Claude is told explicitly: only
+change a word one of the lists covers, never fix spelling or grammar it was not
+given a pattern for, and when the sentence does not settle it, leave the word
+alone. A missed correction is recoverable; a wrong one may never be noticed.
+
+**3. Only confirmed corrections are sent.** A pending one has been seen once and
+is not yet trusted to fire on its own in the bank — it is not trusted here
+either.
+
+**Fallback.** If the function cannot be reached, the app applies confirmed
+corrections the old way and says so, naming the code and saying plainly that
+this is the behaviour the feature replaces: *a word that only looks like one of
+hers will have been changed too.* Never silent.
+
+**The log.** A rolling record of every change — word, replacement, reason — in
+Word Bank, so a change that keeps happening, or one the parent keeps undoing, is
+easy to spot. Undoing marks an entry rather than deleting it, because a change
+that is always reverted is exactly the pattern the log exists to surface. Kept
+in `localStorage`, not Firestore: it is a record of what *this device* showed,
+and the schema stays untouched.
+
+**What to watch on the iPad.** Whether Claude leaves real words alone — say
+"dad bought a liquor bottle" once the bank has that entry and see. And whether
+the extra step is noticeable enough to be annoying: it runs after she has
+finished speaking, but it is still a wait before the corrected text settles.

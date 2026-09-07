@@ -368,11 +368,34 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
 .wtok.extra::before{ content:'+ '; font-style:normal; }
 .wtok.suggest{ color:var(--gold-text); border-bottom:2px dotted var(--gold); }
 .wtok.suggest::before{ content:'≈ '; font-weight:700; }
+/* A word Claude rewrote after reading the sentence. Marked more strongly than
+   anything else here — a solid rule and an arrow — because it is the one change
+   nobody asked for, and one tap puts it back. The arrow carries the meaning in
+   greyscale; the colour only reinforces it. */
+.wtok.ctx-fixed{ color:var(--gold-text); border-bottom:2px solid var(--gold); font-weight:700; }
+.wtok.ctx-fixed::before{ content:'→ '; font-weight:700; }
 
 .read-note{ margin-top:12px; font-size:16px; font-weight:700; font-family:var(--font-ui); }
 .read-note.clean{ color:var(--checked); }
 .write-note{ font-size:16px; color:var(--checked); margin-top:11px; }
 .write-note:empty{ margin:0; }
+
+/* What the context step did, or why it could not. The plain state is a quiet
+   line; a failure takes the gold notice treatment, because running on the old
+   blind find-and-replace is the thing the parent must not miss. */
+.context-note{ display:none; font-size:16px; line-height:1.55; color:var(--muted); margin-top:11px; }
+.context-note.show{ display:block; }
+.context-note.warn{
+  color:var(--ink); background:var(--gold-wash); border:1px solid var(--gold);
+  border-left-width:3px; border-radius:var(--radius); padding:12px 14px;
+}
+
+.context-log{ font-size:16px; color:var(--muted); }
+.context-log .ctx-row{ padding:7px 0; border-top:1px solid var(--card-line); line-height:1.55; }
+.context-log .ctx-row:first-child{ border-top:none; }
+.context-log b{ color:var(--ink); }
+.context-log .ctx-reason{ display:block; color:var(--muted); }
+.context-log .ctx-undone{ color:var(--gold-text); font-weight:700; }
 
 /* ---------- Fix / phonic panels ---------- */
 .fix-panel, .phonic-panel{

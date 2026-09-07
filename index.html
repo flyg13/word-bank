@@ -205,6 +205,8 @@
 
       <div class="eyebrow">Corrected &mdash; tap any word to fix it</div>
       <div class="read-out" id="correctedOutput"><span class="empty-note">Nothing here yet.</span></div>
+      <!-- What the context step did, or why it could not. Never silent. -->
+      <div class="context-note" id="contextNote" role="status"></div>
       <div class="write-note" id="writeNote"></div>
 
       <div class="fix-panel" id="fixPanel">
@@ -272,6 +274,12 @@
       <p class="sub">Sets the accent the app listens for <em>and</em> the voice that reads words out for her to copy. Shared across her devices.</p>
       <select id="speechLang" class="lang-select"></select>
       <div class="phonic-note" id="speechLangNote"></div>
+    </div>
+    <div class="card">
+      <h2 class="section-title">What Claude changed</h2>
+      <p class="sub">Words the context step rewrote in Speech-To-Text, newest first. This is here so a change that keeps happening &mdash; or one you keep undoing &mdash; is easy to spot. It never changes her bank, and it is kept on this device only.</p>
+      <div class="context-log" id="contextLogView"><span class="empty-note">Nothing changed yet.</span></div>
+      <div class="right-row"><button class="btn btn-ghost" id="clearContextLog">Clear this log</button></div>
     </div>
     <div class="card">
       <h2 class="section-title">Recent sessions</h2>

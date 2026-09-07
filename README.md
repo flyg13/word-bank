@@ -74,6 +74,59 @@ netlify dev                    # app + functions, on one port
 `netlify dev` reads the key from your linked site, or from a local `.env`
 holding `OPENAI_API_KEY=sk-…`. **`.env` is gitignored; keep it that way.**
 
+## The context-correction service (one-time setup)
+
+Speech-To-Text sends each transcript to a second Netlify Function, which asks
+Claude to apply her corrections *with the sentence in view* rather than blindly.
+That function needs a Bedrock API key.
+
+**1. Get the key.** In the AWS console, switch to **Asia Pacific (Sydney)
+`ap-southeast-2`**, then:
+
+> **Amazon Bedrock → Model access** — enable **Claude Sonnet 5** (it is open to
+> all Bedrock customers, so this is a toggle, not an application).
+>
+> **Amazon Bedrock → API keys** — create a key. Long-term keys expire; a
+> short-term one lasts 12 hours, so use a long-term key here and note its expiry.
+
+**2. Put it in Netlify.** Same place as the speech key:
+
+> **Site configuration → Environment variables → Add a variable → Add a single
+> variable**
+
+| Field | Value |
+|---|---|
+| Key | `BEDROCK_API_KEY` |
+| Value | the Bedrock API key you created |
+| Scopes | leave as **All scopes** (it must include Functions) |
+| Deploy contexts | **All deploy contexts** |
+
+**The name matters.** Netlify reserves every `AWS_`-prefixed variable name for
+its own build environment, so the usual `AWS_BEARER_TOKEN_BEDROCK` cannot be
+used here — hence `BEDROCK_API_KEY`.
+
+**3. Redeploy** (Deploys → Trigger deploy → Deploy site). Functions only pick up
+a new variable on a new deploy.
+
+**4. Check it.** Open Speech-To-Text, tap the mic, say a sentence with a word
+she has a confirmed correction for. If the key is missing or wrong, the app says
+so under the corrected text — *Context correction unavailable (not-configured)*
+or *(not-authorised)* — and falls back to the old blind find-and-replace.
+
+Two optional variables:
+
+| Variable | Default | What it does |
+|---|---|---|
+| `BEDROCK_REGION` | `ap-southeast-2` | The AWS region, and therefore where her speech is processed |
+| `BEDROCK_MODEL` | `anthropic.claude-sonnet-5` | Swap models without a code change |
+| `CONTEXT_PROVIDER` | `bedrock-claude` | Selects the provider module in `netlify/functions/providers/` |
+
+Cost: one short request per spoken transcript, on Sonnet at low effort. This is
+smaller than the transcription bill, not larger.
+
+See [CLAUDE.md](CLAUDE.md) §10 for why this exists and what is load-bearing
+about how it works.
+
 ## Testing it by hand
 
 ```bash
@@ -164,6 +217,8 @@ src/
     recorder.js         MediaRecorder plus Web Audio silence detection
     capture.js          record -> gate -> send, and the Voice Lock seam
     transcribe.js       client for the transcription function
+    context-correct.js  client for the context-correction function
+    correction-log.js   a rolling record of what Claude changed (device-local)
     vocab.js            her bank, as vocabulary hints for the recogniser
     align.js            word-sequence alignment (see below)
     similarity.js       how much two words resemble each other
@@ -181,8 +236,10 @@ src/
   test/                 unit tests
 e2e/smoke.mjs           browser smoke test
 netlify/functions/
-  transcribe.mjs        audio in, text out — holds nothing, delegates
-  providers/openai.mjs  the only file that knows a provider exists
+  transcribe.mjs           audio in, text out — holds nothing, delegates
+  contextual-correct.mjs   transcript + her patterns in, decisions out
+  providers/openai.mjs         the only file that knows the recogniser's provider
+  providers/bedrock-claude.mjs the only file that knows Claude runs on Bedrock
 netlify.toml            hosting: build, previews, functions, cache headers
 redirect/index.html     what the old GitHub Pages URL now serves
 legacy/index.html       the original single-file app, kept for reference
