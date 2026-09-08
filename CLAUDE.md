@@ -367,6 +367,16 @@ standard Anthropic client sends, so this is the official SDK pointed at a base
 URL rather than a hand-rolled HTTP call. Netlify reserves `AWS_`-prefixed
 variable names, so the key is `BEDROCK_API_KEY`.
 
+**The model ID is the AU inference profile, `au.anthropic.claude-sonnet-5`,
+not the bare `anthropic.claude-sonnet-5`.** Found on the first real device: the
+bare ID was answered with a 404, because Bedrock has no in-region endpoint for
+Claude in Sydney — only Melbourne has one — and every Claude model there is
+served by cross-region inference. The `au.` profile routes within the
+Australian regions (Sydney and Melbourne), so the residency answer stays
+"Australia". There is no `apac.` profile for this model, and `global.` would
+route anywhere. A 404 from the provider is now reported as `model-not-found`
+rather than the generic `provider-error`, so the banner says which.
+
 ### Three things that were not obvious, and are load-bearing
 
 **1. Claude reports decisions against word positions, never a rewritten string.**

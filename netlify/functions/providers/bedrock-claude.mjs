@@ -14,7 +14,15 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 const DEFAULT_REGION = 'ap-southeast-2';
-const DEFAULT_MODEL = 'anthropic.claude-sonnet-5';
+
+// An inference-profile ID, not the bare model ID. Sydney has no in-region
+// endpoint for Claude on Bedrock — only Melbourne (ap-southeast-4) does — so a
+// request for `anthropic.claude-sonnet-5` in ap-southeast-2 is answered with a
+// 404, which is what the Netlify log showed on the first real device. The `au.`
+// profile routes within the Australian regions (Sydney and Melbourne), which
+// keeps the residency answer "Australia". There is no `apac.` profile for this
+// model, and `global.` would route anywhere. Override with BEDROCK_MODEL.
+const DEFAULT_MODEL = 'au.anthropic.claude-sonnet-5';
 
 export const name = 'bedrock-claude';
 export const keyVar = 'BEDROCK_API_KEY';
@@ -181,6 +189,10 @@ function asProviderError(e) {
     return new ProviderError('not-authorised', 'provider rejected the key', status);
   }
   if (status === 429) return new ProviderError('rate-limited', 'provider is busy', 429);
+  // Bedrock answers 404 when the model ID has no route in the region — a bare
+  // model ID where an inference profile is needed, or a model not offered
+  // there. Named on its own so the banner says which, not just "a problem".
+  if (status === 404) return new ProviderError('model-not-found', 'provider has no such model in this region', 502);
   if (status >= 400) return new ProviderError('provider-error', 'provider returned ' + status, 502);
   return new ProviderError('unreachable', 'could not reach the provider', 502);
 }

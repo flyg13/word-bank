@@ -62,7 +62,7 @@ describe('the contextual-correction function', () => {
       { index: 1, to: 'little', reason: 'A bottle in a child’s sentence.' }
     ]);
     expect(body.provider).toBe('bedrock-claude');
-    expect(body.model).toBe('anthropic.claude-sonnet-5');
+    expect(body.model).toBe('au.anthropic.claude-sonnet-5');
   });
 
   it('asks Sydney, over the Bedrock endpoint, with the bearer token', async () => {
@@ -77,7 +77,7 @@ describe('the contextual-correction function', () => {
     answers([]);
     await handler(post({ tokens: ['the', 'liquor', 'bottle'], ...PATTERNS }));
     const request = create.mock.calls[0][0];
-    expect(request.model).toBe('anthropic.claude-sonnet-5');
+    expect(request.model).toBe('au.anthropic.claude-sonnet-5');
     const prompt = request.messages[0].content;
     expect(prompt).toContain('1. liquor');
     expect(prompt).toContain('"little" she says as: liddle');
@@ -145,6 +145,22 @@ describe('the contextual-correction function', () => {
     create.mockRejectedValue(Object.assign(new Error('token bedrock-secret-1234 invalid'), { status: 400 }));
     const res = await handler(post({ tokens: ['hello'], ...PATTERNS }));
     expect(await res.text()).not.toContain('bedrock-secret');
+  });
+
+  it('asks for the AU inference profile, because Sydney has no in-region route', async () => {
+    // The first real device got a 404: Bedrock has no single-region endpoint
+    // for Claude in ap-southeast-2, only the AU profile (Sydney + Melbourne)
+    // or global. The bare model ID is exactly the thing that fails.
+    answers([]);
+    await handler(post({ tokens: ['hello'], ...PATTERNS }));
+    expect(create.mock.calls[0][0].model).toBe('au.anthropic.claude-sonnet-5');
+    expect(create.mock.calls[0][0].model).not.toMatch(/^anthropic\./);
+  });
+
+  it('names a 404 as model-not-found rather than a generic provider error', async () => {
+    create.mockRejectedValue(Object.assign(new Error('not found'), { status: 404 }));
+    const res = await handler(post({ tokens: ['hello'], ...PATTERNS }));
+    expect((await res.json()).error).toBe('model-not-found');
   });
 
   it('honours a model and region override without a code change', async () => {

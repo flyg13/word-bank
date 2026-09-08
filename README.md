@@ -110,15 +110,17 @@ a new variable on a new deploy.
 
 **4. Check it.** Open Speech-To-Text, tap the mic, say a sentence with a word
 she has a confirmed correction for. If the key is missing or wrong, the app says
-so under the corrected text — *Context correction unavailable (not-configured)*
-or *(not-authorised)* — and falls back to the old blind find-and-replace.
+so under the corrected text — *Context correction unavailable (not-configured)*,
+*(not-authorised)* or *(model-not-found)* — and falls back to the old blind
+find-and-replace. *model-not-found* means Bedrock has no route for the model ID
+in that region: check `BEDROCK_MODEL` is an inference-profile ID (see below).
 
 Two optional variables:
 
 | Variable | Default | What it does |
 |---|---|---|
 | `BEDROCK_REGION` | `ap-southeast-2` | The AWS region, and therefore where her speech is processed |
-| `BEDROCK_MODEL` | `anthropic.claude-sonnet-5` | Swap models without a code change |
+| `BEDROCK_MODEL` | `au.anthropic.claude-sonnet-5` | Swap models without a code change. An inference-profile ID: Sydney has no in-region endpoint for Claude, so the bare `anthropic.claude-sonnet-5` is answered with a 404 there |
 | `CONTEXT_PROVIDER` | `bedrock-claude` | Selects the provider module in `netlify/functions/providers/` |
 
 Cost: one short request per spoken transcript, on Sonnet at low effort. This is
