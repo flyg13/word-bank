@@ -103,6 +103,8 @@ export const CONTEXT_ENDPOINT = '/.netlify/functions/contextual-correct';
 // heard. Still short enough that the corrected text is not a mystery.
 export const CONTEXT_TIMEOUT_MS = 25000;
 
-// How many of Claude's changes the rolling log keeps. Enough to see a pattern
-// across a few sessions, few enough to read in one go.
-export const CORRECTION_LOG_LIMIT = 40;
+// How many of Claude's changes the rolling log keeps — the parent's number.
+// The log is a Firestore field the family document carries whole, so this is
+// also a bound on how much of the document one Speech-To-Text session can
+// rewrite: 50 entries is a few sessions' worth and still reads in one go.
+export const CORRECTION_LOG_LIMIT = 50;

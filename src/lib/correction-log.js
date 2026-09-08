@@ -5,26 +5,19 @@
 // and to catch anything systematic, like one word being "corrected" every time
 // when it never should be.
 //
-// Stored in localStorage, not Firestore, for two reasons. It is a record of
-// what this device showed, so syncing it across devices would mix two different
-// screens into one history. And the Firestore schema is deliberately unchanged
-// by this feature: nothing here can affect what her bank holds.
+// It is a synced Firestore field, `context_log`, on the family document — the
+// parent's decision, so the log can be read from any device rather than only
+// the one that showed the change. It is purely additive: nothing in the app
+// reads it to decide a correction, and the ten original fields are untouched
+// (schema-parity.test.js pins that). The whole list is written on every change,
+// capped at CORRECTION_LOG_LIMIT newest-first, which is what makes it a rolling
+// log rather than an ever-growing one.
+//
+// A log this app first kept in localStorage is not migrated: it was a record of
+// one device's screen, and there was never more than a few sessions of it.
 
 import { CORRECTION_LOG_LIMIT } from '../config.js';
-
-const KEY = 'word_bank_context_log';
-
-function read() {
-  try {
-    const raw = localStorage.getItem(KEY);
-    const list = raw ? JSON.parse(raw) : [];
-    return Array.isArray(list) ? list.filter(isEntry) : [];
-  } catch (e) {
-    // A private window, cleared site data, or something hand-edited. The log is
-    // a convenience; losing it must never take out the tab it renders in.
-    return [];
-  }
-}
+import { state, save } from './store.js';
 
 function isEntry(entry) {
   return Boolean(
@@ -34,17 +27,21 @@ function isEntry(entry) {
   );
 }
 
+/** The synced list, defensively: a hand-edited document must not take out the tab. */
+function current() {
+  const list = state.contextLog;
+  return Array.isArray(list) ? list.filter(isEntry) : [];
+}
+
 function write(list) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(list.slice(0, CORRECTION_LOG_LIMIT)));
-  } catch (e) {
-    /* storage full or blocked — the feature still works, the history just doesn't keep */
-  }
+  state.contextLog = list.slice(0, CORRECTION_LOG_LIMIT);
+  // Fire-and-forget, like every other save: the screen never waits on it.
+  save('context_log', state.contextLog);
 }
 
 /** Newest first. */
 export function readCorrectionLog() {
-  return read();
+  return current();
 }
 
 /**
@@ -63,7 +60,7 @@ export function recordContextChanges(changes) {
     at,
     reverted: false
   }));
-  write(entries.concat(read()));
+  write(entries.concat(current()));
   return entries.map((entry) => entry.id);
 }
 
@@ -73,17 +70,13 @@ export function recordContextChanges(changes) {
  * surface.
  */
 export function markReverted(id) {
-  const list = read();
-  const entry = list.find((item) => item.id === id);
-  if (!entry) return;
-  entry.reverted = true;
-  write(list);
+  const list = current();
+  if (!list.some((item) => item.id === id)) return;
+  // A new object rather than a mutation, so a snapshot the store still holds
+  // a reference to is never edited behind Firestore's back.
+  write(list.map((item) => (item.id === id ? { ...item, reverted: true } : item)));
 }
 
 export function clearCorrectionLog() {
-  try {
-    localStorage.removeItem(KEY);
-  } catch (e) {
-    /* nothing to do */
-  }
+  write([]);
 }

@@ -5,7 +5,8 @@ import { correctWithContext, splitForCorrection, correctionPatterns, ContextErro
   from '../lib/context-correct.js';
 import { recordContextChanges, readCorrectionLog, markReverted, clearCorrectionLog }
   from '../lib/correction-log.js';
-import { state } from '../lib/store.js';
+import { state, setSaver } from '../lib/store.js';
+import { foldSnapshot } from '../lib/snapshot.js';
 
 describe('lining words up with what is on screen', () => {
   it('numbers only the words, and keeps the spacing between them', () => {
@@ -115,7 +116,17 @@ describe('sending a transcript for context', () => {
 });
 
 describe('the rolling log', () => {
-  beforeEach(() => { localStorage.clear(); });
+  let saved;
+  beforeEach(() => {
+    state.contextLog = [];
+    saved = [];
+    setSaver(async (key, value) => { saved.push({ key, value }); });
+  });
+  afterEach(() => { setSaver(null); });
+
+  it('is the parent\'s fifty, most recent first', () => {
+    expect(CORRECTION_LOG_LIMIT).toBe(50);
+  });
 
   it('keeps the newest and drops the oldest', () => {
     for (let i = 0; i < CORRECTION_LOG_LIMIT + 10; i += 1) {
@@ -124,6 +135,18 @@ describe('the rolling log', () => {
     const log = readCorrectionLog();
     expect(log).toHaveLength(CORRECTION_LOG_LIMIT);
     expect(log[0].from).toBe('w' + (CORRECTION_LOG_LIMIT + 9));
+  });
+
+  it('is written to the family document as context_log, and nothing else', () => {
+    recordContextChanges([{ from: 'a', to: 'b', reason: 'why' }]);
+    expect(saved.map((s) => s.key)).toEqual(['context_log']);
+    expect(saved[0].value).toHaveLength(1);
+    expect(saved[0].value[0]).toMatchObject({ from: 'a', to: 'b', reason: 'why', reverted: false });
+    // The capped list is what goes over, so the document can never grow past it.
+    for (let i = 0; i < CORRECTION_LOG_LIMIT + 10; i += 1) {
+      recordContextChanges([{ from: 'w' + i, to: 'x', reason: '' }]);
+    }
+    expect(saved[saved.length - 1].value).toHaveLength(CORRECTION_LOG_LIMIT);
   });
 
   it('marks one entry undone without touching the others', () => {
@@ -135,18 +158,34 @@ describe('the rolling log', () => {
     const log = readCorrectionLog();
     expect(log.find((e) => e.from === 'c').reverted).toBe(true);
     expect(log.find((e) => e.from === 'a').reverted).toBe(false);
+    expect(saved[saved.length - 1].key).toBe('context_log');
   });
 
-  it('survives storage holding nonsense', () => {
-    localStorage.setItem('word_bank_context_log', 'not json');
-    expect(readCorrectionLog()).toEqual([]);
-    localStorage.setItem('word_bank_context_log', '[{"junk":true}]');
-    expect(readCorrectionLog()).toEqual([]);
+  it('ignores an id it does not hold, without a write', () => {
+    recordContextChanges([{ from: 'a', to: 'b', reason: '' }]);
+    const writes = saved.length;
+    markReverted('nope');
+    expect(saved).toHaveLength(writes);
   });
 
-  it('clears', () => {
+  it('survives the document holding nonsense', () => {
+    foldSnapshot(state, { context_log: 'not a list' });
+    expect(readCorrectionLog()).toEqual([]);
+    foldSnapshot(state, { context_log: [{ junk: true }, null, { from: 'a', to: 'b' }] });
+    expect(readCorrectionLog()).toEqual([{ from: 'a', to: 'b' }]);
+  });
+
+  it('is read from the snapshot like every other synced field', () => {
+    foldSnapshot(state, {});
+    expect(state.contextLog).toEqual([]);
+    foldSnapshot(state, { context_log: [{ id: '1', from: 'a', to: 'b', reason: '', at: 'x', reverted: false }] });
+    expect(readCorrectionLog()[0].from).toBe('a');
+  });
+
+  it('clears, and says so to the document', () => {
     recordContextChanges([{ from: 'a', to: 'b', reason: '' }]);
     clearCorrectionLog();
     expect(readCorrectionLog()).toEqual([]);
+    expect(saved[saved.length - 1]).toEqual({ key: 'context_log', value: [] });
   });
 });

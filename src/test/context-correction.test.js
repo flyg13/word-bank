@@ -74,7 +74,7 @@ async function speak() {
 
 describe('reading a transcript with its own sentence in view', () => {
   beforeEach(() => {
-    localStorage.clear();
+    state.contextLog = [];
     document.body.innerHTML = DOM;
     // Her bank: "liquor" has been confirmed to mean "little".
     state.wordBank = { liquor: { correct: 'little', count: 2, active: true } };
@@ -172,7 +172,7 @@ describe('reading a transcript with its own sentence in view', () => {
 
 describe('the log of what Claude changed', () => {
   beforeEach(() => {
-    localStorage.clear();
+    state.contextLog = [];
     document.body.innerHTML = DOM;
     state.wordBank = { liquor: { correct: 'little', count: 2, active: true } };
     state.phonicBank = {};

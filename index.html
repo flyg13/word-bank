@@ -277,13 +277,23 @@
     </div>
     <div class="card">
       <h2 class="section-title">What Claude changed</h2>
-      <p class="sub">Words the context step rewrote in Speech-To-Text, newest first. This is here so a change that keeps happening &mdash; or one you keep undoing &mdash; is easy to spot. It never changes her bank, and it is kept on this device only.</p>
+      <p class="sub">Words the context step rewrote in Speech-To-Text, newest first. This is here so a change that keeps happening &mdash; or one you keep undoing &mdash; is easy to spot. It never changes her bank. The most recent 50 are kept, and like the rest of her bank they show on every device with her code.</p>
       <div class="context-log" id="contextLogView"><span class="empty-note">Nothing changed yet.</span></div>
       <div class="right-row"><button class="btn btn-ghost" id="clearContextLog">Clear this log</button></div>
     </div>
     <div class="card">
       <h2 class="section-title">Recent sessions</h2>
       <div class="session-log" id="sessionLogView"><span class="empty-note">No sessions logged yet.</span></div>
+    </div>
+    <div class="card">
+      <h2 class="section-title">Family code</h2>
+      <p class="sub">This device is using <b id="familyCodeCurrent"></b>. Every device with the same code shares her bank. To move this device to another code &mdash; a school iPad joining her family, or a new code of your own &mdash; type it here. Nothing is deleted: her data stays under the old code, and typing that code again brings it back.</p>
+      <div class="manual-add">
+        <input type="text" id="familyCodeInput" placeholder="New family code" autocomplete="off"
+               autocapitalize="none" autocorrect="off" spellcheck="false">
+        <button class="btn btn-outline" id="familyCodeBtn">Change code</button>
+      </div>
+      <div class="phonic-note" id="familyCodeNote"></div>
     </div>
     <div class="card footer-row">
       <button class="btn btn-outline" id="exportBtn">Export bank (.json)</button>

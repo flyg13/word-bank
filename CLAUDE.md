@@ -396,11 +396,48 @@ hers will have been changed too.* Never silent.
 **The log.** A rolling record of every change — word, replacement, reason — in
 Word Bank, so a change that keeps happening, or one the parent keeps undoing, is
 easy to spot. Undoing marks an entry rather than deleting it, because a change
-that is always reverted is exactly the pattern the log exists to surface. Kept
-in `localStorage`, not Firestore: it is a record of what *this device* showed,
-and the schema stays untouched.
+that is always reverted is exactly the pattern the log exists to surface.
+
+It was first kept in `localStorage`, as a record of what one device showed.
+**Parent's decision, September 2026: it is now a synced field, `context_log`,
+on the family document,** so it can be reviewed from any device — the iPad is
+where changes happen and the parent's own device is where they get read. It is
+a rolling log of the most recent 50 entries, newest first, and the whole list is
+written on each change, so the document can never grow past that. It is purely
+additive: the ten original fields are untouched and the differential test pins
+that, in both directions — the port writes only `context_log` when it logs, and
+the original single-file app reads and writes around a document that carries
+it. Nothing reads the log to decide a correction, so it still cannot feed the
+bank. The old device-local log is not migrated; there was never more than a few
+sessions of it.
 
 **What to watch on the iPad.** Whether Claude leaves real words alone — say
 "dad bought a liquor bottle" once the bank has that entry and see. And whether
 the extra step is noticeable enough to be annoying: it runs after she has
 finished speaking, but it is still a wait before the corrected text settles.
+
+## 11. Changing the family code from Word Bank (parent's decision)
+
+**The problem.** The family code is typed once, on the entry screen, and then
+lives in the browser's storage for good. Moving a device to a different code —
+a teacher setting up a school iPad against her family, or the parent leaving a
+short code behind for a better one — meant clearing Safari's website data,
+which is not something a teacher can be asked to do and not something the
+parent should have to.
+
+**The decision.** Word Bank gets a "Family code" card: it shows the code this
+device is using, takes a new one, and switches the app to it.
+
+**What it does, and what it deliberately does not.** The card uses exactly the
+storage the entry screen uses — the same key, the same normalisation, the same
+refusal of a code with no letter or digit in it — so a device that switches
+ends up in the state it would be in had that code been typed on first open.
+`firestore.js` reads the code once, when it connects, so the switch itself is a
+restart of the app; the card says so before it happens. Nothing is deleted:
+her data stays under the old code, and typing that code again brings it back.
+There is no list of codes, no confirmation of who else uses one, and no way to
+copy data between codes — export and import already do that, deliberately as
+a separate, visible step.
+
+**Storage stays exactly as it was.** Same key, same normalisation, in
+`src/lib/family-code.js`; a test pins that the card carries no rules of its own.

@@ -619,3 +619,126 @@ describe('speech_lang is purely additive', () => {
     expect(fieldsWritten(writes)).not.toContain('speech_lang');
   });
 });
+
+// ---------------------------------------------------------------------------
+// §10's log of what Claude changed moved from localStorage to a synced field,
+// context_log — the parent's decision, so it reads from any device. Same bar
+// as phonic_bank: additive in both directions, and capped so the document
+// cannot grow without bound.
+// ---------------------------------------------------------------------------
+
+describe('context_log is purely additive', () => {
+  const change = { from: 'liquor', to: 'little', reason: 'She means her toy.' };
+
+  const record = async () => {
+    // The very module Speech-To-Text records through, imported after the
+    // harness reset the registry so it shares the app's store.
+    const { recordContextChanges } = await import('../lib/correction-log.js');
+    recordContextChanges([change]);
+    await new Promise((r) => setTimeout(r, 0));
+  };
+
+  it('a change writes context_log and nothing else', async () => {
+    const writes = await runPorted(record);
+    expect(fieldsWritten(writes)).toEqual(['context_log']);
+    const [entry] = finalState(writes).context_log;
+    expect(entry).toMatchObject({ ...change, reverted: false });
+    expect(typeof entry.id).toBe('string');
+    expect(typeof entry.at).toBe('string');
+    writes.forEach(({ options }) => expect(options).toEqual({ merge: true }));
+  });
+
+  it('is capped at the most recent fifty', async () => {
+    const { CORRECTION_LOG_LIMIT } = await import('../config.js');
+    expect(CORRECTION_LOG_LIMIT).toBe(50);
+    const writes = await runPorted(async () => {
+      const { recordContextChanges } = await import('../lib/correction-log.js');
+      for (let i = 0; i < 60; i += 1) recordContextChanges([{ ...change, from: 'w' + i }]);
+    });
+    const log = finalState(writes).context_log;
+    expect(log).toHaveLength(50);
+    expect(log[0].from).toBe('w59');
+    expect(log[49].from).toBe('w10');
+  });
+
+  it('leaves every pre-existing field byte-identical to what the original wrote', async () => {
+    const withLog = {
+      context_log: [{ id: 'x#0', ...change, at: 'x', reverted: false }]
+    };
+    const manualAdd = async (doc) => {
+      doc.querySelector('.tab[data-tab="bank"]').click();
+      doc.getElementById('manualRaw').value = 'yoyo';
+      doc.getElementById('manualCorrect').value = 'yellow';
+      doc.getElementById('manualAddBtn').click();
+      await new Promise((r) => setTimeout(r, 0));
+    };
+    const legacy = finalState(await runLegacy(manualAdd));
+    const ported = finalState(await runPorted(manualAdd, withLog));
+    expect(Object.keys(ported)).toEqual(Object.keys(legacy));
+    expect(ported.word_bank).toEqual(legacy.word_bank);
+  });
+
+  it('the original app tolerates a document containing context_log', async () => {
+    const drive = async (doc) => {
+      doc.querySelector('.tab[data-tab="bank"]').click();
+      doc.getElementById('manualRaw').value = 'yoyo';
+      doc.getElementById('manualCorrect').value = 'yellow';
+      doc.getElementById('manualAddBtn').click();
+      await new Promise((r) => setTimeout(r, 0));
+    };
+    const writes = await runLegacy(drive, {
+      word_bank: { wibble: { correct: 'wobble', count: 2, active: true } },
+      context_log: [{ id: 'x#0', ...change, at: 'x', reverted: false }]
+    });
+    expect(finalState(writes).word_bank).toMatchObject({
+      wibble: { correct: 'wobble' },
+      yoyo: { correct: 'yellow' }
+    });
+    expect(fieldsWritten(writes)).not.toContain('context_log');
+    writes.forEach(({ options }) => expect(options).toEqual({ merge: true }));
+  });
+
+  it('the port shows a context_log written on another device', async () => {
+    await runPorted(async (doc) => doc.querySelector('.tab[data-tab="bank"]').click(), {
+      context_log: [{ id: 'x#0', ...change, at: 'x', reverted: true }]
+    });
+    const view = document.getElementById('contextLogView').textContent;
+    expect(view).toContain('liquor');
+    expect(view).toContain('little');
+    expect(view).toContain('She means her toy.');
+    expect(view).toContain('you put it back');
+  });
+
+  it('never feeds the bank: a document that is only a log changes no correction', async () => {
+    const writes = await runPorted(async (doc) => doc.querySelector('.tab[data-tab="bank"]').click(), {
+      context_log: [{ id: 'x#0', ...change, at: 'x', reverted: false }]
+    });
+    const { state } = await import('../lib/store.js');
+    expect(state.wordBank).toEqual({});
+    expect(state.phonicBank).toEqual({});
+    expect(writes).toEqual([]);
+  });
+
+  it('survives an export/import round trip', async () => {
+    const exported = finalState(await runPorted(record));
+    expect(exported.context_log).toHaveLength(1);
+
+    const writes = await runPorted(async (doc) => {
+      doc.querySelector('.tab[data-tab="bank"]').click();
+      const file = new File([JSON.stringify(exported)], 'word-bank-export.json', {
+        type: 'application/json'
+      });
+      const input = doc.getElementById('importFile');
+      Object.defineProperty(input, 'files', { value: [file], configurable: true });
+      window.alert = () => {};
+      input.dispatchEvent(new window.Event('change'));
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    const { state } = await import('../lib/store.js');
+    expect(state.contextLog).toHaveLength(1);
+    expect(state.contextLog[0]).toMatchObject(change);
+    expect(fieldsWritten(writes)).toContain('context_log');
+    // Importing the same file again does not duplicate the entries.
+    expect(finalState(writes).context_log).toHaveLength(1);
+  });
+});

@@ -1122,6 +1122,31 @@ check('the coin is present and not stretched', await page.evaluate(() => {
   return Boolean(img && img.complete && img.naturalWidth === img.naturalHeight);
 }));
 
+// ---- Changing the family code from Word Bank ----
+// Last, because a switch restarts the app. The parent's decision: a teacher
+// setting up a school iPad, or the parent moving off a short code, must not
+// have to clear Safari's website data to do it.
+await page.click('.tab[data-tab="bank"]');
+check('Word Bank shows the code this device is using',
+  (await page.locator('#familyCodeCurrent').textContent()) === '\u201csmoke-test-\u201d',
+  await page.locator('#familyCodeCurrent').textContent());
+
+await page.fill('#familyCodeInput', '!!!');
+await page.click('#familyCodeBtn');
+check('a code that normalises to nothing is refused here too, and nothing changes',
+  (await page.locator('#familyCodeNote').textContent()).includes('letters and numbers') &&
+  (await page.evaluate(() => localStorage.getItem('word_bank_family_code'))) === 'smoke-test-');
+
+await page.fill('#familyCodeInput', 'Smoke Test Two');
+await Promise.all([
+  page.waitForNavigation({ waitUntil: 'networkidle' }),
+  page.click('#familyCodeBtn')
+]);
+check('a new code is stored the way the entry screen stores it, and the app restarts on it',
+  (await page.evaluate(() => localStorage.getItem('word_bank_family_code'))) === 'smoke-test-two' &&
+  (await page.evaluate(() => document.getElementById('entryScreen').hidden)) &&
+  (await page.locator('#familyCodeCurrent').textContent()) === '\u201csmoke-test-two\u201d',
+  await page.locator('#familyCodeCurrent').textContent());
 check('no uncaught application errors', errors.length === 0, errors.slice(0, 3).join(' ;; '));
 
 if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT, fullPage: true });

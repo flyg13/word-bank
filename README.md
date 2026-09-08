@@ -218,7 +218,7 @@ src/
     capture.js          record -> gate -> send, and the Voice Lock seam
     transcribe.js       client for the transcription function
     context-correct.js  client for the context-correction function
-    correction-log.js   a rolling record of what Claude changed (device-local)
+    correction-log.js   a rolling record of what Claude changed (synced, most recent 50)
     vocab.js            her bank, as vocabulary hints for the recogniser
     align.js            word-sequence alignment (see below)
     similarity.js       how much two words resemble each other
@@ -448,3 +448,9 @@ by Firestore security rules.
 Each device prompts once for a shared family code and stores it in
 `localStorage`; every device using the same code reads and writes the same
 document under `families/<code>`.
+
+To move a device to a different code — a school iPad joining the family, or a
+new code replacing a short one — use *Word Bank → Family code*. It shows the
+code the device is using, takes a new one, and restarts the app on it. It goes
+through the same storage as the entry screen, so nothing else needs clearing,
+and nothing is deleted: the data stays under the old code.
