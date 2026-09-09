@@ -377,6 +377,19 @@ Australian regions (Sydney and Melbourne), so the residency answer stays
 route anywhere. A 404 from the provider is now reported as `model-not-found`
 rather than the generic `provider-error`, so the banner says which.
 
+**Then the `au.` profile was answered with a 404 too, and the console showed no
+Anthropic inference profiles in Sydney at all.** Two different faults produce
+that picture — access to Anthropic models not yet granted to the account in the
+region, or an ID the endpoint does not route — and guessing IDs cannot tell
+them apart. So there is now a read-only diagnostic, `context-diagnose`, behind
+the same provider interface: it lists the Anthropic models offered in the
+region, the system-defined inference profiles, and Bedrock's own
+authorisation status for each candidate ID, and on request sends one one-token
+probe and reports exactly what came back. No more guessing; the README's step 5
+says how to read it. The fallback if Sydney keeps refusing is Melbourne,
+`ap-southeast-4` — the one Australian region with an in-region endpoint, which
+takes the bare model ID and needs no profile — still inside Australia.
+
 ### Three things that were not obvious, and are load-bearing
 
 **1. Claude reports decisions against word positions, never a rewritten string.**

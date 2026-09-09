@@ -83,11 +83,23 @@ That function needs a Bedrock API key.
 **1. Get the key.** In the AWS console, switch to **Asia Pacific (Sydney)
 `ap-southeast-2`**, then:
 
-> **Amazon Bedrock → Model access** — enable **Claude Sonnet 5** (it is open to
-> all Bedrock customers, so this is a toggle, not an application).
+> **Amazon Bedrock → Model access** (left menu, under *Configure and learn*) →
+> **Modify model access** → tick **Anthropic → Claude Sonnet 5** → **Next**.
+> The first time an account enables any Anthropic model, the console asks for
+> **use case details** (company, website, industry, who the users are, what it
+> is for) — one form, once per account. Fill it in, **Submit**, then **Review →
+> Submit** on the access page. The row reads *In progress* and then *Access
+> granted*, usually within minutes. Model access is per region: do this with
+> the region set to the one `BEDROCK_REGION` names.
+>
+> If the console has a **Model catalog** instead, open **Claude Sonnet 5** there
+> and use its **Request access** / **Available to request** button — same form.
 >
 > **Amazon Bedrock → API keys** — create a key. Long-term keys expire; a
 > short-term one lasts 12 hours, so use a long-term key here and note its expiry.
+> The key belongs to an IAM user Bedrock creates for it; that user carries
+> `AmazonBedrockLimitedAccess`, which is enough for both the requests below and
+> the diagnostic in step 5.
 
 **2. Put it in Netlify.** Same place as the speech key:
 
@@ -113,14 +125,51 @@ she has a confirmed correction for. If the key is missing or wrong, the app says
 so under the corrected text — *Context correction unavailable (not-configured)*,
 *(not-authorised)* or *(model-not-found)* — and falls back to the old blind
 find-and-replace. *model-not-found* means Bedrock has no route for the model ID
-in that region: check `BEDROCK_MODEL` is an inference-profile ID (see below).
+in that region — go to step 5 rather than guessing another ID.
+
+**5. Ask Bedrock what this account can see.** The function has a read-only
+diagnostic that uses the same key. Open it in a browser on the deployed site
+(or a preview):
+
+| URL | What it reports |
+|---|---|
+| `/.netlify/functions/context-diagnose` | The Anthropic models offered in the region, every system-defined inference profile with *anthropic* in it (and which regions each routes to), and for the configured model ID — plus its bare, `global.` and `au.` forms — whether the account is **authorised** for it |
+| `/.netlify/functions/context-diagnose?probe` | The same, then one one-token request to the configured model, reporting exactly what the Messages endpoint said |
+| `/.netlify/functions/context-diagnose?probe=<model-id>` | The same probe against an ID of your choosing |
+
+How to read it:
+
+- `availability[...].authorizationStatus: "NOT_AUTHORIZED"` — the account has
+  not been granted access to that model in that region. Step 1 is the fix, not
+  a different ID.
+- `AUTHORIZED` but the probe answers 404 — the ID is not one this endpoint
+  routes in this region. Use one from `anthropicInferenceProfiles`, or a
+  region that lists the model in-region.
+- `anthropicInferenceProfiles: []` with a healthy `inferenceProfileCount` —
+  there really are no Anthropic profiles in the region for this account, which
+  again points at access, not the ID.
+- A `403` under `calls` — the key's IAM user cannot list models. The key still
+  works for correction; only the diagnosis is blind. The same three questions
+  can be asked with the AWS CLI as an admin:
+  `aws bedrock list-inference-profiles --region ap-southeast-2 --type-equals SYSTEM_DEFINED`
+  and `aws bedrock get-foundation-model-availability --model-id anthropic.claude-sonnet-5`.
+
+The report never contains the key, and nothing in it is cached or written.
+
+**Melbourne instead of Sydney.** `ap-southeast-4` is the one Australian region
+with a direct, in-region endpoint for Claude, so it takes the bare model ID
+with no inference profile at all. If Sydney keeps refusing, set
+`BEDROCK_REGION=ap-southeast-4` **and** `BEDROCK_MODEL=anthropic.claude-sonnet-5`
+together (the default model ID is Sydney's `au.` profile, which is not what
+Melbourne wants), enable model access in Melbourne too (step 1, with that
+region selected), and redeploy. Her speech is still processed in Australia.
 
 Two optional variables:
 
 | Variable | Default | What it does |
 |---|---|---|
 | `BEDROCK_REGION` | `ap-southeast-2` | The AWS region, and therefore where her speech is processed |
-| `BEDROCK_MODEL` | `au.anthropic.claude-sonnet-5` | Swap models without a code change. An inference-profile ID: Sydney has no in-region endpoint for Claude, so the bare `anthropic.claude-sonnet-5` is answered with a 404 there |
+| `BEDROCK_MODEL` | `au.anthropic.claude-sonnet-5` | Swap models without a code change. An inference-profile ID: Sydney has no in-region endpoint for Claude, so the bare `anthropic.claude-sonnet-5` is answered with a 404 there. In Melbourne (`ap-southeast-4`) use the bare ID |
 | `CONTEXT_PROVIDER` | `bedrock-claude` | Selects the provider module in `netlify/functions/providers/` |
 
 Cost: one short request per spoken transcript, on Sonnet at low effort. This is
@@ -240,6 +289,7 @@ e2e/smoke.mjs           browser smoke test
 netlify/functions/
   transcribe.mjs           audio in, text out — holds nothing, delegates
   contextual-correct.mjs   transcript + her patterns in, decisions out
+  context-diagnose.mjs    read-only: which model IDs this account can see (README step 5)
   providers/openai.mjs         the only file that knows the recogniser's provider
   providers/bedrock-claude.mjs the only file that knows Claude runs on Bedrock
 netlify.toml            hosting: build, previews, functions, cache headers

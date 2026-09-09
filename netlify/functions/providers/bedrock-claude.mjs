@@ -182,6 +182,148 @@ export function buildPrompt(tokens, pronunciations, corrections) {
   return lines.join('\n');
 }
 
+// ---------------------------------------------------------------------------
+// Diagnosis: what this account can actually see in this region.
+//
+// The first two model IDs tried in Sydney were both answered with a 404, and
+// the console's inference-profile list showed no Anthropic entries at all. Two
+// different problems produce that picture — the account has not been granted
+// access to Anthropic models in the region, or the ID is simply not one this
+// endpoint routes — and guessing IDs cannot tell them apart. These are the
+// read-only control-plane calls that can: the models offered in the region,
+// the system-defined inference profiles, and the per-model availability record
+// (which says outright whether the account is authorised). Same bearer key,
+// sent as a bearer token rather than as x-api-key, because these are AWS's own
+// APIs rather than the Messages-API endpoint.
+//
+// Nothing here is cached and nothing is written; every failure is reported as
+// a status and a redacted message rather than thrown, because the whole point
+// is to see the failures.
+// ---------------------------------------------------------------------------
+
+const GEO_PREFIX = /^(global|us|eu|jp|apac|au)\./;
+
+/**
+ * @param {{ env: Record<string, string|undefined>, probe?: string|null }} request
+ *   `probe` — when present, send a one-token request to this model ID (or, if
+ *   empty, to the configured one) and report exactly what came back.
+ */
+export async function diagnose({ env, probe }) {
+  const key = env[keyVar];
+  const region = env.BEDROCK_REGION || DEFAULT_REGION;
+  const configured = env.BEDROCK_MODEL || DEFAULT_MODEL;
+  const report = {
+    provider: name,
+    region,
+    keyConfigured: Boolean(key),
+    configuredModel: configured,
+    messagesEndpoint: 'https://bedrock-mantle.' + region + '.api.aws/anthropic',
+    calls: {}
+  };
+  if (!key) {
+    report.error = 'not-configured';
+    return report;
+  }
+
+  const redact = (text) => String(text == null ? '' : text).split(key).join('[key]').slice(0, 400);
+  const control = 'https://bedrock.' + region + '.amazonaws.com';
+  const get = async (path) => {
+    try {
+      const res = await fetch(control + path, {
+        headers: { Authorization: 'Bearer ' + key, Accept: 'application/json' }
+      });
+      const text = await res.text();
+      let data = null;
+      try { data = JSON.parse(text); } catch (e) { /* not JSON — kept as the error text */ }
+      return { status: res.status, data: res.ok ? data : null, error: res.ok ? null : redact(text) };
+    } catch (e) {
+      return { status: 0, data: null, error: redact(e && e.message) };
+    }
+  };
+
+  // 1. Anthropic foundation models offered in this region.
+  const models = await get('/foundation-models?byProvider=anthropic');
+  report.calls.foundationModels = { status: models.status, error: models.error };
+  report.foundationModels = models.data
+    ? (models.data.modelSummaries || []).map((m) => ({
+      id: m.modelId,
+      name: m.modelName,
+      inferenceTypes: m.inferenceTypesSupported || [],
+      lifecycle: m.modelLifecycle && m.modelLifecycle.status
+    }))
+    : null;
+
+  // 2. Every system-defined inference profile, all pages, then only Anthropic's.
+  const profiles = [];
+  let next = null;
+  let pages = 0;
+  let profileStatus = null;
+  let profileError = null;
+  do {
+    const page = await get(
+      '/inference-profiles?type=SYSTEM_DEFINED&maxResults=1000' +
+      (next ? '&nextToken=' + encodeURIComponent(next) : '')
+    );
+    profileStatus = page.status;
+    profileError = page.error;
+    if (!page.data) break;
+    profiles.push(...(page.data.inferenceProfileSummaries || []));
+    next = page.data.nextToken || null;
+    pages += 1;
+  } while (next && pages < 20);
+  report.calls.inferenceProfiles = { status: profileStatus, error: profileError, pages };
+  report.inferenceProfileCount = profileError && !profiles.length ? null : profiles.length;
+  report.anthropicInferenceProfiles = profileError && !profiles.length ? null : profiles
+    .filter((p) => /anthropic/i.test(p.inferenceProfileId || '') || /claude/i.test(p.inferenceProfileName || ''))
+    .map((p) => ({
+      id: p.inferenceProfileId,
+      name: p.inferenceProfileName,
+      status: p.status,
+      regions: (p.models || []).map((m) => (String(m.modelArn || '').split(':')[3] || '')).filter(Boolean)
+    }));
+
+  // 3. Is the account authorised for the IDs it might use here?
+  const bare = configured.replace(GEO_PREFIX, '');
+  const candidates = [...new Set([configured, bare, 'global.' + bare, 'au.' + bare])];
+  report.availability = {};
+  for (const id of candidates) {
+    const avail = await get('/foundation-model-availability/' + encodeURIComponent(id));
+    report.availability[id] = avail.data
+      ? {
+        authorizationStatus: avail.data.authorizationStatus,
+        entitlementAvailability: avail.data.entitlementAvailability,
+        regionAvailability: avail.data.regionAvailability,
+        agreementAvailability: avail.data.agreementAvailability
+      }
+      : { status: avail.status, error: avail.error };
+  }
+
+  // 4. Optionally, ask the Messages endpoint itself, with the smallest request
+  //    there is, and report exactly what it says.
+  if (probe !== undefined && probe !== null) {
+    const model = probe || configured;
+    const client = new Anthropic({ apiKey: key, baseURL: report.messagesEndpoint, maxRetries: 0 });
+    try {
+      const message = await client.messages.create({
+        model,
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'hi' }]
+      });
+      report.probe = { model, ok: true, answeredBy: message && message.model };
+    } catch (e) {
+      report.probe = {
+        model,
+        ok: false,
+        status: e && typeof e.status === 'number' ? e.status : 0,
+        code: asProviderError(e).code,
+        message: redact(e && e.message)
+      };
+    }
+  }
+
+  return report;
+}
+
 function asProviderError(e) {
   if (e && e.name === 'AbortError') return new ProviderError('timeout', 'provider timed out', 504);
   const status = e && typeof e.status === 'number' ? e.status : 0;
