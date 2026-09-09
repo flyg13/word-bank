@@ -1,28 +1,35 @@
-// Context-aware correction provider: Claude Sonnet 5 on Amazon Bedrock,
-// ap-southeast-4 (Melbourne).
+// Context-aware correction provider: Claude on Amazon Bedrock, through the
+// classic InvokeModel endpoint, ap-southeast-2 (Sydney).
 //
 // Why Bedrock and not the first-party API: the parent's decision, and the same
 // reasoning as CLAUDE.md §9's residency note — a school asking where a child's
-// speech is processed gets "Melbourne" as the answer.
+// speech is processed gets an Australian region as the answer.
 //
-// Auth is a Bedrock API key (bearer token), not SigV4. The Messages-API Bedrock
-// endpoint accepts that as `x-api-key`, which is exactly what the standard
-// Anthropic client sends — so this is the official SDK pointed at a base URL,
-// not a hand-rolled HTTP call. Netlify reserves AWS_-prefixed variable names,
-// hence BEDROCK_API_KEY rather than AWS_BEARER_TOKEN_BEDROCK.
+// Why the classic endpoint and not the Messages-API one (bedrock-mantle): this
+// account is not enabled for the newer endpoint. Every model there answered
+// 403 "not available for this account, contact AWS Sales", and the older
+// models 404. The classic endpoint is proven on the same account — the
+// parent's worksheet generator runs Claude Sonnet 4.5 through it in Sydney —
+// so this is the official Bedrock SDK's classic client, which posts the same
+// Messages-API body to /model/{id}/invoke. Nothing above the provider knows.
+//
+// Auth is a Bedrock API key (bearer token), not SigV4: the classic client
+// takes it as `apiKey` and sends `Authorization: Bearer`. Netlify reserves
+// AWS_-prefixed variable names, hence BEDROCK_API_KEY rather than
+// AWS_BEARER_TOKEN_BEDROCK.
 
-import Anthropic from '@anthropic-ai/sdk';
+import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk';
 
-// Melbourne, not Sydney — the parent's decision after the first real device.
-// Sydney (ap-southeast-2) offers Claude Sonnet 5 only through the global
-// inference profile, which routes anywhere; it has neither an in-region
-// endpoint nor an AU-geography profile for this model, so both
-// `anthropic.claude-sonnet-5` and `au.anthropic.claude-sonnet-5` were answered
-// with a 404 there. Melbourne (ap-southeast-4) serves the model in-region, so
-// the bare model ID works with no inference profile at all, and her speech
-// stays in Australia. Both are overridable: BEDROCK_REGION, BEDROCK_MODEL.
-const DEFAULT_REGION = 'ap-southeast-4';
-const DEFAULT_MODEL = 'anthropic.claude-sonnet-5';
+const DEFAULT_REGION = 'ap-southeast-2';
+
+// An inference-profile ID, because the classic endpoint serves newer Claude
+// models only through cross-region inference — a bare `anthropic.` ID is
+// refused with a 400 asking for a profile. `au.` routes within the Australian
+// regions. The versioned Sonnet 4.5 ID is the one this account is known to
+// have; the diagnostic (context-diagnose) lists what else it can see. Override
+// with BEDROCK_MODEL, and change BEDROCK_REGION with it: the profiles a region
+// offers depend on the region.
+const DEFAULT_MODEL = 'au.anthropic.claude-sonnet-4-5-20250929-v1:0';
 
 export const name = 'bedrock-claude';
 export const keyVar = 'BEDROCK_API_KEY';
@@ -112,11 +119,7 @@ export async function correct({ tokens, pronunciations, corrections, signal, env
   const region = env.BEDROCK_REGION || DEFAULT_REGION;
   const model = env.BEDROCK_MODEL || DEFAULT_MODEL;
 
-  const client = new Anthropic({
-    apiKey: key,
-    baseURL: 'https://bedrock-mantle.' + region + '.api.aws/anthropic',
-    maxRetries: 1
-  });
+  const client = new AnthropicBedrock({ apiKey: key, awsRegion: region, maxRetries: 1 });
 
   let message;
   try {
@@ -125,10 +128,10 @@ export async function correct({ tokens, pronunciations, corrections, signal, env
         model,
         max_tokens: 2048,
         system: SYSTEM,
-        // Adaptive thinking, at the lowest effort: the judgement is real but
-        // small, and a child is waiting for the screen to fill in.
-        thinking: { type: 'adaptive' },
-        output_config: { effort: 'low' },
+        // No thinking parameter: Sonnet 4.5 takes the older budget form, the
+        // 4.6+ models the adaptive form, and the ID is configurable — so the
+        // request stays on the surface every Claude model accepts. The
+        // judgement is small, and a child is waiting for the screen to fill in.
         tools: [DECIDE],
         tool_choice: { type: 'tool', name: DECIDE.name },
         messages: [{ role: 'user', content: buildPrompt(tokens, pronunciations, corrections) }]
@@ -194,8 +197,7 @@ export function buildPrompt(tokens, pronunciations, corrections) {
 // read-only control-plane calls that can: the models offered in the region,
 // the system-defined inference profiles, and the per-model availability record
 // (which says outright whether the account is authorised). Same bearer key,
-// sent as a bearer token rather than as x-api-key, because these are AWS's own
-// APIs rather than the Messages-API endpoint.
+// sent to AWS's control plane as a bearer token.
 //
 // Nothing here is cached and nothing is written; every failure is reported as
 // a status and a redacted message rather than thrown, because the whole point
@@ -218,7 +220,7 @@ export async function diagnose({ env, probe }) {
     region,
     keyConfigured: Boolean(key),
     configuredModel: configured,
-    messagesEndpoint: 'https://bedrock-mantle.' + region + '.api.aws/anthropic',
+    invokeEndpoint: 'https://bedrock-runtime.' + region + '.amazonaws.com',
     calls: {}
   };
   if (!key) {
@@ -285,7 +287,7 @@ export async function diagnose({ env, probe }) {
 
   // 3. Is the account authorised for the IDs it might use here?
   const bare = configured.replace(GEO_PREFIX, '');
-  const candidates = [...new Set([configured, bare, 'global.' + bare, 'au.' + bare])];
+  const candidates = [...new Set([configured, bare, 'global.' + bare, 'au.' + bare, 'apac.' + bare])];
   report.availability = {};
   for (const id of candidates) {
     const avail = await get('/foundation-model-availability/' + encodeURIComponent(id));
@@ -299,11 +301,12 @@ export async function diagnose({ env, probe }) {
       : { status: avail.status, error: avail.error };
   }
 
-  // 4. Optionally, ask the Messages endpoint itself, with the smallest request
-  //    there is, and report exactly what it says.
+  // 4. Optionally, ask the InvokeModel endpoint itself — the one correction
+  //    uses — with the smallest request there is, and report exactly what it
+  //    says.
   if (probe !== undefined && probe !== null) {
     const model = probe || configured;
-    const client = new Anthropic({ apiKey: key, baseURL: report.messagesEndpoint, maxRetries: 0 });
+    const client = new AnthropicBedrock({ apiKey: key, awsRegion: region, maxRetries: 0 });
     try {
       const message = await client.messages.create({
         model,
@@ -336,6 +339,11 @@ function asProviderError(e) {
   // model ID where an inference profile is needed, or a model not offered
   // there. Named on its own so the banner says which, not just "a problem".
   if (status === 404) return new ProviderError('model-not-found', 'provider has no such model in this region', 502);
+  // The classic endpoint's own way of saying the same thing: a 400 telling
+  // you to "retry your request with the ID or ARN of an inference profile".
+  if (status === 400 && /inference profile/i.test(String(e && e.message))) {
+    return new ProviderError('needs-inference-profile', 'model ID needs an inference profile here', 502);
+  }
   if (status >= 400) return new ProviderError('provider-error', 'provider returned ' + status, 502);
   return new ProviderError('unreachable', 'could not reach the provider', 502);
 }

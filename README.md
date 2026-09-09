@@ -80,8 +80,8 @@ Speech-To-Text sends each transcript to a second Netlify Function, which asks
 Claude to apply her corrections *with the sentence in view* rather than blindly.
 That function needs a Bedrock API key.
 
-**1. Get the key.** In the AWS console, switch to **Asia Pacific (Melbourne)
-`ap-southeast-4`** — see *Why Melbourne* below — then:
+**1. Get the key.** In the AWS console, switch to **Asia Pacific (Sydney)
+`ap-southeast-2`** — see *Which endpoint, region and model* below — then:
 
 > **Amazon Bedrock → Model access** (left menu, under *Configure and learn*) →
 > **Modify model access** → tick **Anthropic → Claude Sonnet 5** → **Next**.
@@ -123,9 +123,11 @@ a new variable on a new deploy.
 **4. Check it.** Open Speech-To-Text, tap the mic, say a sentence with a word
 she has a confirmed correction for. If the key is missing or wrong, the app says
 so under the corrected text — *Context correction unavailable (not-configured)*,
-*(not-authorised)* or *(model-not-found)* — and falls back to the old blind
-find-and-replace. *model-not-found* means Bedrock has no route for the model ID
-in that region — go to step 5 rather than guessing another ID.
+*(not-authorised)*, *(model-not-found)* or *(needs-inference-profile)* — and
+falls back to the old blind find-and-replace. *model-not-found* means Bedrock
+has no route for the model ID in that region; *needs-inference-profile* means
+it wants a `global.`/`au.` profile ID rather than a bare `anthropic.` one. Go
+to step 5 rather than guessing another ID.
 
 **5. Ask Bedrock what this account can see.** The function has a read-only
 diagnostic that uses the same key. Open it in a browser on the deployed site
@@ -134,7 +136,7 @@ diagnostic that uses the same key. Open it in a browser on the deployed site
 | URL | What it reports |
 |---|---|
 | `/.netlify/functions/context-diagnose` | The Anthropic models offered in the region, every system-defined inference profile with *anthropic* in it (and which regions each routes to), and for the configured model ID — plus its bare, `global.` and `au.` forms — whether the account is **authorised** for it |
-| `/.netlify/functions/context-diagnose?probe` | The same, then one one-token request to the configured model, reporting exactly what the Messages endpoint said |
+| `/.netlify/functions/context-diagnose?probe` | The same, then one one-token request to the configured model through the same InvokeModel endpoint correction uses, reporting exactly what came back |
 | `/.netlify/functions/context-diagnose?probe=<model-id>` | The same probe against an ID of your choosing |
 
 How to read it:
@@ -151,32 +153,37 @@ How to read it:
 - A `403` under `calls` — the key's IAM user cannot list models. The key still
   works for correction; only the diagnosis is blind. The same three questions
   can be asked with the AWS CLI as an admin:
-  `aws bedrock list-inference-profiles --region ap-southeast-4 --type-equals SYSTEM_DEFINED`
-  and `aws bedrock get-foundation-model-availability --model-id anthropic.claude-sonnet-5`.
+  `aws bedrock list-inference-profiles --region ap-southeast-2 --type-equals SYSTEM_DEFINED`
+  and `aws bedrock get-foundation-model-availability --model-id anthropic.claude-sonnet-4-5-20250929-v1:0`.
 
 The report never contains the key, and nothing in it is cached or written.
 
-**Why Melbourne.** The first choice was Sydney, `ap-southeast-2`, for the
-residency answer. Checked against the account: Sydney offers Claude Sonnet 5
-only through the *global* inference profile, which routes anywhere — it has
-neither an in-region endpoint nor an AU-geography profile for this model, so
-both `anthropic.claude-sonnet-5` and `au.anthropic.claude-sonnet-5` were
-answered with a 404 there. Melbourne, `ap-southeast-4`, serves the model
-in-region, so the bare model ID works with no inference profile, and her speech
-still stays in Australia. Enable model access with Melbourne selected (step 1).
-To use a different region, set `BEDROCK_REGION` and `BEDROCK_MODEL` together —
-the ID a region accepts depends on the region.
+**Which endpoint, region and model.** Bedrock has two endpoints for Claude.
+The newer Messages-API one (`bedrock-mantle`) serves Claude Sonnet 5 and later,
+but this account is not enabled for it: every model there answers 403 *"not
+available for this account, contact AWS Sales"*, and the older models 404. The
+classic InvokeModel endpoint (`bedrock-runtime`) is proven on the same
+account — it is what the parent's worksheet generator uses, in Sydney, with
+Claude Sonnet 4.5 — so that is what the function uses, through the official
+Bedrock SDK's classic client with the same API key as a bearer token. On the
+classic endpoint the newer Claude models are served only through cross-region
+inference, so the model ID is an inference-profile ID (`au.` keeps routing
+inside the Australian regions; `global.` routes anywhere), never a bare
+`anthropic.` one. The defaults below are Sydney and the AU profile of the
+versioned Sonnet 4.5 ID; if your worksheet generator uses a different ID, set
+`BEDROCK_MODEL` to that. When the account is enabled for the newer endpoint,
+Sonnet 5 is a provider-file change, not a rewrite.
 
 Two optional variables:
 
 | Variable | Default | What it does |
 |---|---|---|
-| `BEDROCK_REGION` | `ap-southeast-4` | The AWS region, and therefore where her speech is processed |
-| `BEDROCK_MODEL` | `anthropic.claude-sonnet-5` | Swap models without a code change. The bare ID works in Melbourne because the model is served in-region there; a region that only offers the model through cross-region inference needs a profile ID such as `global.anthropic.claude-sonnet-5` |
+| `BEDROCK_REGION` | `ap-southeast-2` | The AWS region, and therefore where her speech is processed |
+| `BEDROCK_MODEL` | `au.anthropic.claude-sonnet-4-5-20250929-v1:0` | Swap models without a code change. An inference-profile ID (`au.` or `global.` prefix); a bare `anthropic.` ID is refused on the classic endpoint with *needs-inference-profile* |
 | `CONTEXT_PROVIDER` | `bedrock-claude` | Selects the provider module in `netlify/functions/providers/` |
 
-Cost: one short request per spoken transcript, on Sonnet at low effort. This is
-smaller than the transcription bill, not larger.
+Cost: one short request per spoken transcript, on Sonnet 4.5 with no thinking.
+This is smaller than the transcription bill, not larger.
 
 See [CLAUDE.md](CLAUDE.md) §10 for why this exists and what is load-bearing
 about how it works.

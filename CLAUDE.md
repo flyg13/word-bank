@@ -356,41 +356,48 @@ and Reading, which know the word she was asked for and can therefore tell a
 correction from a guess. This step only ever changes what is on screen. Nothing
 it does is saved to Firestore, and the schema is unchanged by this feature.
 
-**Provider: Claude Sonnet 5 on Amazon Bedrock, ap-southeast-4 (Melbourne).**
-Parent's decision, and the same residency reasoning as §9's future move: a
-school asking where a child's speech is processed gets "Melbourne" as the
-answer for this half already. (Sydney was the first choice; why it changed is
-below.) Behind the same provider-interface pattern as the
-recogniser — one file in `netlify/functions/providers/` — so model or platform
-is a swap, not a rewrite. Authentication is a Bedrock API key (bearer token),
-which the Messages-API Bedrock endpoint takes as `x-api-key`; that is what the
-standard Anthropic client sends, so this is the official SDK pointed at a base
-URL rather than a hand-rolled HTTP call. Netlify reserves `AWS_`-prefixed
-variable names, so the key is `BEDROCK_API_KEY`.
+**Provider: Claude on Amazon Bedrock, ap-southeast-2 (Sydney), through the
+classic InvokeModel endpoint.** Parent's decision, and the same residency
+reasoning as §9's future move: a school asking where a child's speech is
+processed gets "Sydney" as the answer for this half already. Behind the same
+provider-interface pattern as the recogniser — one file in
+`netlify/functions/providers/` — so model or platform is a swap, not a rewrite.
+Authentication is a Bedrock API key (bearer token); the official Bedrock SDK's
+classic client takes it as `apiKey` and sends it as `Authorization: Bearer`,
+so this is the official SDK, not a hand-rolled HTTP call. Netlify reserves
+`AWS_`-prefixed variable names, so the key is `BEDROCK_API_KEY`.
 
-**Region and model ID: Melbourne, and the bare `anthropic.claude-sonnet-5`
-(parent's decision, September 2026).** The first choice was Sydney,
-ap-southeast-2. On the first real device the bare model ID was answered with a
-404 there, so the default became the AU inference profile,
-`au.anthropic.claude-sonnet-5`, on the reading that Sydney had no in-region
-endpoint but did sit inside an AU geography. That was answered with a 404 as
-well, and the console showed no Anthropic inference profiles in Sydney at all.
-Checked against the account rather than the documentation: **Sydney offers
-Claude Sonnet 5 only through the global inference profile,** which routes
-anywhere — it has neither an in-region endpoint nor an AU-geography profile for
-this model. **Melbourne, ap-southeast-4, serves the model in-region,** so the
-bare ID works with no profile, and her speech stays in Australia. Both are
-overridable (`BEDROCK_REGION`, `BEDROCK_MODEL`), and they must be changed
-together: the ID a region accepts depends on the region.
+**How the endpoint, region and model were settled (September 2026).** The
+first build used the newer Messages-API endpoint (`bedrock-mantle`) with Claude
+Sonnet 5 in Sydney. On the first real device the bare model ID was answered
+with a 404; so was the `au.` inference profile; the account showed no Anthropic
+profiles in Sydney; and Melbourne, the one Australian region with an in-region
+endpoint, was tried next. The finding that settled it: **this account is not
+enabled for the newer endpoint at all** — every model there answers 403 *"not
+available for this account, contact AWS Sales"*, and the older models 404. The
+classic InvokeModel endpoint (`bedrock-runtime`) is proven on the same account:
+the parent's worksheet generator runs Claude Sonnet 4.5 through it in Sydney.
+**So the provider now uses the classic endpoint, in Sydney, with the versioned
+Sonnet 4.5 ID as an inference profile** (`au.anthropic.claude-sonnet-4-5-20250929-v1:0`
+by default — the classic endpoint serves newer Claude models only through
+cross-region inference, and `au.` keeps routing inside Australia). `BEDROCK_REGION`
+and `BEDROCK_MODEL` override the defaults and must change together. The request
+carries no thinking parameter, because Sonnet 4.5 and the 4.6+ models take
+different forms and the model is configurable; the judgement is small enough
+not to need it. When the account is enabled for the newer endpoint, Sonnet 5
+is a change to this one provider file.
 
-Two things came out of the detour and stay. A 404 from the provider is reported
-as `model-not-found` rather than the generic `provider-error`, so the banner
-says which. And there is a read-only diagnostic, `context-diagnose`, behind the
-same provider interface: it lists the Anthropic models offered in the region,
-the system-defined inference profiles, and Bedrock's own authorisation status
-for each candidate ID, and on request sends one one-token probe and reports
-exactly what came back — so the next region or model question is answered by
-asking, not guessing. The README's step 5 says how to read it.
+Three things the detour left behind. A 404 from the provider is reported as
+`model-not-found`, and the classic endpoint's "retry with an inference
+profile" 400 as `needs-inference-profile`, rather than the generic
+`provider-error`, so the banner says which. And there is a read-only
+diagnostic, `context-diagnose`, behind the same provider interface: it lists
+the Anthropic models offered in the region, the system-defined inference
+profiles, and Bedrock's own authorisation status for each candidate ID, and
+on request sends one one-token probe through the same endpoint correction
+uses and reports exactly what came back — so the next region or model
+question is answered by asking, not guessing. The README's step 5 says how to
+read it.
 
 ### Three things that were not obvious, and are load-bearing
 

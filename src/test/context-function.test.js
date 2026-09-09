@@ -7,8 +7,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const create = vi.fn();
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: class {
+vi.mock('@anthropic-ai/bedrock-sdk', () => ({
+  AnthropicBedrock: class {
     constructor(options) {
       this.options = options;
       this.messages = { create };
@@ -62,22 +62,25 @@ describe('the contextual-correction function', () => {
       { index: 1, to: 'little', reason: 'A bottle in a child’s sentence.' }
     ]);
     expect(body.provider).toBe('bedrock-claude');
-    expect(body.model).toBe('anthropic.claude-sonnet-5');
+    expect(body.model).toBe('au.anthropic.claude-sonnet-4-5-20250929-v1:0');
   });
 
-  it('asks Melbourne, over the Bedrock endpoint, with the bearer token', async () => {
+  it('asks Sydney, through the classic Bedrock client, with the bearer token', async () => {
     // The residency promise in CLAUDE.md §10 is this line of configuration.
+    // The classic client builds bedrock-runtime.<region>.amazonaws.com from the
+    // region and sends apiKey as a bearer token; no base URL is hand-built.
     answers([]);
     await handler(post({ tokens: ['hello'], ...PATTERNS }));
-    expect(create.lastClient.baseURL).toBe('https://bedrock-mantle.ap-southeast-4.api.aws/anthropic');
+    expect(create.lastClient.awsRegion).toBe('ap-southeast-2');
     expect(create.lastClient.apiKey).toBe('bedrock-test-token');
+    expect(create.lastClient.baseURL).toBeUndefined();
   });
 
   it('sends the sentence and both pattern lists, numbered', async () => {
     answers([]);
     await handler(post({ tokens: ['the', 'liquor', 'bottle'], ...PATTERNS }));
     const request = create.mock.calls[0][0];
-    expect(request.model).toBe('anthropic.claude-sonnet-5');
+    expect(request.model).toBe('au.anthropic.claude-sonnet-4-5-20250929-v1:0');
     const prompt = request.messages[0].content;
     expect(prompt).toContain('1. liquor');
     expect(prompt).toContain('"little" she says as: liddle');
@@ -147,15 +150,27 @@ describe('the contextual-correction function', () => {
     expect(await res.text()).not.toContain('bedrock-secret');
   });
 
-  it('asks for the bare model ID in-region, not an inference profile', async () => {
-    // Sydney offers Sonnet 5 only through the global profile, which routes
-    // anywhere; Melbourne serves it in-region. So the defaults are Melbourne
-    // and the bare ID — no geo prefix, which is what a profile would carry.
+  it('asks for an inference-profile ID, and sends no thinking parameter', async () => {
+    // The classic endpoint serves newer Claude models only through
+    // cross-region inference, so a bare `anthropic.` ID is refused. And the
+    // model is configurable across generations with different thinking
+    // parameters, so the request carries none.
     answers([]);
     await handler(post({ tokens: ['hello'], ...PATTERNS }));
-    expect(create.mock.calls[0][0].model).toBe('anthropic.claude-sonnet-5');
-    expect(create.mock.calls[0][0].model).not.toMatch(/^(global|us|eu|jp|apac|au)\./);
-    expect(create.lastClient.baseURL).toContain('ap-southeast-4');
+    const request = create.mock.calls[0][0];
+    expect(request.model).toMatch(/^au\.anthropic\./);
+    expect(request.thinking).toBeUndefined();
+    expect(request.output_config).toBeUndefined();
+    expect(request.tool_choice).toEqual({ type: 'tool', name: 'report_corrections' });
+  });
+
+  it('names the classic endpoint’s “use an inference profile” 400 on its own', async () => {
+    create.mockRejectedValue(Object.assign(
+      new Error("Invocation of model ID anthropic.claude-sonnet-4-5-20250929-v1:0 with on-demand throughput isn't supported. Retry your request with the ID or ARN of an inference profile that contains this model."),
+      { status: 400 }
+    ));
+    const res = await handler(post({ tokens: ['hello'], ...PATTERNS }));
+    expect((await res.json()).error).toBe('needs-inference-profile');
   });
 
   it('names a 404 as model-not-found rather than a generic provider error', async () => {
@@ -165,13 +180,13 @@ describe('the contextual-correction function', () => {
   });
 
   it('honours a model and region override without a code change', async () => {
-    process.env.BEDROCK_MODEL = 'global.anthropic.claude-haiku-4-5';
-    process.env.BEDROCK_REGION = 'ap-southeast-2';
+    process.env.BEDROCK_MODEL = 'global.anthropic.claude-sonnet-4-5-20250929-v1:0';
+    process.env.BEDROCK_REGION = 'ap-southeast-4';
     answers([]);
     const res = await handler(post({ tokens: ['hello'], ...PATTERNS }));
-    expect(create.mock.calls[0][0].model).toBe('global.anthropic.claude-haiku-4-5');
-    expect(create.lastClient.baseURL).toContain('ap-southeast-2');
-    expect((await res.json()).model).toBe('global.anthropic.claude-haiku-4-5');
+    expect(create.mock.calls[0][0].model).toBe('global.anthropic.claude-sonnet-4-5-20250929-v1:0');
+    expect(create.lastClient.awsRegion).toBe('ap-southeast-4');
+    expect((await res.json()).model).toBe('global.anthropic.claude-sonnet-4-5-20250929-v1:0');
   });
 });
 
@@ -217,6 +232,7 @@ describe('the provider interface', () => {
   it('is swappable in one file, by contract', () => {
     const source = readFileSync(resolve(ROOT, 'netlify/functions/contextual-correct.mjs'), 'utf8');
     expect(source).not.toContain('bedrock-mantle');
+    expect(source).not.toContain('bedrock-runtime');
     expect(source).not.toContain('BEDROCK_API_KEY');
     expect(source).not.toContain('claude-sonnet');
     expect(source).toMatch(/provider\.correct\(/);
@@ -227,7 +243,7 @@ describe('the provider interface', () => {
     // API client — and its whole dependency tree — into a page a child loads.
     const { execSync } = require('node:child_process');
     const hits = execSync(
-      "grep -rl \"@anthropic-ai/sdk\" src/ || true",
+      "grep -rl \"@anthropic-ai/\" src/ || true",
       { cwd: ROOT, encoding: 'utf8' }
     ).trim().split('\n').filter((line) => line && !line.includes('/test/'));
     expect(hits).toEqual([]);
