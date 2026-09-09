@@ -80,8 +80,8 @@ Speech-To-Text sends each transcript to a second Netlify Function, which asks
 Claude to apply her corrections *with the sentence in view* rather than blindly.
 That function needs a Bedrock API key.
 
-**1. Get the key.** In the AWS console, switch to **Asia Pacific (Sydney)
-`ap-southeast-2`**, then:
+**1. Get the key.** In the AWS console, switch to **Asia Pacific (Melbourne)
+`ap-southeast-4`** — see *Why Melbourne* below — then:
 
 > **Amazon Bedrock → Model access** (left menu, under *Configure and learn*) →
 > **Modify model access** → tick **Anthropic → Claude Sonnet 5** → **Next**.
@@ -151,25 +151,28 @@ How to read it:
 - A `403` under `calls` — the key's IAM user cannot list models. The key still
   works for correction; only the diagnosis is blind. The same three questions
   can be asked with the AWS CLI as an admin:
-  `aws bedrock list-inference-profiles --region ap-southeast-2 --type-equals SYSTEM_DEFINED`
+  `aws bedrock list-inference-profiles --region ap-southeast-4 --type-equals SYSTEM_DEFINED`
   and `aws bedrock get-foundation-model-availability --model-id anthropic.claude-sonnet-5`.
 
 The report never contains the key, and nothing in it is cached or written.
 
-**Melbourne instead of Sydney.** `ap-southeast-4` is the one Australian region
-with a direct, in-region endpoint for Claude, so it takes the bare model ID
-with no inference profile at all. If Sydney keeps refusing, set
-`BEDROCK_REGION=ap-southeast-4` **and** `BEDROCK_MODEL=anthropic.claude-sonnet-5`
-together (the default model ID is Sydney's `au.` profile, which is not what
-Melbourne wants), enable model access in Melbourne too (step 1, with that
-region selected), and redeploy. Her speech is still processed in Australia.
+**Why Melbourne.** The first choice was Sydney, `ap-southeast-2`, for the
+residency answer. Checked against the account: Sydney offers Claude Sonnet 5
+only through the *global* inference profile, which routes anywhere — it has
+neither an in-region endpoint nor an AU-geography profile for this model, so
+both `anthropic.claude-sonnet-5` and `au.anthropic.claude-sonnet-5` were
+answered with a 404 there. Melbourne, `ap-southeast-4`, serves the model
+in-region, so the bare model ID works with no inference profile, and her speech
+still stays in Australia. Enable model access with Melbourne selected (step 1).
+To use a different region, set `BEDROCK_REGION` and `BEDROCK_MODEL` together —
+the ID a region accepts depends on the region.
 
 Two optional variables:
 
 | Variable | Default | What it does |
 |---|---|---|
-| `BEDROCK_REGION` | `ap-southeast-2` | The AWS region, and therefore where her speech is processed |
-| `BEDROCK_MODEL` | `au.anthropic.claude-sonnet-5` | Swap models without a code change. An inference-profile ID: Sydney has no in-region endpoint for Claude, so the bare `anthropic.claude-sonnet-5` is answered with a 404 there. In Melbourne (`ap-southeast-4`) use the bare ID |
+| `BEDROCK_REGION` | `ap-southeast-4` | The AWS region, and therefore where her speech is processed |
+| `BEDROCK_MODEL` | `anthropic.claude-sonnet-5` | Swap models without a code change. The bare ID works in Melbourne because the model is served in-region there; a region that only offers the model through cross-region inference needs a profile ID such as `global.anthropic.claude-sonnet-5` |
 | `CONTEXT_PROVIDER` | `bedrock-claude` | Selects the provider module in `netlify/functions/providers/` |
 
 Cost: one short request per spoken transcript, on Sonnet at low effort. This is

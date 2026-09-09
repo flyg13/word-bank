@@ -356,10 +356,11 @@ and Reading, which know the word she was asked for and can therefore tell a
 correction from a guess. This step only ever changes what is on screen. Nothing
 it does is saved to Firestore, and the schema is unchanged by this feature.
 
-**Provider: Claude Sonnet 5 on Amazon Bedrock, ap-southeast-2 (Sydney).**
+**Provider: Claude Sonnet 5 on Amazon Bedrock, ap-southeast-4 (Melbourne).**
 Parent's decision, and the same residency reasoning as §9's future move: a
-school asking where a child's speech is processed gets "Sydney" as the answer
-for this half already. Behind the same provider-interface pattern as the
+school asking where a child's speech is processed gets "Melbourne" as the
+answer for this half already. (Sydney was the first choice; why it changed is
+below.) Behind the same provider-interface pattern as the
 recogniser — one file in `netlify/functions/providers/` — so model or platform
 is a swap, not a rewrite. Authentication is a Bedrock API key (bearer token),
 which the Messages-API Bedrock endpoint takes as `x-api-key`; that is what the
@@ -367,28 +368,29 @@ standard Anthropic client sends, so this is the official SDK pointed at a base
 URL rather than a hand-rolled HTTP call. Netlify reserves `AWS_`-prefixed
 variable names, so the key is `BEDROCK_API_KEY`.
 
-**The model ID is the AU inference profile, `au.anthropic.claude-sonnet-5`,
-not the bare `anthropic.claude-sonnet-5`.** Found on the first real device: the
-bare ID was answered with a 404, because Bedrock has no in-region endpoint for
-Claude in Sydney — only Melbourne has one — and every Claude model there is
-served by cross-region inference. The `au.` profile routes within the
-Australian regions (Sydney and Melbourne), so the residency answer stays
-"Australia". There is no `apac.` profile for this model, and `global.` would
-route anywhere. A 404 from the provider is now reported as `model-not-found`
-rather than the generic `provider-error`, so the banner says which.
+**Region and model ID: Melbourne, and the bare `anthropic.claude-sonnet-5`
+(parent's decision, September 2026).** The first choice was Sydney,
+ap-southeast-2. On the first real device the bare model ID was answered with a
+404 there, so the default became the AU inference profile,
+`au.anthropic.claude-sonnet-5`, on the reading that Sydney had no in-region
+endpoint but did sit inside an AU geography. That was answered with a 404 as
+well, and the console showed no Anthropic inference profiles in Sydney at all.
+Checked against the account rather than the documentation: **Sydney offers
+Claude Sonnet 5 only through the global inference profile,** which routes
+anywhere — it has neither an in-region endpoint nor an AU-geography profile for
+this model. **Melbourne, ap-southeast-4, serves the model in-region,** so the
+bare ID works with no profile, and her speech stays in Australia. Both are
+overridable (`BEDROCK_REGION`, `BEDROCK_MODEL`), and they must be changed
+together: the ID a region accepts depends on the region.
 
-**Then the `au.` profile was answered with a 404 too, and the console showed no
-Anthropic inference profiles in Sydney at all.** Two different faults produce
-that picture — access to Anthropic models not yet granted to the account in the
-region, or an ID the endpoint does not route — and guessing IDs cannot tell
-them apart. So there is now a read-only diagnostic, `context-diagnose`, behind
-the same provider interface: it lists the Anthropic models offered in the
-region, the system-defined inference profiles, and Bedrock's own
-authorisation status for each candidate ID, and on request sends one one-token
-probe and reports exactly what came back. No more guessing; the README's step 5
-says how to read it. The fallback if Sydney keeps refusing is Melbourne,
-`ap-southeast-4` — the one Australian region with an in-region endpoint, which
-takes the bare model ID and needs no profile — still inside Australia.
+Two things came out of the detour and stay. A 404 from the provider is reported
+as `model-not-found` rather than the generic `provider-error`, so the banner
+says which. And there is a read-only diagnostic, `context-diagnose`, behind the
+same provider interface: it lists the Anthropic models offered in the region,
+the system-defined inference profiles, and Bedrock's own authorisation status
+for each candidate ID, and on request sends one one-token probe and reports
+exactly what came back — so the next region or model question is answered by
+asking, not guessing. The README's step 5 says how to read it.
 
 ### Three things that were not obvious, and are load-bearing
 

@@ -62,14 +62,14 @@ describe('the contextual-correction function', () => {
       { index: 1, to: 'little', reason: 'A bottle in a child’s sentence.' }
     ]);
     expect(body.provider).toBe('bedrock-claude');
-    expect(body.model).toBe('au.anthropic.claude-sonnet-5');
+    expect(body.model).toBe('anthropic.claude-sonnet-5');
   });
 
-  it('asks Sydney, over the Bedrock endpoint, with the bearer token', async () => {
+  it('asks Melbourne, over the Bedrock endpoint, with the bearer token', async () => {
     // The residency promise in CLAUDE.md §10 is this line of configuration.
     answers([]);
     await handler(post({ tokens: ['hello'], ...PATTERNS }));
-    expect(create.lastClient.baseURL).toBe('https://bedrock-mantle.ap-southeast-2.api.aws/anthropic');
+    expect(create.lastClient.baseURL).toBe('https://bedrock-mantle.ap-southeast-4.api.aws/anthropic');
     expect(create.lastClient.apiKey).toBe('bedrock-test-token');
   });
 
@@ -77,7 +77,7 @@ describe('the contextual-correction function', () => {
     answers([]);
     await handler(post({ tokens: ['the', 'liquor', 'bottle'], ...PATTERNS }));
     const request = create.mock.calls[0][0];
-    expect(request.model).toBe('au.anthropic.claude-sonnet-5');
+    expect(request.model).toBe('anthropic.claude-sonnet-5');
     const prompt = request.messages[0].content;
     expect(prompt).toContain('1. liquor');
     expect(prompt).toContain('"little" she says as: liddle');
@@ -147,14 +147,15 @@ describe('the contextual-correction function', () => {
     expect(await res.text()).not.toContain('bedrock-secret');
   });
 
-  it('asks for the AU inference profile, because Sydney has no in-region route', async () => {
-    // The first real device got a 404: Bedrock has no single-region endpoint
-    // for Claude in ap-southeast-2, only the AU profile (Sydney + Melbourne)
-    // or global. The bare model ID is exactly the thing that fails.
+  it('asks for the bare model ID in-region, not an inference profile', async () => {
+    // Sydney offers Sonnet 5 only through the global profile, which routes
+    // anywhere; Melbourne serves it in-region. So the defaults are Melbourne
+    // and the bare ID — no geo prefix, which is what a profile would carry.
     answers([]);
     await handler(post({ tokens: ['hello'], ...PATTERNS }));
-    expect(create.mock.calls[0][0].model).toBe('au.anthropic.claude-sonnet-5');
-    expect(create.mock.calls[0][0].model).not.toMatch(/^anthropic\./);
+    expect(create.mock.calls[0][0].model).toBe('anthropic.claude-sonnet-5');
+    expect(create.mock.calls[0][0].model).not.toMatch(/^(global|us|eu|jp|apac|au)\./);
+    expect(create.lastClient.baseURL).toContain('ap-southeast-4');
   });
 
   it('names a 404 as model-not-found rather than a generic provider error', async () => {
@@ -164,13 +165,13 @@ describe('the contextual-correction function', () => {
   });
 
   it('honours a model and region override without a code change', async () => {
-    process.env.BEDROCK_MODEL = 'anthropic.claude-haiku-4-5';
-    process.env.BEDROCK_REGION = 'ap-southeast-4';
+    process.env.BEDROCK_MODEL = 'global.anthropic.claude-haiku-4-5';
+    process.env.BEDROCK_REGION = 'ap-southeast-2';
     answers([]);
     const res = await handler(post({ tokens: ['hello'], ...PATTERNS }));
-    expect(create.mock.calls[0][0].model).toBe('anthropic.claude-haiku-4-5');
-    expect(create.lastClient.baseURL).toContain('ap-southeast-4');
-    expect((await res.json()).model).toBe('anthropic.claude-haiku-4-5');
+    expect(create.mock.calls[0][0].model).toBe('global.anthropic.claude-haiku-4-5');
+    expect(create.lastClient.baseURL).toContain('ap-southeast-2');
+    expect((await res.json()).model).toBe('global.anthropic.claude-haiku-4-5');
   });
 });
 

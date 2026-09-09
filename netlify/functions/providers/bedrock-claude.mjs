@@ -1,9 +1,9 @@
 // Context-aware correction provider: Claude Sonnet 5 on Amazon Bedrock,
-// ap-southeast-2 (Sydney).
+// ap-southeast-4 (Melbourne).
 //
 // Why Bedrock and not the first-party API: the parent's decision, and the same
 // reasoning as CLAUDE.md §9's residency note — a school asking where a child's
-// speech is processed gets "Sydney" as the answer.
+// speech is processed gets "Melbourne" as the answer.
 //
 // Auth is a Bedrock API key (bearer token), not SigV4. The Messages-API Bedrock
 // endpoint accepts that as `x-api-key`, which is exactly what the standard
@@ -13,16 +13,16 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 
-const DEFAULT_REGION = 'ap-southeast-2';
-
-// An inference-profile ID, not the bare model ID. Sydney has no in-region
-// endpoint for Claude on Bedrock — only Melbourne (ap-southeast-4) does — so a
-// request for `anthropic.claude-sonnet-5` in ap-southeast-2 is answered with a
-// 404, which is what the Netlify log showed on the first real device. The `au.`
-// profile routes within the Australian regions (Sydney and Melbourne), which
-// keeps the residency answer "Australia". There is no `apac.` profile for this
-// model, and `global.` would route anywhere. Override with BEDROCK_MODEL.
-const DEFAULT_MODEL = 'au.anthropic.claude-sonnet-5';
+// Melbourne, not Sydney — the parent's decision after the first real device.
+// Sydney (ap-southeast-2) offers Claude Sonnet 5 only through the global
+// inference profile, which routes anywhere; it has neither an in-region
+// endpoint nor an AU-geography profile for this model, so both
+// `anthropic.claude-sonnet-5` and `au.anthropic.claude-sonnet-5` were answered
+// with a 404 there. Melbourne (ap-southeast-4) serves the model in-region, so
+// the bare model ID works with no inference profile at all, and her speech
+// stays in Australia. Both are overridable: BEDROCK_REGION, BEDROCK_MODEL.
+const DEFAULT_REGION = 'ap-southeast-4';
+const DEFAULT_MODEL = 'anthropic.claude-sonnet-5';
 
 export const name = 'bedrock-claude';
 export const keyVar = 'BEDROCK_API_KEY';
@@ -185,7 +185,8 @@ export function buildPrompt(tokens, pronunciations, corrections) {
 // ---------------------------------------------------------------------------
 // Diagnosis: what this account can actually see in this region.
 //
-// The first two model IDs tried in Sydney were both answered with a 404, and
+// The first two model IDs tried in Sydney were both answered with a 404 (see
+// the region note above), and
 // the console's inference-profile list showed no Anthropic entries at all. Two
 // different problems produce that picture — the account has not been granted
 // access to Anthropic models in the region, or the ID is simply not one this

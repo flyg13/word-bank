@@ -99,9 +99,9 @@ describe('the diagnostic function', () => {
       '/foundation-model-availability/': () => ({ status: 200, body: { authorizationStatus: 'AUTHORIZED', entitlementAvailability: 'AVAILABLE', regionAvailability: 'AVAILABLE', agreementAvailability: { status: 'AVAILABLE' } } })
     });
     const report = await (await get()).json();
-    expect(report.region).toBe('ap-southeast-2');
+    expect(report.region).toBe('ap-southeast-4');
     calls.forEach((call) => {
-      expect(call.url.startsWith('https://bedrock.ap-southeast-2.amazonaws.com/')).toBe(true);
+      expect(call.url.startsWith('https://bedrock.ap-southeast-4.amazonaws.com/')).toBe(true);
       expect(call.headers.Authorization).toBe('Bearer ' + KEY);
     });
   });
@@ -178,14 +178,14 @@ describe('the diagnostic function', () => {
     });
     create.mockRejectedValue(Object.assign(new Error('model not found'), { status: 404 }));
     const report = await (await get('?probe=anthropic.claude-sonnet-5')).json();
-    expect(create.lastClient.baseURL).toBe('https://bedrock-mantle.ap-southeast-2.api.aws/anthropic');
+    expect(create.lastClient.baseURL).toBe('https://bedrock-mantle.ap-southeast-4.api.aws/anthropic');
     expect(create.mock.calls[0][0]).toMatchObject({ model: 'anthropic.claude-sonnet-5', max_tokens: 1 });
     expect(report.probe).toMatchObject({ model: 'anthropic.claude-sonnet-5', ok: false, status: 404, code: 'model-not-found' });
 
     create.mockResolvedValue({ model: 'claude-sonnet-5' });
     const ok = await (await get('?probe')).json();
-    expect(create.mock.calls[1][0].model).toBe('au.anthropic.claude-sonnet-5');
-    expect(ok.probe).toEqual({ model: 'au.anthropic.claude-sonnet-5', ok: true, answeredBy: 'claude-sonnet-5' });
+    expect(create.mock.calls[1][0].model).toBe('anthropic.claude-sonnet-5');
+    expect(ok.probe).toEqual({ model: 'anthropic.claude-sonnet-5', ok: true, answeredBy: 'claude-sonnet-5' });
   });
 
   it('does not probe unless asked — a diagnosis must not spend tokens by default', async () => {
@@ -200,16 +200,16 @@ describe('the diagnostic function', () => {
   });
 
   it('follows the region override', async () => {
-    process.env.BEDROCK_REGION = 'ap-southeast-4';
+    process.env.BEDROCK_REGION = 'ap-southeast-2';
     const calls = serveBedrock({
       '/foundation-models': () => ({ status: 200, body: OFFERED }),
       '/inference-profiles': () => ({ status: 200, body: PROFILES_PAGE_2 }),
       '/foundation-model-availability/': () => ({ status: 200, body: {} })
     });
     const report = await (await get()).json();
-    expect(report.region).toBe('ap-southeast-4');
-    expect(report.messagesEndpoint).toBe('https://bedrock-mantle.ap-southeast-4.api.aws/anthropic');
-    expect(calls.every((c) => c.url.startsWith('https://bedrock.ap-southeast-4.amazonaws.com/'))).toBe(true);
+    expect(report.region).toBe('ap-southeast-2');
+    expect(report.messagesEndpoint).toBe('https://bedrock-mantle.ap-southeast-2.api.aws/anthropic');
+    expect(calls.every((c) => c.url.startsWith('https://bedrock.ap-southeast-2.amazonaws.com/'))).toBe(true);
   });
 
   it('is swappable in one file, like its siblings', () => {
