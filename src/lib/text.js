@@ -16,6 +16,35 @@ export function toWords(text) {
     .filter(Boolean);
 }
 
+/**
+ * Fit a replacement word into the place of the word it replaces: keep the
+ * original's surrounding punctuation ("liquor." stays a sentence end) and
+ * match its case ("Liquor" at a sentence start becomes "Little", a lower-case
+ * "liquor" becomes "little" even if the replacement arrived capitalised).
+ *
+ * Case follows the original in three shapes — all lower, all upper, or an
+ * initial capital. Anything else (a mixed-case original) leaves the
+ * replacement's own case alone, because there is no rule to copy.
+ */
+export function fitReplacement(original, replacement) {
+  const shell = /^([^A-Za-z0-9']*)([\s\S]*?)([^A-Za-z0-9']*)$/.exec(String(original || ''));
+  const word = shell[2];
+  const core = String(replacement || '').replace(/^[^A-Za-z0-9']+|[^A-Za-z0-9']+$/g, '') ||
+    String(replacement || '');
+  return shell[1] + matchCase(word, core) + shell[3];
+}
+
+function matchCase(model, word) {
+  const letters = model.replace(/[^A-Za-z]/g, '');
+  if (!letters) return word;
+  if (letters === letters.toLowerCase()) return word.toLowerCase();
+  if (letters.length > 1 && letters === letters.toUpperCase()) return word.toUpperCase();
+  if (/^[A-Z]/.test(letters) && letters.slice(1) === letters.slice(1).toLowerCase()) {
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  }
+  return word;
+}
+
 /** Fisher-Yates, non-mutating. */
 export function shuffle(arr) {
   const a = arr.slice();

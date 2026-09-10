@@ -14,6 +14,7 @@ import { CONTEXT_ENDPOINT, CONTEXT_TIMEOUT_MS } from '../config.js';
 import { state } from './store.js';
 import { getBankEntry } from './wordbank.js';
 import { phonicEntries } from './phonicbank.js';
+import { fitReplacement } from './text.js';
 
 export class ContextError extends Error {
   constructor(code, message) {
@@ -100,17 +101,23 @@ export async function correctWithContext(text) {
 
   // Checked again here, against this browser's own copy of the words. The
   // function validated the same things; neither side takes the other on trust.
+  //
+  // The replacement is fitted to the word it replaces before anything else
+  // sees it: the original's punctuation stays, and its case is copied, so a
+  // "Little" the model capitalised lands as "little" mid-sentence and a
+  // sentence-ending "liquor." keeps its full stop. A change that fits back to
+  // the original word is no change at all, and is dropped.
   const changes = body.changes
     .filter((change) => change && Number.isInteger(change.index))
     .filter((change) => change.index >= 0 && change.index < words.length)
     .filter((change) => typeof change.to === 'string' && change.to.trim())
-    .filter((change) => change.to !== words[change.index])
     .map((change) => ({
       index: change.index,
       from: words[change.index],
-      to: change.to.trim(),
+      to: fitReplacement(words[change.index], change.to.trim()),
       reason: typeof change.reason === 'string' ? change.reason.trim() : ''
-    }));
+    }))
+    .filter((change) => change.to !== change.from);
 
   return { changes };
 }

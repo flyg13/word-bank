@@ -86,11 +86,18 @@ export function validateChanges(changes, tokens) {
       // One word out, one word in — a replacement that adds words would change
       // the shape of the sentence, which this is not allowed to do.
       if (/\s/.test(change.to)) return false;
-      if (change.to === tokens[change.index]) return false;
+      // "Liquor" for "liquor." is the same word in a different coat; the
+      // browser fits case and punctuation to the original, so a change that
+      // only differs there would fit back to no change at all.
+      if (bareWord(change.to) === bareWord(tokens[change.index])) return false;
       if (seen.has(change.index)) return false;
       seen.add(change.index);
       return true;
     });
+}
+
+function bareWord(word) {
+  return String(word).replace(/^[^A-Za-z0-9']+|[^A-Za-z0-9']+$/g, '').toLowerCase();
 }
 
 function cleanTokens(value) {

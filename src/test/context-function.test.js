@@ -98,13 +98,39 @@ describe('the contextual-correction function', () => {
     expect(system).toMatch(/leave the word alone|leave it/);
   });
 
+  it('makes the model read the word as written before it reaches for a replacement', async () => {
+    // The first real test: told "liquor" means "little", it changed "a bottle
+    // of liquor" to "a bottle of little" — it matched the pattern without ever
+    // asking whether the original already made sense. The order is the fix.
+    answers([]);
+    await handler(post({ tokens: ['hello'], ...PATTERNS }));
+    const request = create.mock.calls[0][0];
+    const system = request.system;
+    const asWritten = system.indexOf('Read the sentence with the word exactly as written');
+    const replacement = system.indexOf('read the sentence with the replacement');
+    expect(asWritten).toBeGreaterThan(-1);
+    expect(replacement).toBeGreaterThan(asWritten);
+    expect(system).toContain('reads clearly better than');
+    expect(system).toContain('Reporting no changes is the normal answer');
+    expect(system).toContain('same case as the word it replaces');
+    // The worked example must not be her own bank entry, or her re-test of
+    // "liquor" would be proving the example rather than the rule.
+    expect(system).not.toMatch(/liquor|little/);
+    // And the user turn repeats the order, right where the words are.
+    expect(request.messages[0].content).toContain('read it as written first');
+    // The tool asks for the reason before the replacement, for the same reason.
+    const item = request.tools[0].input_schema.properties.changes.items;
+    expect(Object.keys(item.properties)).toEqual(['index', 'reason', 'to']);
+    expect(request.tools[0].description).toContain('empty list is the usual answer');
+  });
+
   it('makes the model answer in a shape, not in prose', async () => {
     answers([]);
     await handler(post({ tokens: ['hello'], ...PATTERNS }));
     const request = create.mock.calls[0][0];
     expect(request.tool_choice).toEqual({ type: 'tool', name: 'report_corrections' });
     expect(request.tools[0].input_schema.properties.changes.items.required)
-      .toEqual(['index', 'to', 'reason']);
+      .toEqual(['index', 'reason', 'to']);
   });
 
   it('spends nothing when there is nothing to weigh', async () => {
@@ -209,6 +235,11 @@ describe('what the model says is checked, not trusted', () => {
 
   it('drops a change that changes nothing, and a repeated one', () => {
     expect(validateChanges([{ index: 1, to: 'liquor', reason: '' }], tokens)).toEqual([]);
+    // Same word in a different coat: the browser fits case and punctuation to
+    // the original, so these would fit back to no change at all.
+    expect(validateChanges([{ index: 1, to: 'Liquor', reason: '' }], tokens)).toEqual([]);
+    expect(validateChanges([{ index: 1, to: 'liquor.', reason: '' }], tokens)).toEqual([]);
+    expect(validateChanges([{ index: 0, to: 'Dad' }], ['dad.', 'liquor'])).toEqual([]);
     expect(validateChanges(
       [{ index: 1, to: 'little', reason: 'a' }, { index: 1, to: 'litter', reason: 'b' }], tokens
     )).toHaveLength(1);

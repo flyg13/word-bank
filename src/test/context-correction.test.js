@@ -95,6 +95,38 @@ describe('reading a transcript with its own sentence in view', () => {
     expect(marked()).toEqual(['little']);
   });
 
+  it('fits the replacement to the word it replaces: its case and its punctuation', async () => {
+    // The first real test came back "Dad brought a bottle of → Little": the
+    // replacement capitalised mid-sentence, and the full stop gone with the
+    // word. Whatever case the model answers in, the word on screen takes the
+    // case of the one it replaces and keeps its punctuation; and that fitted
+    // word is what the log records.
+    serve({
+      transcript: 'Liquor one, the liquor.',
+      changes: [
+        { index: 0, to: 'little', reason: 'Choosing a size.' },
+        { index: 3, to: 'Little', reason: 'Choosing a size.' }
+      ]
+    });
+    await speak();
+    expect(shown()).toBe('Little one, the little.');
+    expect(marked()).toEqual(['Little', 'little.']);
+    expect(state.contextLog.map((entry) => [entry.from, entry.to])).toEqual([
+      ['Liquor', 'Little'], ['liquor.', 'little.']
+    ]);
+  });
+
+  it('drops a change that only differs from the word in case or punctuation', async () => {
+    serve({
+      transcript: 'the liquor one.',
+      changes: [{ index: 1, to: 'Liquor', reason: 'x' }, { index: 2, to: 'one', reason: 'x' }]
+    });
+    await speak();
+    expect(shown()).toBe('the liquor one.');
+    expect(marked()).toEqual([]);
+    expect(document.getElementById('contextNote').textContent).toContain('nothing needed changing');
+  });
+
   it('leaves a real word alone when the sentence says it is real', async () => {
     // The whole reason for this feature. The bank would rewrite this "liquor"
     // too, because a find-and-replace cannot read the rest of the sentence.

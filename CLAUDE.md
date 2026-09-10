@@ -448,6 +448,33 @@ sessions of it.
 the extra step is noticeable enough to be annoying: it runs after she has
 finished speaking, but it is still a wait before the corrected text settles.
 
+**The first real test failed, and what changed (September 2026).** With
+"liquor → little" confirmed, "Dad brought a bottle of liquor." came back as
+"Dad brought a bottle of → Little": the model matched the pattern without ever
+asking whether the word as written already made sense, and the replacement
+arrived capitalised mid-sentence with the full stop gone. Two fixes, both the
+parent's call:
+
+1. **The prompt now reads the original first.** For each word a list covers,
+   the model is told to read the sentence with the word exactly as written and
+   keep it if it makes sense; only if it does not, read it with the
+   replacement, and change it only when that reads clearly better; and when
+   neither does, keep the word. A confirmed correction is evidence, not an
+   order. The tool asks for the reason *before* the replacement, so the model
+   writes out why the original cannot be right before it commits to a word,
+   and the worked example in the prompt is a pair that is not in her bank —
+   the parent's own re-test of "liquor" proves the rule, not the example.
+2. **A replacement is fitted to the word it replaces** before it is shown or
+   logged: the original's case is copied and its punctuation kept, so
+   "liquor." becomes "little." and only a sentence-initial "Liquor" becomes
+   "Little". A change that fits back to the original is dropped, on both
+   sides — the function also treats "Liquor" for "liquor." as no change.
+
+The prompt is a lever, not a proof. Whether Sonnet 4.5 now leaves "a bottle
+of liquor" alone is the next thing to check on the iPad, with a second
+sentence where the change *is* right ("I want the liquor one") to confirm it
+still fires.
+
 ## 11. Changing the family code from Word Bank (parent's decision)
 
 **The problem.** The family code is typed once, on the entry screen, and then
