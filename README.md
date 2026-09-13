@@ -74,6 +74,170 @@ netlify dev                    # app + functions, on one port
 `netlify dev` reads the key from your linked site, or from a local `.env`
 holding `OPENAI_API_KEY=sk-…`. **`.env` is gitignored; keep it that way.**
 
+## The context-correction service (one-time setup)
+
+Speech-To-Text sends each transcript to a second Netlify Function, which asks
+Claude to apply her corrections *with the sentence in view* rather than blindly.
+That function asks **Claude Opus 5 on the direct Anthropic API** and needs an
+Anthropic API key. (It first ran on Amazon Bedrock; that provider is kept and
+is one variable away — see *Returning to Bedrock* below for why it is not the
+default any more.)
+
+**1. Get the key.** In the [Anthropic Console](https://console.anthropic.com/)
+→ **API keys** → **Create key**. Copy it once; it is not shown again.
+
+**2. Put it in Netlify.** Same place as the speech key:
+
+> **Site configuration → Environment variables → Add a variable → Add a single
+> variable**
+
+| Field | Value |
+|---|---|
+| Key | `ANTHROPIC_API_KEY` |
+| Value | the key you created |
+| Scopes | leave as **All scopes** (it must include Functions) |
+| Deploy contexts | **All deploy contexts** |
+
+Nothing else is required. `CONTEXT_PROVIDER` may stay unset, and the Bedrock
+variables may stay as they are or be removed; they are read only when Bedrock
+is selected.
+
+**3. Redeploy** (Deploys → Trigger deploy → Deploy site). Functions only pick up
+a new variable on a new deploy.
+
+**4. Check it.** Open Speech-To-Text, tap the mic, say a sentence with a word
+she has a confirmed correction for. If the key is missing or wrong, the app says
+so under the corrected text — *Context correction unavailable (not-configured)*,
+*(not-authorised)* or *(model-not-found)* — and falls back to the old blind
+find-and-replace. Then the two sentences the switch was made for, with
+"liquor → little" confirmed: *"Dad brought a bottle of liquor"* must come back
+unchanged, and *"I want the liquor one"* must change.
+
+**5. Ask the provider what this key can see.** The function has a read-only
+diagnostic that goes through **whichever provider `CONTEXT_PROVIDER` selects**
+— the same path her sentences take — using the same key. Open it in a browser
+on the deployed site (or a preview):
+
+| URL | What it reports |
+|---|---|
+| `/.netlify/functions/context-diagnose` | Which provider is in use and which model is configured, then what that provider can see (below) |
+| `/.netlify/functions/context-diagnose?probe` | The same, then one one-token request to the configured model through the same endpoint correction uses, reporting exactly what came back |
+| `/.netlify/functions/context-diagnose?probe=<model-id>` | The same probe against an ID of your choosing |
+
+Through the direct API (`provider: "anthropic-claude"`), the report carries
+`models` — every model ID the key can see — and `configuredModelResolves`,
+which says whether the configured ID (an alias such as `claude-opus-5`
+included) is one the API knows, with the ID it resolves to under
+`configuredModelInfo`. How to read it:
+
+- `calls.listModels.status: 401` — the key is wrong or revoked. Step 1.
+- `configuredModelResolves: false` with a 404 — `ANTHROPIC_MODEL` names an ID
+  the API does not know. Pick one from `models`.
+- `probe.status: 429` or `529` — busy, not broken; the app's banner says
+  *rate-limited* for both, and it is worth a moment and another go.
+
+The report never contains the key, and nothing in it is cached or written.
+
+The variables, all optional:
+
+| Variable | Default | What it does |
+|---|---|---|
+| `CONTEXT_PROVIDER` | `anthropic-claude` | Selects the provider module in `netlify/functions/providers/`: `anthropic-claude` (the direct API) or `bedrock-claude` |
+| `ANTHROPIC_MODEL` | `claude-opus-5` | Swap models on the direct API without a code change. The request carries no thinking parameter, so Opus 5 thinks adaptively (its default) and an older model simply answers |
+| `BEDROCK_REGION` | `ap-southeast-2` | Bedrock only: the AWS region, and therefore where her speech is processed |
+| `BEDROCK_MODEL` | `au.anthropic.claude-sonnet-4-5-20250929-v1:0` | Bedrock only: an inference-profile ID (`au.` or `global.` prefix); a bare `anthropic.` ID is refused on the classic endpoint with *needs-inference-profile* |
+
+Cost: one short request per spoken transcript, on Opus 5 with adaptive
+thinking. Still smaller than the transcription bill.
+
+See [CLAUDE.md](CLAUDE.md) §10 for why this exists, why it moved off Bedrock,
+and what is load-bearing about how it works.
+
+### Returning to Bedrock
+
+**Why it is not the default.** The Bedrock account has a model agreement for
+Claude Sonnet 4.5 only — Opus 4.8 answers 403 *"not available for this
+account"* — and Sonnet 4.5 failed the context test twice, changing *"a bottle
+of liquor"* to *"a bottle of little"* even after the prompt was made to read
+the original first. That is a judgement failure, and the fix is a stronger
+model, which the direct API has today. The Bedrock provider file is intact
+and sends exactly the same prompt; when the account's Sonnet 5 access on
+Bedrock comes through, the switch back is:
+
+| Variable | Value |
+|---|---|
+| `CONTEXT_PROVIDER` | `bedrock-claude` |
+| `BEDROCK_API_KEY` | the Bedrock API key (below) |
+| `BEDROCK_MODEL` | the Sonnet 5 inference-profile ID the diagnostic lists |
+
+then redeploy, and run step 5: the diagnostic follows the switch.
+
+**The Bedrock key.** In the AWS console, switch to **Asia Pacific (Sydney)
+`ap-southeast-2`** — see *Which endpoint, region and model* below — then:
+
+> **Amazon Bedrock → Model access** (left menu, under *Configure and learn*) →
+> **Modify model access** → tick **Anthropic → Claude Sonnet 5** → **Next**.
+> The first time an account enables any Anthropic model, the console asks for
+> **use case details** (company, website, industry, who the users are, what it
+> is for) — one form, once per account. Fill it in, **Submit**, then **Review →
+> Submit** on the access page. The row reads *In progress* and then *Access
+> granted*, usually within minutes. Model access is per region: do this with
+> the region set to the one `BEDROCK_REGION` names.
+>
+> If the console has a **Model catalog** instead, open **Claude Sonnet 5** there
+> and use its **Request access** / **Available to request** button — same form.
+>
+> **Amazon Bedrock → API keys** — create a key. Long-term keys expire; a
+> short-term one lasts 12 hours, so use a long-term key here and note its expiry.
+> The key belongs to an IAM user Bedrock creates for it; that user carries
+> `AmazonBedrockLimitedAccess`, which is enough for both the requests and
+> the diagnostic.
+
+**The name matters.** Netlify reserves every `AWS_`-prefixed variable name for
+its own build environment, so the usual `AWS_BEARER_TOKEN_BEDROCK` cannot be
+used here — hence `BEDROCK_API_KEY`.
+
+**What the app says when Bedrock fails.** Two codes are Bedrock's own:
+*model-not-found* means Bedrock has no route for the model ID in that region;
+*needs-inference-profile* means it wants a `global.`/`au.` profile ID rather
+than a bare `anthropic.` one. Run the diagnostic rather than guessing another
+ID.
+
+**Reading the diagnostic through Bedrock** (`provider: "bedrock-claude"`). The
+report carries the Anthropic models offered in the region, every
+system-defined inference profile with *anthropic* in it (and which regions each
+routes to), and for the configured model ID — plus its bare, `global.` and
+`au.` forms — whether the account is **authorised** for it:
+
+- `availability[...].authorizationStatus: "NOT_AUTHORIZED"` — the account has
+  not been granted access to that model in that region. Model access is the
+  fix, not a different ID.
+- `AUTHORIZED` but the probe answers 404 — the ID is not one this endpoint
+  routes in this region. Use one from `anthropicInferenceProfiles`, or a
+  region that lists the model in-region.
+- `anthropicInferenceProfiles: []` with a healthy `inferenceProfileCount` —
+  there really are no Anthropic profiles in the region for this account, which
+  again points at access, not the ID.
+- A `403` under `calls` — the key's IAM user cannot list models. The key still
+  works for correction; only the diagnosis is blind. The same three questions
+  can be asked with the AWS CLI as an admin:
+  `aws bedrock list-inference-profiles --region ap-southeast-2 --type-equals SYSTEM_DEFINED`
+  and `aws bedrock get-foundation-model-availability --model-id anthropic.claude-sonnet-4-5-20250929-v1:0`.
+
+**Which endpoint, region and model.** Bedrock has two endpoints for Claude.
+The newer Messages-API one (`bedrock-mantle`) serves Claude Sonnet 5 and later,
+but this account is not enabled for it: every model there answers 403 *"not
+available for this account, contact AWS Sales"*, and the older models 404. The
+classic InvokeModel endpoint (`bedrock-runtime`) is proven on the same
+account — it is what the parent's worksheet generator uses, in Sydney, with
+Claude Sonnet 4.5 — so that is what the provider uses, through the official
+Bedrock SDK's classic client with the same API key as a bearer token. On the
+classic endpoint the newer Claude models are served only through cross-region
+inference, so the model ID is an inference-profile ID (`au.` keeps routing
+inside the Australian regions; `global.` routes anywhere), never a bare
+`anthropic.` one. The defaults are Sydney and the AU profile of the versioned
+Sonnet 4.5 ID.
+
 ## Testing it by hand
 
 ```bash
@@ -164,6 +328,8 @@ src/
     recorder.js         MediaRecorder plus Web Audio silence detection
     capture.js          record -> gate -> send, and the Voice Lock seam
     transcribe.js       client for the transcription function
+    context-correct.js  client for the context-correction function
+    correction-log.js   a rolling record of what Claude changed (synced, most recent 50)
     vocab.js            her bank, as vocabulary hints for the recogniser
     align.js            word-sequence alignment (see below)
     similarity.js       how much two words resemble each other
@@ -181,8 +347,13 @@ src/
   test/                 unit tests
 e2e/smoke.mjs           browser smoke test
 netlify/functions/
-  transcribe.mjs        audio in, text out — holds nothing, delegates
-  providers/openai.mjs  the only file that knows a provider exists
+  transcribe.mjs           audio in, text out — holds nothing, delegates
+  contextual-correct.mjs   transcript + her patterns in, decisions out
+  context-diagnose.mjs    read-only: which model IDs this account can see (README step 5)
+  providers/openai.mjs         the only file that knows the recogniser's provider
+  providers/claude-prompt.mjs  the one prompt every Claude provider sends
+  providers/anthropic-claude.mjs Claude Opus 5 on the direct API — the default
+  providers/bedrock-claude.mjs   Claude on Bedrock — kept, CONTEXT_PROVIDER away
 netlify.toml            hosting: build, previews, functions, cache headers
 redirect/index.html     what the old GitHub Pages URL now serves
 legacy/index.html       the original single-file app, kept for reference
@@ -391,3 +562,9 @@ by Firestore security rules.
 Each device prompts once for a shared family code and stores it in
 `localStorage`; every device using the same code reads and writes the same
 document under `families/<code>`.
+
+To move a device to a different code — a school iPad joining the family, or a
+new code replacing a short one — use *Word Bank → Family code*. It shows the
+code the device is using, takes a new one, and restarts the app on it. It goes
+through the same storage as the entry screen, so nothing else needs clearing,
+and nothing is deleted: the data stays under the old code.

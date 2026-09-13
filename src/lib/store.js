@@ -20,6 +20,10 @@ export const state = {
   attemptLog: {},
   phonicBank: {},
   speechLang: DEFAULT_SPEECH_LANG,
+  // What Claude changed in Speech-To-Text, newest first. Synced so the parent
+  // can read it from any device; never read by anything that decides a
+  // correction.
+  contextLog: [],
 
   // Local only — not persisted
   practiceQueue: [],

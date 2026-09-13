@@ -13,6 +13,9 @@ import { describeWeakSpelling } from '../lib/collisions.js';
 import { practiceWord } from './practice.js';
 import { activateTab } from './tabs.js';
 import { isWeakSpelling, phoneticKeys } from '../lib/phonetics.js';
+import { readCorrectionLog, clearCorrectionLog } from '../lib/correction-log.js';
+import { getStoredFamilyCode, saveFamilyCode } from '../lib/family-code.js';
+import { CORRECTION_LOG_LIMIT } from '../config.js';
 import { bindMic } from './mic.js';
 import { buildQueue, attemptKey } from './practice.js';
 
@@ -309,7 +312,8 @@ function exportBank() {
     reading_passage: state.readingPassage,
     reading_progress: state.readingProgress,
     phonic_bank: state.phonicBank,
-    speech_lang: state.speechLang
+    speech_lang: state.speechLang,
+    context_log: state.contextLog
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -364,6 +368,15 @@ function importBank(file) {
       state.speechLang = data.speech_lang;
       save('speech_lang', state.speechLang);
     }
+    if (Array.isArray(data.context_log)) {
+      // Newest first on both sides; entries already here are not repeated.
+      const known = new Set(state.contextLog.map((entry) => entry.id));
+      const incoming = data.context_log.filter((entry) => entry && !known.has(entry.id));
+      state.contextLog = [...state.contextLog, ...incoming]
+        .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')))
+        .slice(0, CORRECTION_LOG_LIMIT);
+      save('context_log', state.contextLog);
+    }
     buildQueue();
     renderAll();
     window.alert('Imported successfully.');
@@ -373,7 +386,13 @@ function importBank(file) {
 
 // ---------- Wiring ----------
 
-export function initBank() {
+/**
+ * @param {object} [options]
+ * @param {() => void} [options.reload] how to restart the app after the family
+ *   code changes — firestore.js reads the code once, on connect, so a switch is
+ *   a reload. Injectable so a test can see the switch without navigating.
+ */
+export function initBank({ reload = () => window.location.reload() } = {}) {
   document.getElementById('bankSearch').addEventListener('input', renderBankList);
 
   document.getElementById('manualAddBtn').addEventListener('click', () => {
@@ -461,8 +480,135 @@ export function initBank() {
     e.target.value = '';
   });
 
+  document.getElementById('clearContextLog').addEventListener('click', () => {
+    clearCorrectionLog();
+    renderContextLog();
+  });
+
+  bindFamilyCode(reload);
+
   onRender(renderBankList);
   onRender(renderAttemptLog);
   onRender(renderPhonicList);
   onRender(renderSpeechLang);
+  onRender(renderContextLog);
+}
+
+// ---------- Family code ----------
+
+/**
+ * Show the code this device is using, and let it be changed in place.
+ *
+ * The parent's decision. Until now, moving a device to another code meant
+ * clearing Safari's website data, which is how a teacher would have had to set
+ * up a school iPad and how the parent would have had to leave a short code
+ * behind. Storage is exactly the entry screen's — same key, same
+ * normalisation, same refusal of a code with nothing in it — so the device
+ * ends up in the state it would be in had that code been typed on first open.
+ */
+function bindFamilyCode(reload) {
+  const input = document.getElementById('familyCodeInput');
+  const note = document.getElementById('familyCodeNote');
+  const button = document.getElementById('familyCodeBtn');
+  if (!input || !note || !button) return;
+
+  renderFamilyCode();
+
+  const attempt = () => {
+    const before = getStoredFamilyCode();
+    const typed = input.value;
+    if (!typed.trim()) {
+      note.textContent = 'Type the code to switch to.';
+      input.focus();
+      return;
+    }
+    const code = saveFamilyCode(typed);
+    if (!code) {
+      // saveFamilyCode stores nothing in this case, so the device keeps the
+      // code it had.
+      note.textContent = 'Use letters and numbers — for example, harlie-home.';
+      input.focus();
+      return;
+    }
+    if (code === before) {
+      note.textContent = 'This device is already using “' + code + '”.';
+      return;
+    }
+    // Stored. Firestore reads the code once when it connects, so the switch
+    // itself is a restart — say so, because the screen is about to go blank.
+    note.textContent = 'Switching to “' + code + '”…';
+    button.disabled = true;
+    reload();
+  };
+
+  button.addEventListener('click', attempt);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      attempt();
+    }
+  });
+}
+
+export function renderFamilyCode() {
+  const el = document.getElementById('familyCodeCurrent');
+  if (!el) return;
+  const code = getStoredFamilyCode();
+  el.textContent = code ? '“' + code + '”' : '(none)';
+}
+
+/**
+ * What Claude changed in Speech-To-Text, newest first.
+ *
+ * Built with DOM nodes rather than markup, like the bank list: every value here
+ * is text a recogniser produced or a model returned, and none of it is ever
+ * treated as HTML.
+ */
+export function renderContextLog() {
+  const view = document.getElementById('contextLogView');
+  if (!view) return;
+  const entries = readCorrectionLog();
+
+  view.innerHTML = '';
+  if (!entries.length) {
+    view.append(
+      Object.assign(document.createElement('span'), {
+        className: 'empty-note',
+        textContent: 'Nothing changed yet.'
+      })
+    );
+    return;
+  }
+
+  entries.forEach((entry) => {
+    const row = document.createElement('div');
+    row.className = 'ctx-row';
+
+    const heading = document.createElement('div');
+    heading.append(
+      Object.assign(document.createElement('b'), { textContent: '“' + entry.from + '”' }),
+      document.createTextNode(' → '),
+      Object.assign(document.createElement('b'), { textContent: '“' + entry.to + '”' })
+    );
+    if (entry.reverted) {
+      heading.append(
+        document.createTextNode(' '),
+        Object.assign(document.createElement('span'), {
+          className: 'ctx-undone',
+          textContent: '— you put it back'
+        })
+      );
+    }
+    row.append(heading);
+
+    if (entry.reason) {
+      row.append(
+        Object.assign(document.createElement('span'), {
+          className: 'ctx-reason',
+          textContent: entry.reason
+        })
+      );
+    }
+    view.append(row);
+  });
 }

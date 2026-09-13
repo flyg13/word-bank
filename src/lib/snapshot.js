@@ -36,6 +36,7 @@ export function foldSnapshot(state, data) {
   state.attemptLog = data.attempt_log || {};
   state.phonicBank = data.phonic_bank || {};
   state.speechLang = validLang(data.speech_lang);
+  state.contextLog = Array.isArray(data.context_log) ? data.context_log : [];
 }
 
 /** Fall back rather than hand the recognizer something it will reject. */
@@ -47,6 +48,7 @@ function validLang(lang) {
 export const SYNCED_FIELDS = [
   'attempt_log',
   'confirm_counts',
+  'context_log',
   'phonic_bank',
   'reading_index',
   'reading_passage',

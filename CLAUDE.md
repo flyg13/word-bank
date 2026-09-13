@@ -328,3 +328,214 @@ to the browser recogniser instead of paying for another timeout.
 before anything is sent: `addClipGate()` registers a check that runs on the
 clip, and a refusal means nothing leaves the device. Enrolment plus one gate is
 the whole integration.
+
+## 10. Context-aware correction in Speech-To-Text (parent's decision)
+
+**The problem.** The correction bank has no context. Once "liquor → little" is
+confirmed, it rewrites *every* "liquor" — including a real one, in a sentence
+where she plainly meant it. The same is true of every entry: a find-and-replace
+cannot read the rest of the sentence, and the more the bank fills, the more
+often it will be wrong about a word it has no business touching.
+
+This is the mirror of §3's collision risk. Phonetic matching was scoped to a
+single expected word precisely because a global scan over-matches. Speech-To-Text
+has no expected word, so the bank fires there with nothing to check it against.
+
+**The decision.** Use Claude to apply corrections with the sentence in view, so
+the bank becomes knowledge Claude weighs rather than rules that fire blindly.
+
+**The flow.** After the recogniser returns a Speech-To-Text transcript, the
+browser sends it to a second Netlify Function along with her pronunciations and
+her *confirmed* corrections. Claude gets the transcript and the patterns with a
+plain instruction: using the sentence, decide which words are her known
+mispronunciations and which are the real word. Each changed word is marked, and
+one tap puts it back.
+
+**Claude's changes never feed the bank.** Learning stays in Practice, Sentences
+and Reading, which know the word she was asked for and can therefore tell a
+correction from a guess. This step only ever changes what is on screen. Nothing
+it does is saved to Firestore, and the schema is unchanged by this feature.
+
+**Provider, as first built: Claude on Amazon Bedrock, ap-southeast-2 (Sydney),
+through the classic InvokeModel endpoint.** *Superseded in September 2026 by the
+direct Anthropic API — see the end of this section; the Bedrock provider is
+kept, one variable away.* Parent's decision, and the same residency
+reasoning as §9's future move: a school asking where a child's speech is
+processed gets "Sydney" as the answer for this half already. Behind the same
+provider-interface pattern as the recogniser — one file in
+`netlify/functions/providers/` — so model or platform is a swap, not a rewrite.
+Authentication is a Bedrock API key (bearer token); the official Bedrock SDK's
+classic client takes it as `apiKey` and sends it as `Authorization: Bearer`,
+so this is the official SDK, not a hand-rolled HTTP call. Netlify reserves
+`AWS_`-prefixed variable names, so the key is `BEDROCK_API_KEY`.
+
+**How the endpoint, region and model were settled (September 2026).** The
+first build used the newer Messages-API endpoint (`bedrock-mantle`) with Claude
+Sonnet 5 in Sydney. On the first real device the bare model ID was answered
+with a 404; so was the `au.` inference profile; the account showed no Anthropic
+profiles in Sydney; and Melbourne, the one Australian region with an in-region
+endpoint, was tried next. The finding that settled it: **this account is not
+enabled for the newer endpoint at all** — every model there answers 403 *"not
+available for this account, contact AWS Sales"*, and the older models 404. The
+classic InvokeModel endpoint (`bedrock-runtime`) is proven on the same account:
+the parent's worksheet generator runs Claude Sonnet 4.5 through it in Sydney.
+**So the provider now uses the classic endpoint, in Sydney, with the versioned
+Sonnet 4.5 ID as an inference profile** (`au.anthropic.claude-sonnet-4-5-20250929-v1:0`
+by default — the classic endpoint serves newer Claude models only through
+cross-region inference, and `au.` keeps routing inside Australia). `BEDROCK_REGION`
+and `BEDROCK_MODEL` override the defaults and must change together. The request
+carries no thinking parameter, because Sonnet 4.5 and the 4.6+ models take
+different forms and the model is configurable; the judgement is small enough
+not to need it. When the account is enabled for the newer endpoint, Sonnet 5
+is a change to this one provider file.
+
+Three things the detour left behind. A 404 from the provider is reported as
+`model-not-found`, and the classic endpoint's "retry with an inference
+profile" 400 as `needs-inference-profile`, rather than the generic
+`provider-error`, so the banner says which. And there is a read-only
+diagnostic, `context-diagnose`, behind the same provider interface: it lists
+the Anthropic models offered in the region, the system-defined inference
+profiles, and Bedrock's own authorisation status for each candidate ID, and
+on request sends one one-token probe through the same endpoint correction
+uses and reports exactly what came back — so the next region or model
+question is answered by asking, not guessing. The README's step 5 says how to
+read it.
+
+### Three things that were not obvious, and are load-bearing
+
+**1. Claude reports decisions against word positions, never a rewritten string.**
+The transcript goes over numbered, and what comes back is `{index, to, reason}`.
+A rewritten sentence would have to be re-aligned against the original — the
+exact class of bug §1's alignment fix existed to remove — and a model that
+quietly reordered, dropped or added a word would not be noticed. Positions
+cannot do either. Both the function and the browser then check every change
+against their own copy of the words; neither takes the other on trust.
+
+**2. The prompt says the bank is evidence, not an instruction.** Without that,
+this becomes a general autocorrect, and an app whose entire job is noticing how
+she actually speaks would start hiding it. Claude is told explicitly: only
+change a word one of the lists covers, never fix spelling or grammar it was not
+given a pattern for, and when the sentence does not settle it, leave the word
+alone. A missed correction is recoverable; a wrong one may never be noticed.
+
+**3. Only confirmed corrections are sent.** A pending one has been seen once and
+is not yet trusted to fire on its own in the bank — it is not trusted here
+either.
+
+**Fallback.** If the function cannot be reached, the app applies confirmed
+corrections the old way and says so, naming the code and saying plainly that
+this is the behaviour the feature replaces: *a word that only looks like one of
+hers will have been changed too.* Never silent.
+
+**The log.** A rolling record of every change — word, replacement, reason — in
+Word Bank, so a change that keeps happening, or one the parent keeps undoing, is
+easy to spot. Undoing marks an entry rather than deleting it, because a change
+that is always reverted is exactly the pattern the log exists to surface.
+
+It was first kept in `localStorage`, as a record of what one device showed.
+**Parent's decision, September 2026: it is now a synced field, `context_log`,
+on the family document,** so it can be reviewed from any device — the iPad is
+where changes happen and the parent's own device is where they get read. It is
+a rolling log of the most recent 50 entries, newest first, and the whole list is
+written on each change, so the document can never grow past that. It is purely
+additive: the ten original fields are untouched and the differential test pins
+that, in both directions — the port writes only `context_log` when it logs, and
+the original single-file app reads and writes around a document that carries
+it. Nothing reads the log to decide a correction, so it still cannot feed the
+bank. The old device-local log is not migrated; there was never more than a few
+sessions of it.
+
+**What to watch on the iPad.** Whether Claude leaves real words alone — say
+"dad bought a liquor bottle" once the bank has that entry and see. And whether
+the extra step is noticeable enough to be annoying: it runs after she has
+finished speaking, but it is still a wait before the corrected text settles.
+
+**The first real test failed, and what changed (September 2026).** With
+"liquor → little" confirmed, "Dad brought a bottle of liquor." came back as
+"Dad brought a bottle of → Little": the model matched the pattern without ever
+asking whether the word as written already made sense, and the replacement
+arrived capitalised mid-sentence with the full stop gone. Two fixes, both the
+parent's call:
+
+1. **The prompt now reads the original first.** For each word a list covers,
+   the model is told to read the sentence with the word exactly as written and
+   keep it if it makes sense; only if it does not, read it with the
+   replacement, and change it only when that reads clearly better; and when
+   neither does, keep the word. A confirmed correction is evidence, not an
+   order. The tool asks for the reason *before* the replacement, so the model
+   writes out why the original cannot be right before it commits to a word,
+   and the worked example in the prompt is a pair that is not in her bank —
+   the parent's own re-test of "liquor" proves the rule, not the example.
+2. **A replacement is fitted to the word it replaces** before it is shown or
+   logged: the original's case is copied and its punctuation kept, so
+   "liquor." becomes "little." and only a sentence-initial "Liquor" becomes
+   "Little". A change that fits back to the original is dropped, on both
+   sides — the function also treats "Liquor" for "liquor." as no change.
+
+The prompt is a lever, not a proof. Whether Sonnet 4.5 now leaves "a bottle
+of liquor" alone is the next thing to check on the iPad, with a second
+sentence where the change *is* right ("I want the liquor one") to confirm it
+still fires.
+
+**The second test failed too, and the provider changed (parent's decision,
+September 2026).** With the read-as-written prompt in place, Sonnet 4.5 still
+changed "a bottle of liquor" to "a bottle of little". Two facts settled what
+to do about it. The Bedrock account has a model agreement for Sonnet 4.5
+only — Opus 4.8 answers 403 *"not available for this account"* — so a stronger
+model is not available there. And this is a judgement task: the prompt had
+been made as explicit as it usefully can be, and the judgement was still the
+failure. So the context-correction provider is now **Claude Opus 5 on the
+direct Anthropic API** (`api.anthropic.com`), authenticated with
+`ANTHROPIC_API_KEY` in Netlify, in a new provider file
+(`netlify/functions/providers/anthropic-claude.mjs`). The request carries no
+thinking parameter, which on Opus 5 means it thinks adaptively before it
+answers — the thing a judgement call wants — and `max_tokens` has room for
+that. `ANTHROPIC_MODEL` overrides the model.
+
+Three things were kept deliberately:
+
+1. **The Bedrock provider file is intact and switchable.** `CONTEXT_PROVIDER`
+   selects the provider (`anthropic-claude` is the default,
+   `bedrock-claude` the other), so when Sonnet 5 access on Bedrock comes
+   through, returning to Sydney is one variable, not a rewrite. The
+   residency reasoning above still stands; it has simply lost, for now, to
+   a correction that is actually right.
+2. **The prompt is one file, shared by both** (`providers/claude-prompt.mjs`).
+   It is the load-bearing part, and a copy in the provider not in use would
+   drift unnoticed. A test pins that neither provider carries its own.
+3. **The diagnostic follows the switch.** `context-diagnose` asks whichever
+   provider `CONTEXT_PROVIDER` selects — the same path her sentences take —
+   and reports what that provider can see: through the direct API, the
+   model IDs the key can see and whether the configured ID resolves; through
+   Bedrock, the region's models, profiles and authorisation as before. The
+   `?probe` one-token request goes through the same endpoint correction uses
+   in either case.
+
+The two sentences to re-test on the iPad are unchanged: "Dad brought a bottle
+of liquor" must come back untouched, and "I want the liquor one" must change.
+
+## 11. Changing the family code from Word Bank (parent's decision)
+
+**The problem.** The family code is typed once, on the entry screen, and then
+lives in the browser's storage for good. Moving a device to a different code —
+a teacher setting up a school iPad against her family, or the parent leaving a
+short code behind for a better one — meant clearing Safari's website data,
+which is not something a teacher can be asked to do and not something the
+parent should have to.
+
+**The decision.** Word Bank gets a "Family code" card: it shows the code this
+device is using, takes a new one, and switches the app to it.
+
+**What it does, and what it deliberately does not.** The card uses exactly the
+storage the entry screen uses — the same key, the same normalisation, the same
+refusal of a code with no letter or digit in it — so a device that switches
+ends up in the state it would be in had that code been typed on first open.
+`firestore.js` reads the code once, when it connects, so the switch itself is a
+restart of the app; the card says so before it happens. Nothing is deleted:
+her data stays under the old code, and typing that code again brings it back.
+There is no list of codes, no confirmation of who else uses one, and no way to
+copy data between codes — export and import already do that, deliberately as
+a separate, visible step.
+
+**Storage stays exactly as it was.** Same key, same normalisation, in
+`src/lib/family-code.js`; a test pins that the card carries no rules of its own.
