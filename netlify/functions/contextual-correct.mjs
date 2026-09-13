@@ -6,11 +6,16 @@
 // §10.
 //
 // Thin, like the transcription function: validate, pick a provider, hand over.
-// Swapping model or platform is one file in providers/.
+// Swapping model or platform is one file in providers/, and CONTEXT_PROVIDER
+// chooses between the ones that exist. The direct Anthropic API is the
+// default; Bedrock is kept, one variable away, for when the account's model
+// access there catches up (CLAUDE.md §10).
 
+import * as anthropicClaude from './providers/anthropic-claude.mjs';
 import * as bedrockClaude from './providers/bedrock-claude.mjs';
 
-const PROVIDERS = { 'bedrock-claude': bedrockClaude };
+const PROVIDERS = { 'anthropic-claude': anthropicClaude, 'bedrock-claude': bedrockClaude };
+const DEFAULT_PROVIDER = 'anthropic-claude';
 
 // A Speech-To-Text entry is a sentence or two. These are far above anything
 // the app produces and still refuse a request that is plainly not from it.
@@ -23,7 +28,7 @@ export default async function handler(request) {
   if (request.method !== 'POST') return fail('method-not-allowed', 'POST only', 405);
 
   const env = process.env;
-  const provider = PROVIDERS[env.CONTEXT_PROVIDER || 'bedrock-claude'];
+  const provider = PROVIDERS[env.CONTEXT_PROVIDER || DEFAULT_PROVIDER];
   if (!provider) return fail('no-provider', 'unknown CONTEXT_PROVIDER', 500);
 
   let body;

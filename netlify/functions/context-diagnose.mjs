@@ -13,17 +13,22 @@
 //   /.netlify/functions/context-diagnose?probe=<id>  the same, to a chosen ID
 //
 // Thin, like its siblings: the provider knows the platform; this file does not.
+// It asks whichever provider CONTEXT_PROVIDER selects — the same one correction
+// is using — so the report is always about the path her sentences take, and
+// what each provider can report differs (the README's step 5 reads both).
 
+import * as anthropicClaude from './providers/anthropic-claude.mjs';
 import * as bedrockClaude from './providers/bedrock-claude.mjs';
 
-const PROVIDERS = { 'bedrock-claude': bedrockClaude };
+const PROVIDERS = { 'anthropic-claude': anthropicClaude, 'bedrock-claude': bedrockClaude };
+const DEFAULT_PROVIDER = 'anthropic-claude';
 
 export default async function handler(request) {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204 });
   if (request.method !== 'GET') return fail('method-not-allowed', 'GET only', 405);
 
   const env = process.env;
-  const provider = PROVIDERS[env.CONTEXT_PROVIDER || 'bedrock-claude'];
+  const provider = PROVIDERS[env.CONTEXT_PROVIDER || DEFAULT_PROVIDER];
   if (!provider) return fail('no-provider', 'unknown CONTEXT_PROVIDER', 500);
   if (typeof provider.diagnose !== 'function') {
     return fail('no-diagnosis', 'this provider does not report what it can see', 501);

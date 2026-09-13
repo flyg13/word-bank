@@ -1,9 +1,26 @@
 // The diagnostic function: what the account can see, reported without guessing
-// and without the key. Nothing reaches AWS — fetch and the SDK are replaced.
+// and without the key, through whichever provider correction is using.
+// Nothing reaches Anthropic or AWS — fetch and both SDKs are replaced.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+// The direct API — the default provider.
+const createDirect = vi.fn();
+const listModels = vi.fn();
+const retrieveModel = vi.fn();
+vi.mock('@anthropic-ai/sdk', () => ({
+  default: class {
+    constructor(options) {
+      this.options = options;
+      this.messages = { create: createDirect };
+      this.models = { list: listModels, retrieve: retrieveModel };
+      createDirect.lastClient = options;
+    }
+  }
+}));
+
+// Bedrock — kept, and selected by CONTEXT_PROVIDER.
 const create = vi.fn();
 vi.mock('@anthropic-ai/bedrock-sdk', () => ({
   AnthropicBedrock: class {
@@ -18,9 +35,131 @@ vi.mock('@anthropic-ai/bedrock-sdk', () => ({
 const { default: handler } = await import('../../netlify/functions/context-diagnose.mjs');
 const ROOT = resolve(__dirname, '../..');
 const KEY = 'bedrock-secret-token-9f8e';
+const DIRECT_KEY = 'sk-ant-secret-key-1a2b';
 
 const get = (query = '') =>
   handler(new Request('https://example.test/.netlify/functions/context-diagnose' + query, { method: 'GET' }));
+
+/** The SDK's model list is an async iterable; a generator stands in for it. */
+const offersModels = (models) => {
+  listModels.mockImplementation(async function* () {
+    for (const m of models) yield m;
+  });
+};
+
+describe('the diagnostic function, through the direct API', () => {
+  beforeEach(() => {
+    createDirect.mockReset();
+    listModels.mockReset();
+    retrieveModel.mockReset();
+    create.mockReset();
+    process.env.ANTHROPIC_API_KEY = DIRECT_KEY;
+    // No Bedrock key at all: the default path must not need one.
+    delete process.env.BEDROCK_API_KEY;
+    offersModels([
+      { id: 'claude-opus-5', display_name: 'Claude Opus 5' },
+      { id: 'claude-sonnet-5', display_name: 'Claude Sonnet 5' }
+    ]);
+    retrieveModel.mockResolvedValue({ id: 'claude-opus-5', display_name: 'Claude Opus 5' });
+  });
+  afterEach(() => {
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_MODEL;
+    delete process.env.CONTEXT_PROVIDER;
+    delete globalThis.fetch;
+  });
+
+  it('is GET only', async () => {
+    const res = await handler(new Request('https://example.test/x', { method: 'POST' }));
+    expect(res.status).toBe(405);
+  });
+
+  it('reports the direct API as the provider in use, and touches nothing of Bedrock', async () => {
+    globalThis.fetch = vi.fn();
+    const report = await (await get()).json();
+    expect(report.provider).toBe('anthropic-claude');
+    expect(report.configuredModel).toBe('claude-opus-5');
+    expect(report.endpoint).toBe('https://api.anthropic.com');
+    expect(report.region).toBeUndefined();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('says so, and asks nothing, when there is no key', async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    const report = await (await get()).json();
+    expect(report.keyConfigured).toBe(false);
+    expect(report.error).toBe('not-configured');
+    expect(listModels).not.toHaveBeenCalled();
+    expect(createDirect).not.toHaveBeenCalled();
+  });
+
+  it('lists the models the key can see and whether the configured ID resolves', async () => {
+    const report = await (await get()).json();
+    expect(createDirect.lastClient.apiKey).toBe(DIRECT_KEY);
+    expect(report.models.map((m) => m.id)).toEqual(['claude-opus-5', 'claude-sonnet-5']);
+    expect(report.calls.listModels).toEqual({ status: 200, error: null });
+    expect(retrieveModel).toHaveBeenCalledWith('claude-opus-5');
+    expect(report.configuredModelResolves).toBe(true);
+    expect(report.configuredModelInfo).toEqual({ id: 'claude-opus-5', name: 'Claude Opus 5' });
+  });
+
+  it('reports a rejected key as a status and message, never a crash', async () => {
+    listModels.mockImplementation(() => { throw Object.assign(new Error('invalid x-api-key'), { status: 401 }); });
+    retrieveModel.mockRejectedValue(Object.assign(new Error('invalid x-api-key'), { status: 401 }));
+    const res = await get();
+    expect(res.status).toBe(200);
+    const report = await res.json();
+    expect(report.models).toBeNull();
+    expect(report.calls.listModels).toEqual({ status: 401, error: 'invalid x-api-key' });
+    expect(report.configuredModelResolves).toBe(false);
+    expect(report.calls.retrieveModel.status).toBe(401);
+  });
+
+  it('says when the configured model ID is not one the API knows', async () => {
+    process.env.ANTHROPIC_MODEL = 'claude-opus-9';
+    retrieveModel.mockRejectedValue(Object.assign(new Error('model: claude-opus-9'), { status: 404 }));
+    const report = await (await get()).json();
+    expect(report.configuredModel).toBe('claude-opus-9');
+    expect(retrieveModel).toHaveBeenCalledWith('claude-opus-9');
+    expect(report.configuredModelResolves).toBe(false);
+    expect(report.calls.retrieveModel.status).toBe(404);
+  });
+
+  it('never lets the key into the report, even when the provider echoes it', async () => {
+    listModels.mockImplementation(() => { throw Object.assign(new Error('bad key ' + DIRECT_KEY), { status: 401 }); });
+    retrieveModel.mockRejectedValue(Object.assign(new Error(DIRECT_KEY), { status: 401 }));
+    createDirect.mockRejectedValue(Object.assign(new Error('rejected ' + DIRECT_KEY), { status: 401 }));
+    const text = await (await get('?probe')).text();
+    expect(text).not.toContain(DIRECT_KEY);
+    expect(text).toContain('[key]');
+  });
+
+  it('probes the Messages endpoint on request, with one token, and says what came back', async () => {
+    createDirect.mockRejectedValue(Object.assign(new Error('not found'), { status: 404 }));
+    const report = await (await get('?probe=claude-opus-9')).json();
+    expect(createDirect.mock.calls[0][0]).toMatchObject({ model: 'claude-opus-9', max_tokens: 1 });
+    expect(report.probe).toMatchObject({ model: 'claude-opus-9', ok: false, status: 404, code: 'model-not-found' });
+
+    createDirect.mockResolvedValue({ model: 'claude-opus-5-20260601' });
+    const ok = await (await get('?probe')).json();
+    expect(createDirect.mock.calls[1][0].model).toBe('claude-opus-5');
+    expect(ok.probe).toEqual({ model: 'claude-opus-5', ok: true, answeredBy: 'claude-opus-5-20260601' });
+  });
+
+  it('does not probe unless asked — a diagnosis must not spend tokens by default', async () => {
+    const report = await (await get()).json();
+    expect(createDirect).not.toHaveBeenCalled();
+    expect(report.probe).toBeUndefined();
+  });
+
+  it('refuses an unknown CONTEXT_PROVIDER rather than guessing', async () => {
+    process.env.CONTEXT_PROVIDER = 'someone-else';
+    const res = await get();
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe('no-provider');
+  });
+});
 
 /** A fake control plane: routes by path, records every request. */
 function serveBedrock(routes) {
@@ -66,21 +205,35 @@ const PROFILES_PAGE_2 = {
   ]
 };
 
-describe('the diagnostic function', () => {
+describe('the diagnostic function, through Bedrock when CONTEXT_PROVIDER says so', () => {
   beforeEach(() => {
     create.mockReset();
+    createDirect.mockReset();
+    listModels.mockReset();
+    process.env.CONTEXT_PROVIDER = 'bedrock-claude';
     process.env.BEDROCK_API_KEY = KEY;
+    // Present on purpose: the switch must not depend on the other key's absence.
+    process.env.ANTHROPIC_API_KEY = DIRECT_KEY;
   });
   afterEach(() => {
+    delete process.env.CONTEXT_PROVIDER;
     delete process.env.BEDROCK_API_KEY;
     delete process.env.BEDROCK_REGION;
     delete process.env.BEDROCK_MODEL;
+    delete process.env.ANTHROPIC_API_KEY;
     delete globalThis.fetch;
   });
 
-  it('is GET only', async () => {
-    const res = await handler(new Request('https://example.test/x', { method: 'POST' }));
-    expect(res.status).toBe(405);
+  it('reports Bedrock as the provider in use, and never asks the direct API', async () => {
+    serveBedrock({
+      '/foundation-models': () => ({ status: 200, body: OFFERED }),
+      '/inference-profiles': () => ({ status: 200, body: PROFILES_PAGE_2 }),
+      '/foundation-model-availability/': () => ({ status: 200, body: {} })
+    });
+    const report = await (await get('?probe')).json();
+    expect(report.provider).toBe('bedrock-claude');
+    expect(listModels).not.toHaveBeenCalled();
+    expect(createDirect).not.toHaveBeenCalled();
   });
 
   it('says so, and asks nothing, when there is no key', async () => {
@@ -222,6 +375,9 @@ describe('the diagnostic function', () => {
     expect(source).not.toContain('amazonaws');
     expect(source).not.toContain('BEDROCK_API_KEY');
     expect(source).not.toContain('claude-sonnet');
+    expect(source).not.toContain('ANTHROPIC_API_KEY');
+    expect(source).not.toContain('api.anthropic.com');
+    expect(source).not.toContain('claude-opus');
     expect(source).toMatch(/provider\.diagnose\(/);
   });
 });

@@ -356,8 +356,10 @@ and Reading, which know the word she was asked for and can therefore tell a
 correction from a guess. This step only ever changes what is on screen. Nothing
 it does is saved to Firestore, and the schema is unchanged by this feature.
 
-**Provider: Claude on Amazon Bedrock, ap-southeast-2 (Sydney), through the
-classic InvokeModel endpoint.** Parent's decision, and the same residency
+**Provider, as first built: Claude on Amazon Bedrock, ap-southeast-2 (Sydney),
+through the classic InvokeModel endpoint.** *Superseded in September 2026 by the
+direct Anthropic API — see the end of this section; the Bedrock provider is
+kept, one variable away.* Parent's decision, and the same residency
 reasoning as §9's future move: a school asking where a child's speech is
 processed gets "Sydney" as the answer for this half already. Behind the same
 provider-interface pattern as the recogniser — one file in
@@ -474,6 +476,43 @@ The prompt is a lever, not a proof. Whether Sonnet 4.5 now leaves "a bottle
 of liquor" alone is the next thing to check on the iPad, with a second
 sentence where the change *is* right ("I want the liquor one") to confirm it
 still fires.
+
+**The second test failed too, and the provider changed (parent's decision,
+September 2026).** With the read-as-written prompt in place, Sonnet 4.5 still
+changed "a bottle of liquor" to "a bottle of little". Two facts settled what
+to do about it. The Bedrock account has a model agreement for Sonnet 4.5
+only — Opus 4.8 answers 403 *"not available for this account"* — so a stronger
+model is not available there. And this is a judgement task: the prompt had
+been made as explicit as it usefully can be, and the judgement was still the
+failure. So the context-correction provider is now **Claude Opus 5 on the
+direct Anthropic API** (`api.anthropic.com`), authenticated with
+`ANTHROPIC_API_KEY` in Netlify, in a new provider file
+(`netlify/functions/providers/anthropic-claude.mjs`). The request carries no
+thinking parameter, which on Opus 5 means it thinks adaptively before it
+answers — the thing a judgement call wants — and `max_tokens` has room for
+that. `ANTHROPIC_MODEL` overrides the model.
+
+Three things were kept deliberately:
+
+1. **The Bedrock provider file is intact and switchable.** `CONTEXT_PROVIDER`
+   selects the provider (`anthropic-claude` is the default,
+   `bedrock-claude` the other), so when Sonnet 5 access on Bedrock comes
+   through, returning to Sydney is one variable, not a rewrite. The
+   residency reasoning above still stands; it has simply lost, for now, to
+   a correction that is actually right.
+2. **The prompt is one file, shared by both** (`providers/claude-prompt.mjs`).
+   It is the load-bearing part, and a copy in the provider not in use would
+   drift unnoticed. A test pins that neither provider carries its own.
+3. **The diagnostic follows the switch.** `context-diagnose` asks whichever
+   provider `CONTEXT_PROVIDER` selects — the same path her sentences take —
+   and reports what that provider can see: through the direct API, the
+   model IDs the key can see and whether the configured ID resolves; through
+   Bedrock, the region's models, profiles and authorisation as before. The
+   `?probe` one-token request goes through the same endpoint correction uses
+   in either case.
+
+The two sentences to re-test on the iPad are unchanged: "Dad brought a bottle
+of liquor" must come back untouched, and "I want the liquor one" must change.
 
 ## 11. Changing the family code from Word Bank (parent's decision)
 
