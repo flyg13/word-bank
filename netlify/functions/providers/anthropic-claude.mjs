@@ -33,6 +33,26 @@ const DEFAULT_MODEL = 'claude-opus-5';
 // the rest is room to think about a sentence, not a budget to fill.
 const MAX_TOKENS = 8192;
 
+// How hard the model thinks before it answers. The API's own default is
+// `high`, and that is what the first session on Opus 5 complained about: the
+// pause before the corrected text settles is too long with a nine-year-old
+// sitting there waiting for it. `medium` is one notch down — the first step
+// that buys latency back, and the level to try before giving up depth.
+//
+// This is the tuning dial, not a decision made once: ANTHROPIC_EFFORT moves it
+// without a deploy of new code, so if `medium` ever gets one of her sentences
+// wrong the answer is `high` in Netlify, and if it is still too slow the
+// answer is `low`. A value that is not a real level is ignored rather than
+// sent — the API would refuse it, and a typo in an environment variable must
+// not be what silently drops her back to the blind find-and-replace.
+const DEFAULT_EFFORT = 'medium';
+const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
+
+export function effortFrom(env) {
+  const asked = String((env && env.ANTHROPIC_EFFORT) || '').trim().toLowerCase();
+  return EFFORT_LEVELS.includes(asked) ? asked : DEFAULT_EFFORT;
+}
+
 export const name = 'anthropic-claude';
 export const keyVar = 'ANTHROPIC_API_KEY';
 
@@ -73,7 +93,9 @@ export async function correct({ tokens, pronunciations, corrections, signal, env
         system: SYSTEM,
         // No thinking parameter, on purpose: see DEFAULT_MODEL. No sampling
         // parameters either — Opus 5 rejects non-default ones, and a
-        // judgement should not be a dice roll anyway.
+        // judgement should not be a dice roll anyway. Effort is how deeply it
+        // thinks while it does think; see DEFAULT_EFFORT.
+        output_config: { effort: effortFrom(env) },
         tools: [DECIDE],
         tool_choice: { type: 'tool', name: DECIDE.name },
         messages: [{ role: 'user', content: buildPrompt(tokens, pronunciations, corrections) }]
@@ -116,6 +138,7 @@ export async function diagnose({ env, probe }) {
     provider: name,
     keyConfigured: Boolean(key),
     configuredModel: configured,
+    configuredEffort: effortFrom(env),
     endpoint: 'https://api.anthropic.com',
     calls: {}
   };

@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { CONTEXT_TIMEOUT_MS, CORRECTION_LOG_LIMIT } from '../config.js';
 import { correctWithContext, splitForCorrection, correctionPatterns, ContextError }
   from '../lib/context-correct.js';
-import { recordContextChanges, readCorrectionLog, markReverted, clearCorrectionLog }
+import { recordContextChanges, readCorrectionLog, markReverted, markReapplied, clearCorrectionLog }
   from '../lib/correction-log.js';
 import { state, setSaver } from '../lib/store.js';
 import { foldSnapshot } from '../lib/snapshot.js';
@@ -161,10 +161,24 @@ describe('the rolling log', () => {
     expect(saved[saved.length - 1].key).toBe('context_log');
   });
 
+  it('unmarks one entry without touching the others', () => {
+    const ids = recordContextChanges([
+      { from: 'a', to: 'b', reason: '' },
+      { from: 'c', to: 'd', reason: '' }
+    ]);
+    markReverted(ids[0]);
+    markReverted(ids[1]);
+    markReapplied(ids[1]);
+    const log = readCorrectionLog();
+    expect(log.find((e) => e.from === 'c').reverted).toBe(false);
+    expect(log.find((e) => e.from === 'a').reverted).toBe(true);
+  });
+
   it('ignores an id it does not hold, without a write', () => {
     recordContextChanges([{ from: 'a', to: 'b', reason: '' }]);
     const writes = saved.length;
     markReverted('nope');
+    markReapplied('nope');
     expect(saved).toHaveLength(writes);
   });
 

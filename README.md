@@ -144,11 +144,31 @@ The variables, all optional:
 |---|---|---|
 | `CONTEXT_PROVIDER` | `anthropic-claude` | Selects the provider module in `netlify/functions/providers/`: `anthropic-claude` (the direct API) or `bedrock-claude` |
 | `ANTHROPIC_MODEL` | `claude-opus-5` | Swap models on the direct API without a code change. The request carries no thinking parameter, so Opus 5 thinks adaptively (its default) and an older model simply answers |
+| `ANTHROPIC_EFFORT` | `medium` | How hard it thinks before answering, and therefore how long she waits: `low`, `medium`, `high`, `xhigh`, `max`. See *If the wait is too long* below. A value that is not one of those five is ignored, and the default is used |
 | `BEDROCK_REGION` | `ap-southeast-2` | Bedrock only: the AWS region, and therefore where her speech is processed |
 | `BEDROCK_MODEL` | `au.anthropic.claude-sonnet-4-5-20250929-v1:0` | Bedrock only: an inference-profile ID (`au.` or `global.` prefix); a bare `anthropic.` ID is refused on the classic endpoint with *needs-inference-profile* |
 
-Cost: one short request per spoken transcript, on Opus 5 with adaptive
-thinking. Still smaller than the transcription bill.
+Cost: one short request per spoken transcript, on Opus 5 at `medium` effort.
+Still smaller than the transcription bill.
+
+**If the wait is too long — or a correction goes wrong.** The pause before the
+corrected text settles is the model thinking, and `ANTHROPIC_EFFORT` is the
+dial. It ships at `medium`, one notch below the API's own default, because the
+first real session on Opus 5 was slower than a nine-year-old will sit through.
+Move it, redeploy, and re-run the two sentences below:
+
+| If | Set it to |
+|---|---|
+| Still too slow | `low` |
+| A word of hers gets changed that should not have been, or missed | `high` |
+| Still wrong at `high` | `xhigh`, then `max` |
+
+The two sentences are the test, with `liquor → little` confirmed in her bank.
+*"Dad brought a bottle of liquor"* must come back untouched — a real word left
+alone. *"I want the liquor one"* must change. Both have to pass at whatever
+level you settle on; one without the other is not a pass. `?probe` on the
+diagnostic reports `configuredEffort`, so you can check what the deploy
+actually picked up.
 
 See [CLAUDE.md](CLAUDE.md) §10 for why this exists, why it moved off Bedrock,
 and what is load-bearing about how it works.

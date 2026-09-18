@@ -514,6 +514,62 @@ Three things were kept deliberately:
 The two sentences to re-test on the iPad are unchanged: "Dad brought a bottle
 of liquor" must come back untouched, and "I want the liquor one" must change.
 
+**The wait was too long, and effort is now the dial (parent's decision,
+September 2026).** Opus 5 answered the judgement question, but it thinks before
+it answers and the pause before the corrected text settles was longer than a
+nine-year-old will sit through with the screen half-finished. Latency is not a
+detail here: an accuracy feature she will not wait for does not get used, and
+the whole point of §7's evaluation is whether she actually uses this.
+
+So the request now carries `output_config: { effort }`, at **`medium`** — one
+notch below the API's own default of `high`. The reasoning for stepping rather
+than jumping: the model was changed *because* the judgement was failing, and
+spending that judgement back to save a second would undo the fix. `medium` is
+the smallest step that buys the wait back.
+
+**It is an environment variable, `ANTHROPIC_EFFORT`, because the right level is
+not knowable from here.** Only the iPad, mid-session, with her waiting, can say
+whether the pause is short enough and the corrections still right — and those
+two pull in opposite directions. The parent moves one variable and redeploys
+rather than asking for a code change: `low` if it is still slow, `high` and up
+if a word of hers gets changed that should not have been. A value that is not
+one of the five real levels is ignored rather than sent, because the API would
+answer 400 and the only visible symptom would be the banner saying
+*provider-error* — a typo in Netlify must not be the thing that silently drops
+her back to the blind find-and-replace. The diagnostic reports
+`configuredEffort` so the live setting can be read back.
+
+**What this does not settle.** Whether `medium` still passes both sentences is
+not known from the code: it is a property of the model, and the check is the
+same two sentences on the iPad. The level shipped is a starting point with a
+documented ladder (README, *If the wait is too long*), not a measured result.
+
+**Undo is a toggle, not a one-way door (parent's decision, September 2026).**
+Tapping a changed word put the original back and that was the end of it: the
+correction was gone, with no way to ask for it again. A marked word invites a
+tap, and a nine-year-old will take that invitation out of curiosity — so the
+one control that exists to make this feature safe was also the one control she
+could use to destroy a correction, without either of them knowing which word it
+had been.
+
+So a tap now toggles, indefinitely: her word, Claude's word, her word. The word
+stays marked in **both** states, because a word that stopped looking tappable
+once it was put back would say the change was gone for good — which is the trap
+being fixed, not a fix for it. The two states are told apart by three things
+that all survive greyscale and a colour-blind reader: a different glyph (`↩`
+against `→`), a dashed rule against a solid one, and regular weight against
+bold. Colour is the last signal, not the only one, and an e2e check reads the
+computed styles to pin that.
+
+**The log follows the screen rather than counting taps.** An entry carries one
+`reverted` flag, so reapplying a change clears it. A curious tap-and-tap-back
+must not leave a permanent "she undid this" on a change the parent never
+objected to — that would be noise in exactly the signal the log exists to
+surface. A change genuinely left undone still reads as undone, which is what
+§10's *The log* asks for. Nothing else about the log changes: still
+`context_log`, still the most recent 50, still purely additive, and still
+nothing that can feed the bank.
+
 ## 11. Changing the family code from Word Bank (parent's decision)
 
 **The problem.** The family code is typed once, on the entry screen, and then

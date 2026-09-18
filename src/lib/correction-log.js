@@ -64,17 +64,35 @@ export function recordContextChanges(changes) {
   return entries.map((entry) => entry.id);
 }
 
+function setReverted(id, reverted) {
+  const list = current();
+  if (!list.some((item) => item.id === id)) return;
+  // A new object rather than a mutation, so a snapshot the store still holds
+  // a reference to is never edited behind Firestore's back.
+  write(list.map((item) => (item.id === id ? { ...item, reverted } : item)));
+}
+
 /**
  * Note that the parent put a word back. Worth keeping rather than deleting: a
  * change that keeps being reverted is exactly the pattern this log exists to
  * surface.
  */
 export function markReverted(id) {
-  const list = current();
-  if (!list.some((item) => item.id === id)) return;
-  // A new object rather than a mutation, so a snapshot the store still holds
-  // a reference to is never edited behind Firestore's back.
-  write(list.map((item) => (item.id === id ? { ...item, reverted: true } : item)));
+  setReverted(id, true);
+}
+
+/**
+ * And note that they put Claude's word back again.
+ *
+ * The entry carries one flag, not a tally of taps, so it describes how the
+ * change stands rather than every time it was toggled. Leaving it marked undone
+ * after it has been reapplied would make the log say the opposite of the screen
+ * — and a curious tap-and-tap-back by a nine-year-old would otherwise leave a
+ * permanent mark on a change the parent never objected to, which is exactly the
+ * signal this log exists to keep clean.
+ */
+export function markReapplied(id) {
+  setReverted(id, false);
 }
 
 export function clearCorrectionLog() {

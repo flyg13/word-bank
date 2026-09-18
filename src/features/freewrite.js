@@ -3,7 +3,7 @@ import { applyBankToText, recordBankObservation, getBankEntry } from '../lib/wor
 import { suggestFromSound } from '../lib/phonicbank.js';
 import { normalize } from '../lib/text.js';
 import { correctWithContext, splitForCorrection, ContextError } from '../lib/context-correct.js';
-import { recordContextChanges, markReverted } from '../lib/correction-log.js';
+import { recordContextChanges, markReverted, markReapplied } from '../lib/correction-log.js';
 import { bindMic } from './mic.js';
 import { activateTab } from './tabs.js';
 
@@ -92,11 +92,34 @@ export function renderCorrectedOutput() {
 }
 
 /**
+ * Turn one of Claude's changes off, or back on.
+ *
+ * A tap is a toggle, never a one-way door. A marked word invites a tap, and a
+ * nine-year-old will take that invitation out of curiosity — if the first tap
+ * were final she would have destroyed a correction with no way to ask for it
+ * back, and the parent would not even know which word it had been.
+ */
+function toggleChange(change, raw) {
+  change.reverted = !change.reverted;
+  if (change.logId) (change.reverted ? markReverted : markReapplied)(change.logId);
+  showContextNote(
+    change.reverted
+      ? 'Put “' + raw + '” back — tap it again for Claude’s “' + change.to + '”. ' +
+        'The log keeps this, so a change you keep undoing is easy to spot.'
+      : 'Using Claude’s “' + change.to + '” again — tap it again for “' + raw + '”.',
+    ''
+  );
+  renderCorrectedOutput();
+}
+
+/**
  * Render the transcript with Claude's decisions applied.
  *
  * Every word Claude changed is marked, and one tap puts it back — which is the
- * whole safety story for a step that rewrites without being asked. Words it
- * left alone behave exactly as they always have.
+ * whole safety story for a step that rewrites without being asked. It stays
+ * marked once it is back, in its own state, because a change that could not be
+ * reapplied would be a worse trap than the silent rewrite. Words Claude left
+ * alone behave exactly as they always have.
  */
 function renderWithContext(out, text, decided) {
   const { parts, wordIndexOfPart } = splitForCorrection(text);
@@ -115,18 +138,16 @@ function renderWithContext(out, text, decided) {
     span.dataset.rawKey = normalize(raw);
     span.dataset.original = raw;
 
-    if (change && !change.reverted) {
-      span.className = 'wtok ctx-fixed';
-      span.textContent = change.to;
-      span.title = 'Claude read this as “' + change.to + '”' +
-        (change.reason ? ': ' + change.reason : '') + ' — tap to put “' + raw + '” back';
-      span.addEventListener('click', () => {
-        change.reverted = true;
-        if (change.logId) markReverted(change.logId);
-        showContextNote('Put “' + raw + '” back. That is kept in the log, so a change ' +
-          'you keep undoing is easy to spot.', '');
-        renderCorrectedOutput();
-      });
+    if (change) {
+      const applied = !change.reverted;
+      span.className = 'wtok ' + (applied ? 'ctx-fixed' : 'ctx-original');
+      span.textContent = applied ? change.to : raw;
+      span.title = applied
+        ? 'Claude read this as “' + change.to + '”' +
+          (change.reason ? ': ' + change.reason : '') + ' — tap to put “' + raw + '” back'
+        : '“' + raw + '” as the recogniser heard it — tap for Claude’s “' + change.to + '”' +
+          (change.reason ? ': ' + change.reason : '');
+      span.addEventListener('click', () => toggleChange(change, raw));
     } else {
       span.className = 'wtok';
       span.textContent = raw;
@@ -239,7 +260,8 @@ async function readInContext(text) {
     decided.changes.length
       ? 'Read in context: ' + decided.changes.length +
         (decided.changes.length === 1 ? ' word' : ' words') +
-        ' changed, marked above. Tap one to put it back.'
+        ' changed, marked above. Tap one to put it back, tap it again to use ' +
+        'Claude’s word.'
       : 'Read in context: nothing needed changing.',
     ''
   );

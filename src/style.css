@@ -374,6 +374,15 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
    greyscale; the colour only reinforces it. */
 .wtok.ctx-fixed{ color:var(--gold-text); border-bottom:2px solid var(--gold); font-weight:700; }
 .wtok.ctx-fixed::before{ content:'→ '; font-weight:700; }
+/* The same word with that change turned off: her own word, showing. It stays
+   marked, because the tap is a toggle and a word that stopped looking tappable
+   would look like the change was gone for good. It is told apart from the state
+   above by three things that all survive greyscale and a colour-blind reader —
+   a different glyph (↩ against →), a dashed rule against a solid one, and
+   regular weight against bold — so colour is the last of the signals, not the
+   only one. */
+.wtok.ctx-original{ color:var(--muted); border-bottom:2px dashed var(--muted); font-weight:400; }
+.wtok.ctx-original::before{ content:'↩ '; font-weight:700; }
 
 .read-note{ margin-top:12px; font-size:16px; font-weight:700; font-family:var(--font-ui); }
 .read-note.clean{ color:var(--checked); }
