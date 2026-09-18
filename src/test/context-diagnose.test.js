@@ -65,6 +65,7 @@ describe('the diagnostic function, through the direct API', () => {
   afterEach(() => {
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.ANTHROPIC_MODEL;
+    delete process.env.ANTHROPIC_EFFORT;
     delete process.env.CONTEXT_PROVIDER;
     delete globalThis.fetch;
   });
@@ -79,6 +80,7 @@ describe('the diagnostic function, through the direct API', () => {
     const report = await (await get()).json();
     expect(report.provider).toBe('anthropic-claude');
     expect(report.configuredModel).toBe('claude-opus-5');
+    expect(report.configuredEffort).toBe('medium');
     expect(report.endpoint).toBe('https://api.anthropic.com');
     expect(report.region).toBeUndefined();
     expect(globalThis.fetch).not.toHaveBeenCalled();
@@ -114,6 +116,15 @@ describe('the diagnostic function, through the direct API', () => {
     expect(report.calls.listModels).toEqual({ status: 401, error: 'invalid x-api-key' });
     expect(report.configuredModelResolves).toBe(false);
     expect(report.calls.retrieveModel.status).toBe(401);
+  });
+
+  it('says which effort level is live, so the tuning dial can be read back', async () => {
+    // The pause is the thing being tuned; the report is where you check what
+    // the deploy actually picked up.
+    process.env.ANTHROPIC_EFFORT = 'low';
+    expect((await (await get()).json()).configuredEffort).toBe('low');
+    process.env.ANTHROPIC_EFFORT = 'sideways';
+    expect((await (await get()).json()).configuredEffort).toBe('medium');
   });
 
   it('says when the configured model ID is not one the API knows', async () => {

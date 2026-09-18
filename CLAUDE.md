@@ -514,6 +514,36 @@ Three things were kept deliberately:
 The two sentences to re-test on the iPad are unchanged: "Dad brought a bottle
 of liquor" must come back untouched, and "I want the liquor one" must change.
 
+**The wait was too long, and effort is now the dial (parent's decision,
+September 2026).** Opus 5 answered the judgement question, but it thinks before
+it answers and the pause before the corrected text settles was longer than a
+nine-year-old will sit through with the screen half-finished. Latency is not a
+detail here: an accuracy feature she will not wait for does not get used, and
+the whole point of §7's evaluation is whether she actually uses this.
+
+So the request now carries `output_config: { effort }`, at **`medium`** — one
+notch below the API's own default of `high`. The reasoning for stepping rather
+than jumping: the model was changed *because* the judgement was failing, and
+spending that judgement back to save a second would undo the fix. `medium` is
+the smallest step that buys the wait back.
+
+**It is an environment variable, `ANTHROPIC_EFFORT`, because the right level is
+not knowable from here.** Only the iPad, mid-session, with her waiting, can say
+whether the pause is short enough and the corrections still right — and those
+two pull in opposite directions. The parent moves one variable and redeploys
+rather than asking for a code change: `low` if it is still slow, `high` and up
+if a word of hers gets changed that should not have been. A value that is not
+one of the five real levels is ignored rather than sent, because the API would
+answer 400 and the only visible symptom would be the banner saying
+*provider-error* — a typo in Netlify must not be the thing that silently drops
+her back to the blind find-and-replace. The diagnostic reports
+`configuredEffort` so the live setting can be read back.
+
+**What this does not settle.** Whether `medium` still passes both sentences is
+not known from the code: it is a property of the model, and the check is the
+same two sentences on the iPad. The level shipped is a starting point with a
+documented ladder (README, *If the wait is too long*), not a measured result.
+
 ## 11. Changing the family code from Word Bank (parent's decision)
 
 **The problem.** The family code is typed once, on the entry screen, and then

@@ -65,6 +65,7 @@ describe('the contextual-correction function', () => {
   afterEach(() => {
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.ANTHROPIC_MODEL;
+    delete process.env.ANTHROPIC_EFFORT;
     delete process.env.CONTEXT_PROVIDER;
   });
 
@@ -203,12 +204,48 @@ describe('the contextual-correction function', () => {
     await handler(post({ tokens: ['hello'], ...PATTERNS }));
     const request = create.mock.calls[0][0];
     expect(request.thinking).toBeUndefined();
-    expect(request.output_config).toBeUndefined();
     expect(request.temperature).toBeUndefined();
     expect(request.max_tokens).toBeGreaterThanOrEqual(4096);
     expect(request.tool_choice).toEqual({ type: 'tool', name: 'report_corrections' });
     // The request has a deadline, and it is the function's, not the SDK's.
     expect(create.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('asks for less thinking than the API would give by default', async () => {
+    // The first session on Opus 5: the pause before the corrected text settles
+    // is too long with her sitting there. The API's default is `high`; this is
+    // one notch down, and it is the whole latency fix.
+    answers([]);
+    await handler(post({ tokens: ['hello'], ...PATTERNS }));
+    expect(create.mock.calls[0][0].output_config).toEqual({ effort: 'medium' });
+  });
+
+  it('takes the effort level from the environment, so tuning needs no deploy', async () => {
+    process.env.ANTHROPIC_EFFORT = 'low';
+    answers([]);
+    await handler(post({ tokens: ['hello'], ...PATTERNS }));
+    expect(create.mock.calls[0][0].output_config).toEqual({ effort: 'low' });
+  });
+
+  it('accepts every level the model has, however it is typed', async () => {
+    for (const level of ['low', 'medium', 'high', 'xhigh', 'max']) {
+      create.mockReset();
+      answers([]);
+      process.env.ANTHROPIC_EFFORT = ' ' + level.toUpperCase() + ' ';
+      await handler(post({ tokens: ['hello'], ...PATTERNS }));
+      expect(create.mock.calls[0][0].output_config).toEqual({ effort: level });
+    }
+  });
+
+  it('ignores an effort level that is not real, rather than letting the API refuse it', async () => {
+    // A typo in a Netlify variable must not be the thing that silently drops
+    // her back to the blind find-and-replace: the API would answer 400, the
+    // banner would say provider-error, and nothing would say why.
+    process.env.ANTHROPIC_EFFORT = 'quickly';
+    answers([]);
+    const res = await handler(post({ tokens: ['hello'], ...PATTERNS }));
+    expect(res.status).toBe(200);
+    expect(create.mock.calls[0][0].output_config).toEqual({ effort: 'medium' });
   });
 
   it('names a 404 as model-not-found rather than a generic provider error', async () => {
