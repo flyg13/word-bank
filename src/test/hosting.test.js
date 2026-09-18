@@ -26,6 +26,24 @@ describe('the transcription function', () => {
     expect(endpoint).toBe('/.netlify/functions/transcribe');
   });
 
+  it('has a second function, for reading a transcript in context', () => {
+    expect(existsSync(resolve(ROOT, 'netlify/functions/contextual-correct.mjs'))).toBe(true);
+    const endpoint = readFileSync(resolve(ROOT, 'src/config.js'), 'utf8')
+      .match(/CONTEXT_ENDPOINT = '([^']+)'/)[1];
+    expect(endpoint).toBe('/.netlify/functions/contextual-correct');
+  });
+
+  it('names the Bedrock key something Netlify will not reserve', () => {
+    // Netlify reserves every AWS_-prefixed variable for its build environment,
+    // so the usual AWS_BEARER_TOKEN_BEDROCK would never reach the function.
+    const provider = readFileSync(resolve(ROOT, 'netlify/functions/providers/bedrock-claude.mjs'), 'utf8');
+    const keyVar = provider.match(/keyVar = '([^']+)'/)[1];
+    expect(keyVar).toBe('BEDROCK_API_KEY');
+    expect(keyVar.startsWith('AWS_')).toBe(false);
+    // And the README tells the parent to set that exact name.
+    expect(readFileSync(resolve(ROOT, 'README.md'), 'utf8')).toContain('`BEDROCK_API_KEY`');
+  });
+
   it('keeps the local key file out of the repository', () => {
     // The one mistake here that deleting the commit does not undo.
     const ignored = readFileSync(resolve(ROOT, '.gitignore'), 'utf8');

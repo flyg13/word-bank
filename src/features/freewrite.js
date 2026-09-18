@@ -2,8 +2,30 @@ import { state, save, onRender, renderAll } from '../lib/store.js';
 import { applyBankToText, recordBankObservation, getBankEntry } from '../lib/wordbank.js';
 import { suggestFromSound } from '../lib/phonicbank.js';
 import { normalize } from '../lib/text.js';
+import { correctWithContext, splitForCorrection, ContextError } from '../lib/context-correct.js';
+import { recordContextChanges, markReverted } from '../lib/correction-log.js';
 import { bindMic } from './mic.js';
 import { activateTab } from './tabs.js';
+
+// What Claude decided about the transcript currently in the box.
+//
+// Held against the exact text it read: the moment that text is edited or added
+// to, the decisions no longer describe it and the view falls back to the bank's
+// own find-and-replace. Nothing here is ever saved — see CLAUDE.md §10, the
+// bank learns in Practice, Sentences and Reading, and never from this.
+let context = null;
+
+function contextFor(text) {
+  return context && context.text === text ? context : null;
+}
+
+function showContextNote(text, kind) {
+  const note = document.getElementById('contextNote');
+  if (!note) return;
+  note.textContent = text || '';
+  note.className = 'context-note' + (kind ? ' ' + kind : '');
+  note.classList.toggle('show', Boolean(text));
+}
 
 function showWriteNote(text) {
   const note = document.getElementById('writeNote');
@@ -37,6 +59,12 @@ export function renderCorrectedOutput() {
     return;
   }
 
+  const decided = contextFor(text);
+  if (decided) {
+    renderWithContext(out, text, decided);
+    return;
+  }
+
   out.innerHTML = '';
   applyBankToText(text).forEach((part) => {
     if (part.raw === '' || /^\s+$/.test(part.raw)) {
@@ -57,6 +85,51 @@ export function renderCorrectedOutput() {
       span.addEventListener('click', () => acceptSuggestion(normalize(part.raw), suggestion));
     } else {
       span.className = 'wtok' + (part.fixed ? ' fixed' : '');
+      span.addEventListener('click', () => openFixPanel(span, false));
+    }
+    out.appendChild(span);
+  });
+}
+
+/**
+ * Render the transcript with Claude's decisions applied.
+ *
+ * Every word Claude changed is marked, and one tap puts it back — which is the
+ * whole safety story for a step that rewrites without being asked. Words it
+ * left alone behave exactly as they always have.
+ */
+function renderWithContext(out, text, decided) {
+  const { parts, wordIndexOfPart } = splitForCorrection(text);
+  const changeAt = new Map(decided.changes.map((change) => [change.index, change]));
+
+  out.innerHTML = '';
+  parts.forEach((raw, partIndex) => {
+    const wordIndex = wordIndexOfPart[partIndex];
+    if (wordIndex < 0) {
+      out.appendChild(document.createTextNode(raw));
+      return;
+    }
+
+    const change = changeAt.get(wordIndex);
+    const span = document.createElement('span');
+    span.dataset.rawKey = normalize(raw);
+    span.dataset.original = raw;
+
+    if (change && !change.reverted) {
+      span.className = 'wtok ctx-fixed';
+      span.textContent = change.to;
+      span.title = 'Claude read this as “' + change.to + '”' +
+        (change.reason ? ': ' + change.reason : '') + ' — tap to put “' + raw + '” back';
+      span.addEventListener('click', () => {
+        change.reverted = true;
+        if (change.logId) markReverted(change.logId);
+        showContextNote('Put “' + raw + '” back. That is kept in the log, so a change ' +
+          'you keep undoing is easy to spot.', '');
+        renderCorrectedOutput();
+      });
+    } else {
+      span.className = 'wtok';
+      span.textContent = raw;
       span.addEventListener('click', () => openFixPanel(span, false));
     }
     out.appendChild(span);
@@ -93,6 +166,9 @@ export function initFreeWrite() {
   const rawInput = document.getElementById('rawInput');
   rawInput.addEventListener('input', () => {
     showWriteNote('');
+    // Editing the text makes any decision about it stale, and a note still
+    // claiming "3 words changed" would be describing something else.
+    showContextNote('');
     renderCorrectedOutput();
   });
 
@@ -120,8 +196,53 @@ export function initFreeWrite() {
     onResult: (heard) => {
       rawInput.value = (rawInput.value ? rawInput.value + ' ' : '') + heard;
       renderCorrectedOutput();
+      readInContext(rawInput.value);
     }
   });
 
   onRender(renderCorrectedOutput);
+}
+
+/**
+ * Read the transcript back with its own sentence in view.
+ *
+ * Runs only on speech, never on typing: typed text is the parent testing the
+ * bank, and the blind find-and-replace is exactly what they are testing.
+ */
+async function readInContext(text) {
+  context = null;
+  showContextNote('Reading it back in context…', '');
+
+  let decided;
+  try {
+    decided = await correctWithContext(text);
+  } catch (e) {
+    const code = e instanceof ContextError ? e.code : 'context-failed';
+    // Fall back to what the app did before: apply confirmed corrections
+    // blindly. That is the behaviour this feature exists to replace, so it is
+    // said out loud rather than left to look like the new one.
+    showContextNote(
+      'Context correction unavailable (' + code + '). Showing her confirmed ' +
+      'corrections applied to every match, which is what this replaces — a word ' +
+      'that only looks like one of hers will have been changed too.',
+      'warn'
+    );
+    renderCorrectedOutput();
+    return;
+  }
+
+  const ids = recordContextChanges(decided.changes);
+  decided.changes.forEach((change, i) => { change.logId = ids[i]; });
+  context = { text, changes: decided.changes };
+
+  showContextNote(
+    decided.changes.length
+      ? 'Read in context: ' + decided.changes.length +
+        (decided.changes.length === 1 ? ' word' : ' words') +
+        ' changed, marked above. Tap one to put it back.'
+      : 'Read in context: nothing needed changing.',
+    ''
+  );
+  renderCorrectedOutput();
+  renderAll();
 }

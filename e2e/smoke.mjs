@@ -145,6 +145,10 @@ await page.addInitScript(() => {
   window.__serviceCalls = 0;
   window.__lastLang = null;
   window.__lastHints = [];
+  // The context step: what Claude decides, and whether it can be reached.
+  window.__contextChanges = [];
+  window.__contextDown = false;
+  window.__lastContextBody = null;
 
   class FakeMediaRecorder {
     static isTypeSupported() { return true; }
@@ -171,6 +175,16 @@ await page.addInitScript(() => {
 
   const realFetch = window.fetch.bind(window);
   window.fetch = async (url, init) => {
+    if (String(url).includes('/functions/contextual-correct')) {
+      window.__lastContextBody = JSON.parse(init.body);
+      if (window.__contextDown) {
+        return new Response(JSON.stringify({ error: 'not-configured' }), { status: 503 });
+      }
+      return new Response(
+        JSON.stringify({ changes: window.__contextChanges, provider: 'stub', model: 'stub' }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
     if (!String(url).includes('/functions/transcribe')) return realFetch(url, init);
     window.__serviceCalls += 1;
     window.__lastLang = init.body.get('language');
@@ -755,10 +769,77 @@ check('and it reached the word bank as a confirmed correction',
   flibberText.includes('flobber') && !flibberText.includes('needs confirming'),
   flibberText.replace(/\s+/g, ' '));
 
+// ---- Reading a transcript with its own sentence in view ----
+// The bank now holds a confirmed "flibber -> flobber". A find-and-replace
+// rewrites every "flibber"; this step is supposed to decide.
+
+await page.click('.tab[data-tab="write"]');
+await page.fill('#rawInput', '');
+await page.dispatchEvent('#rawInput', 'input');
+await page.evaluate(() => {
+  window.__contextDown = false;
+  window.__nextTranscript = 'the flibber is here';
+  window.__contextChanges = [{ index: 1, to: 'flobber', reason: 'She means her toy.' }];
+});
+await tapMic('writeMic');
+await page.waitForSelector('#correctedOutput .wtok.ctx-fixed');
+check('a word Claude changed is marked, not silently swapped',
+  (await page.locator('#correctedOutput .wtok.ctx-fixed').allTextContents()).join() === 'flobber');
+check('and the sentence around it is untouched',
+  (await page.locator('#correctedOutput').textContent()).replace(/\s+/g, ' ').trim()
+    === 'the flobber is here',
+  await page.locator('#correctedOutput').textContent());
+check('it was sent her patterns, not just the words',
+  await page.evaluate(() => {
+    const body = window.__lastContextBody;
+    return Boolean(body) && body.tokens.join(' ') === 'the flibber is here' &&
+      body.corrections.some((c) => c.heard === 'flibber' && c.means === 'flobber');
+  }),
+  JSON.stringify(await page.evaluate(() => window.__lastContextBody)));
+check('and it says what it did',
+  (await page.locator('#contextNote').textContent()).includes('1 word changed'),
+  await page.locator('#contextNote').textContent());
+
+// One tap puts it back. This is the whole safety story for a step that
+// rewrites without being asked.
+await page.locator('#correctedOutput .wtok.ctx-fixed').first().click();
+check('tapping a marked word puts the original back',
+  (await page.locator('#correctedOutput').textContent()).includes('flibber') &&
+  (await page.locator('#correctedOutput .wtok.ctx-fixed').count()) === 0);
+
+// The log the parent reads, in Word Bank.
+await page.click('.tab[data-tab="bank"]');
+const ctxLog = (await page.locator('#contextLogView').innerText()).replace(/\s+/g, ' ');
+check('the change is in the log, with its reason',
+  ctxLog.includes('flibber') && ctxLog.includes('flobber') && ctxLog.includes('She means her toy'),
+  ctxLog);
+check('and undoing it is recorded rather than erased',
+  ctxLog.includes('you put it back'), ctxLog);
+
+// When the context step cannot be reached, the old behaviour is what happens —
+// and it is said out loud rather than left to look like the new one.
+await page.click('.tab[data-tab="write"]');
+await page.fill('#rawInput', '');
+await page.dispatchEvent('#rawInput', 'input');
+await page.evaluate(() => {
+  window.__contextDown = true;
+  window.__nextTranscript = 'the flibber is here';
+});
+await tapMic('writeMic');
+await page.waitForFunction(() =>
+  document.getElementById('contextNote').textContent.includes('unavailable'));
+const downNote = await page.locator('#contextNote').textContent();
+check('an outage falls back to the blind find-and-replace, naming the code',
+  downNote.includes('not-configured') && downNote.includes('every match'), downNote);
+check('and the fallback really is the old behaviour',
+  (await page.locator('#correctedOutput .wtok.fixed').allTextContents()).includes('flobber'));
+await page.evaluate(() => { window.__contextDown = false; });
+
 // ---- Export / import round trip, through the real file ----
 // Not a state round trip: the actual Blob the Export button produces, fed back
 // through the actual file input. A restore that silently dropped a field would
 // lose every recorded pronunciation.
+await page.click('.tab[data-tab="bank"]');
 const [download] = await Promise.all([
   page.waitForEvent('download'),
   page.click('#exportBtn')
@@ -1041,6 +1122,31 @@ check('the coin is present and not stretched', await page.evaluate(() => {
   return Boolean(img && img.complete && img.naturalWidth === img.naturalHeight);
 }));
 
+// ---- Changing the family code from Word Bank ----
+// Last, because a switch restarts the app. The parent's decision: a teacher
+// setting up a school iPad, or the parent moving off a short code, must not
+// have to clear Safari's website data to do it.
+await page.click('.tab[data-tab="bank"]');
+check('Word Bank shows the code this device is using',
+  (await page.locator('#familyCodeCurrent').textContent()) === '\u201csmoke-test-\u201d',
+  await page.locator('#familyCodeCurrent').textContent());
+
+await page.fill('#familyCodeInput', '!!!');
+await page.click('#familyCodeBtn');
+check('a code that normalises to nothing is refused here too, and nothing changes',
+  (await page.locator('#familyCodeNote').textContent()).includes('letters and numbers') &&
+  (await page.evaluate(() => localStorage.getItem('word_bank_family_code'))) === 'smoke-test-');
+
+await page.fill('#familyCodeInput', 'Smoke Test Two');
+await Promise.all([
+  page.waitForNavigation({ waitUntil: 'networkidle' }),
+  page.click('#familyCodeBtn')
+]);
+check('a new code is stored the way the entry screen stores it, and the app restarts on it',
+  (await page.evaluate(() => localStorage.getItem('word_bank_family_code'))) === 'smoke-test-two' &&
+  (await page.evaluate(() => document.getElementById('entryScreen').hidden)) &&
+  (await page.locator('#familyCodeCurrent').textContent()) === '\u201csmoke-test-two\u201d',
+  await page.locator('#familyCodeCurrent').textContent());
 check('no uncaught application errors', errors.length === 0, errors.slice(0, 3).join(' ;; '));
 
 if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT, fullPage: true });

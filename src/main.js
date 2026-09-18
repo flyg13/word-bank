@@ -21,7 +21,7 @@ import { initPractice, buildQueue, reconcileQueue } from './features/practice.js
 import { initSentences } from './features/sentences.js';
 import { initReading } from './features/reading.js';
 import { initFreeWrite } from './features/freewrite.js';
-import { initBank } from './features/bank.js';
+import { initBank, renderFamilyCode } from './features/bank.js';
 import { requireFamilyCode } from './features/entry.js';
 
 let firstSnapshotReceived = false;
@@ -68,6 +68,9 @@ async function main() {
   // Ask for the family code before connecting — without one there is no
   // document to sync with, and the shell behind is already usable.
   await requireFamilyCode();
+  // Word Bank drew its "Family code" card before the code existed on a device
+  // that had none, so draw it again now that it does.
+  renderFamilyCode();
 
   // The Firebase SDK is the bulk of the bundle and nothing on screen needs it,
   // so it loads in its own chunk after the shell is up.
