@@ -4,6 +4,7 @@ import { suggestFromSound } from '../lib/phonicbank.js';
 import { normalize } from '../lib/text.js';
 import { correctWithContext, splitForCorrection, ContextError } from '../lib/context-correct.js';
 import { recordContextChanges, markReverted, markReapplied } from '../lib/correction-log.js';
+import { copyText } from '../lib/clipboard.js';
 import { bindMic } from './mic.js';
 import { activateTab } from './tabs.js';
 
@@ -32,6 +33,28 @@ function showWriteNote(text) {
   if (note) note.textContent = text || '';
 }
 
+// The copy confirmation. Brief on purpose: it answers "did that work?" and then
+// gets out of the way, because it sits directly under the text she is about to
+// paste.
+let copyNoteTimer = null;
+
+function showCopyNote(text, kind) {
+  const note = document.getElementById('copyNote');
+  if (!note) return;
+  clearTimeout(copyNoteTimer);
+  note.textContent = text || '';
+  note.className = 'copy-note' + (kind ? ' ' + kind : '');
+  if (text) copyNoteTimer = setTimeout(() => { note.textContent = ''; }, 4000);
+}
+
+/** Copy and Clear mean nothing with an empty box, and say so by being off. */
+function updateOutActions(hasText) {
+  ['copyBtn', 'clearBtn'].forEach((id) => {
+    const button = document.getElementById(id);
+    if (button) button.disabled = !hasText;
+  });
+}
+
 /**
  * Accept a suggestion. This is the same evidence a confirmation in Practice
  * gives — one sighting of "this text means that word" — so it goes through the
@@ -49,25 +72,76 @@ function acceptSuggestion(rawKey, word) {
   renderAll();
 }
 
+/**
+ * The corrected panel's contents, as data: one entry per part of the text,
+ * whitespace included, carrying what to show and why.
+ *
+ * Both the view and the Copy button read this, and that is the point. What
+ * lands in her homework has to be the same words that are on the screen —
+ * built from the same decisions, not scraped off the DOM, where a mark that is
+ * a CSS pseudo-element today could be a real character tomorrow and put an
+ * arrow in a Seesaw post.
+ */
+function correctedParts(text, decided) {
+  if (decided) {
+    const { parts, wordIndexOfPart } = splitForCorrection(text);
+    const changeAt = new Map(decided.changes.map((change) => [change.index, change]));
+    return parts.map((raw, partIndex) => {
+      const wordIndex = wordIndexOfPart[partIndex];
+      if (wordIndex < 0) return { raw, display: raw, space: true };
+      const change = changeAt.get(wordIndex);
+      // A word Claude left alone is shown as she said it. The bank's blind
+      // replacement is deliberately not applied on top: Claude read this
+      // sentence and decided, and that decision stands.
+      return {
+        raw, key: normalize(raw), change,
+        display: change && !change.reverted ? change.to : raw
+      };
+    });
+  }
+
+  return applyBankToText(text).map((part) => {
+    if (part.raw === '' || /^\s+$/.test(part.raw)) {
+      return { raw: part.raw, display: part.raw, space: true };
+    }
+    // A recorded pronunciation can suggest what a loose word probably was, but
+    // never rewrites it. One tap accepts, and that counts as a sighting.
+    return {
+      raw: part.raw, display: part.display, key: part.key, fixed: part.fixed,
+      suggestion: part.fixed ? null : suggestFromSound(part.raw)
+    };
+  });
+}
+
+/**
+ * The finished text: her words with the corrections that are showing, and
+ * nothing else — no arrows, no marks, no highlighting.
+ *
+ * This is what goes on the clipboard and from there into Seesaw or Word, which
+ * is what the tab is for.
+ */
+export function correctedPlainText() {
+  const input = document.getElementById('rawInput');
+  const text = input ? input.value : '';
+  if (!text.trim()) return '';
+  return correctedParts(text, contextFor(text)).map((part) => part.display).join('');
+}
+
 export function renderCorrectedOutput() {
   const input = document.getElementById('rawInput');
   const out = document.getElementById('correctedOutput');
   const text = input ? input.value : '';
+
+  updateOutActions(Boolean(text.trim()));
 
   if (!text.trim()) {
     out.innerHTML = '<span class="empty-note">Nothing here yet.</span>';
     return;
   }
 
-  const decided = contextFor(text);
-  if (decided) {
-    renderWithContext(out, text, decided);
-    return;
-  }
-
   out.innerHTML = '';
-  applyBankToText(text).forEach((part) => {
-    if (part.raw === '' || /^\s+$/.test(part.raw)) {
+  correctedParts(text, contextFor(text)).forEach((part) => {
+    if (part.space) {
       out.appendChild(document.createTextNode(part.raw));
       return;
     }
@@ -76,13 +150,12 @@ export function renderCorrectedOutput() {
     span.dataset.rawKey = part.key;
     span.dataset.original = part.raw;
 
-    // A recorded pronunciation can suggest what a loose word probably was, but
-    // never rewrites it. One tap accepts, and that counts as a sighting.
-    const suggestion = part.fixed ? null : suggestFromSound(part.raw);
-    if (suggestion) {
+    if (part.change) {
+      addContextMark(span, part);
+    } else if (part.suggestion) {
       span.className = 'wtok suggest';
-      span.title = 'Sounds like “' + suggestion + '” — tap to accept';
-      span.addEventListener('click', () => acceptSuggestion(normalize(part.raw), suggestion));
+      span.title = 'Sounds like \u201c' + part.suggestion + '\u201d \u2014 tap to accept';
+      span.addEventListener('click', () => acceptSuggestion(normalize(part.raw), part.suggestion));
     } else {
       span.className = 'wtok' + (part.fixed ? ' fixed' : '');
       span.addEventListener('click', () => openFixPanel(span, false));
@@ -113,49 +186,28 @@ function toggleChange(change, raw) {
 }
 
 /**
- * Render the transcript with Claude's decisions applied.
+ * Mark a word Claude changed after reading the sentence, and wire the tap that
+ * toggles it.
  *
- * Every word Claude changed is marked, and one tap puts it back — which is the
- * whole safety story for a step that rewrites without being asked. It stays
- * marked once it is back, in its own state, because a change that could not be
- * reapplied would be a worse trap than the silent rewrite. Words Claude left
- * alone behave exactly as they always have.
+ * The word is marked in both states — whichever word is showing, the mark says
+ * it can be tapped again — which is the whole safety story for a step that
+ * rewrites without being asked. The text itself is already set from the part's
+ * `display`, so this only decides how it reads and what the tap does. Words
+ * Claude left alone behave exactly as they always have.
  */
-function renderWithContext(out, text, decided) {
-  const { parts, wordIndexOfPart } = splitForCorrection(text);
-  const changeAt = new Map(decided.changes.map((change) => [change.index, change]));
-
-  out.innerHTML = '';
-  parts.forEach((raw, partIndex) => {
-    const wordIndex = wordIndexOfPart[partIndex];
-    if (wordIndex < 0) {
-      out.appendChild(document.createTextNode(raw));
-      return;
-    }
-
-    const change = changeAt.get(wordIndex);
-    const span = document.createElement('span');
-    span.dataset.rawKey = normalize(raw);
-    span.dataset.original = raw;
-
-    if (change) {
-      const applied = !change.reverted;
-      span.className = 'wtok ' + (applied ? 'ctx-fixed' : 'ctx-original');
-      span.textContent = applied ? change.to : raw;
-      span.title = applied
-        ? 'Claude read this as “' + change.to + '”' +
-          (change.reason ? ': ' + change.reason : '') + ' — tap to put “' + raw + '” back'
-        : '“' + raw + '” as the recogniser heard it — tap for Claude’s “' + change.to + '”' +
-          (change.reason ? ': ' + change.reason : '');
-      span.addEventListener('click', () => toggleChange(change, raw));
-    } else {
-      span.className = 'wtok';
-      span.textContent = raw;
-      span.addEventListener('click', () => openFixPanel(span, false));
-    }
-    out.appendChild(span);
-  });
+function addContextMark(span, part) {
+  const { change, raw } = part;
+  const applied = !change.reverted;
+  span.className = 'wtok ' + (applied ? 'ctx-fixed' : 'ctx-original');
+  span.title = applied
+    ? 'Claude read this as “' + change.to + '”' +
+      (change.reason ? ': ' + change.reason : '') +
+      ' — tap to put “' + raw + '” back'
+    : '“' + raw + '” as the recogniser heard it — tap for Claude’s “' + change.to + '”' +
+      (change.reason ? ': ' + change.reason : '');
+  span.addEventListener('click', () => toggleChange(change, raw));
 }
+
 
 /**
  * Open the correction panel for a word token. Called from Speech-To-Text and, for
@@ -214,37 +266,117 @@ export function initFreeWrite() {
     // Nothing is expected here, so there is no target to hint with and no
     // reason to be impatient about a pause.
     mode: 'freeform',
-    onResult: (heard) => {
-      rawInput.value = (rawInput.value ? rawInput.value + ' ' : '') + heard;
-      renderCorrectedOutput();
-      readInContext(rawInput.value);
+    onResult: (heard) => appendHeard(rawInput, heard)
+  });
+
+  document.getElementById('copyBtn').addEventListener('click', () => {
+    // Built before anything asynchronous happens. Safari ties the clipboard to
+    // the tap that asked for it, and an await here would spend that gesture and
+    // be refused — on the one device she actually uses.
+    const text = correctedPlainText();
+    if (!text) {
+      showCopyNote('Nothing to copy yet.', 'warn');
+      return;
     }
+    copyText(text).then((ok) => {
+      showCopyNote(
+        ok ? 'Copied \u2014 paste it into her homework.'
+           : 'Could not copy \u2014 select the text above and copy it by hand.',
+        ok ? '' : 'warn'
+      );
+    });
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    // Asked for, because a paragraph built across several recordings is not
+    // something to lose to a stray tap — and the tap that clears it sits next
+    // to the one that copies it.
+    if (rawInput.value.trim() &&
+        !window.confirm('Clear this and start fresh? The text here will be gone.')) {
+      return;
+    }
+    rawInput.value = '';
+    context = null;
+    showContextNote('');
+    showWriteNote('');
+    showCopyNote('');
+    renderCorrectedOutput();
   });
 
   onRender(renderCorrectedOutput);
 }
 
 /**
- * Read the transcript back with its own sentence in view.
+ * Add what she just said to the end of what is already there.
+ *
+ * A paragraph gets built a sentence at a time, so each recording adds on
+ * rather than starting over — and the sentences already read keep their marks
+ * while the new one is still being looked at.
+ *
+ * Only the new words are sent. Re-reading the whole paragraph would recompute
+ * decisions the parent has already seen — silently putting back any they had
+ * undone — and would make the wait grow with every sentence, which is the
+ * thing CLAUDE.md §10's effort dial exists to keep short.
+ */
+async function appendHeard(rawInput, heard) {
+  const addition = String(heard || '').trim();
+  if (!addition) return;
+
+  const before = rawInput.value;
+  // Decisions that still describe what is in the box. Typing invalidates them,
+  // in which case there is nothing to protect and the lot is read together —
+  // which also gives Claude the typed words rather than skipping over them.
+  const settled = contextFor(before);
+  const joined = before.replace(/\s+$/, '');
+  const next = joined ? joined + ' ' + addition : addition;
+
+  rawInput.value = next;
+  if (settled) {
+    // Hold the earlier marks on screen through the wait. Appending does not
+    // move any earlier word, so their indices still point where they did.
+    context = { text: next, changes: settled.changes.slice() };
+  }
+  renderCorrectedOutput();
+
+  await readInContext({
+    send: settled ? addition : next,
+    full: next,
+    offset: settled ? splitForCorrection(joined).words.length : 0,
+    keep: settled ? settled.changes.slice() : []
+  });
+}
+
+/**
+ * Read a piece of the transcript back with its own sentence in view.
  *
  * Runs only on speech, never on typing: typed text is the parent testing the
  * bank, and the blind find-and-replace is exactly what they are testing.
+ *
+ * @param {{send:string, full:string, offset:number, keep:Array}} job
+ *   `send` is the text Claude reads; `full` is everything in the box, which is
+ *   what the decisions end up describing; `offset` shifts the word positions
+ *   that come back so they point into `full`; `keep` is the decisions already
+ *   made about the earlier sentences.
  */
-async function readInContext(text) {
-  context = null;
-  showContextNote('Reading it back in context…', '');
+async function readInContext({ send, full, offset, keep }) {
+  showContextNote('Reading it back in context\u2026', '');
 
   let decided;
   try {
-    decided = await correctWithContext(text);
+    decided = await correctWithContext(send);
   } catch (e) {
     const code = e instanceof ContextError ? e.code : 'context-failed';
     // Fall back to what the app did before: apply confirmed corrections
     // blindly. That is the behaviour this feature exists to replace, so it is
     // said out loud rather than left to look like the new one.
+    //
+    // The whole box drops back, earlier sentences included, rather than showing
+    // two kinds of correction at once with no way to tell them apart. The
+    // marks come back with the next reading that succeeds.
+    context = null;
     showContextNote(
       'Context correction unavailable (' + code + '). Showing her confirmed ' +
-      'corrections applied to every match, which is what this replaces — a word ' +
+      'corrections applied to every match, which is what this replaces \u2014 a word ' +
       'that only looks like one of hers will have been changed too.',
       'warn'
     );
@@ -252,14 +384,16 @@ async function readInContext(text) {
     return;
   }
 
-  const ids = recordContextChanges(decided.changes);
-  decided.changes.forEach((change, i) => { change.logId = ids[i]; });
-  context = { text, changes: decided.changes };
+  // Positions come back against `send`; they have to point into the whole box.
+  const fresh = decided.changes.map((change) => ({ ...change, index: change.index + offset }));
+  const ids = recordContextChanges(fresh);
+  fresh.forEach((change, i) => { change.logId = ids[i]; });
+  context = { text: full, changes: keep.concat(fresh) };
 
   showContextNote(
-    decided.changes.length
-      ? 'Read in context: ' + decided.changes.length +
-        (decided.changes.length === 1 ? ' word' : ' words') +
+    fresh.length
+      ? 'Read in context: ' + fresh.length +
+        (fresh.length === 1 ? ' word' : ' words') +
         ' changed, marked above. Tap one to put it back, tap it again to use ' +
         'Claude’s word.'
       : 'Read in context: nothing needed changing.',

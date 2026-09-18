@@ -195,6 +195,7 @@
   <div id="tab-write" style="display:none;">
     <div class="card">
       <div class="eyebrow">Say a sentence, or type it here to test corrections</div>
+      <p class="sub">Each recording adds to the end, so a paragraph can be built a sentence at a time.</p>
       <textarea id="rawInput" placeholder="Tap the mic, or type here&hellip;"></textarea>
       <div class="centre-row centre-col">
         <button class="mic-btn mic-btn-sm" id="writeMic" aria-label="Tap to record">
@@ -208,6 +209,14 @@
       <!-- What the context step did, or why it could not. Never silent. -->
       <div class="context-note" id="contextNote" role="status"></div>
       <div class="write-note" id="writeNote"></div>
+
+      <!-- Getting the finished text out. This is what the whole tab is for:
+           homework that ends up pasted into Seesaw or Word. -->
+      <div class="out-actions">
+        <button class="btn btn-primary" id="copyBtn">Copy</button>
+        <button class="btn btn-ghost" id="clearBtn">Clear</button>
+        <span class="copy-note" id="copyNote" role="status"></span>
+      </div>
 
       <div class="fix-panel" id="fixPanel">
         <div class="eyebrow">Fixing: <span id="fixingWord"></span></div>

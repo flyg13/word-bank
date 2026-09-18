@@ -595,3 +595,76 @@ a separate, visible step.
 
 **Storage stays exactly as it was.** Same key, same normalisation, in
 `src/lib/family-code.js`; a test pins that the card carries no rules of its own.
+
+## 12. Getting the text out of Speech-To-Text (parent's decisions)
+
+**What the tab is actually for.** Speech-To-Text is used for homework, and
+homework gets pasted into Seesaw, Word and the like. Until now there was no way
+to get the finished text out of the app at all — the one thing the tab exists to
+produce was trapped on screen.
+
+### Copy
+
+**The decision.** A Copy button under the corrected text, which puts the plain
+finished text on the clipboard and says briefly that it did.
+
+**The words only.** What is copied is her words with the corrections that are
+showing — no arrows, no marks, no highlighting. The marks on screen are CSS
+pseudo-elements today, so scraping the panel's text happens to give the right
+answer; that is luck, not a guarantee, and a mark that becomes a real character
+later would land an arrow in a Seesaw post without anyone noticing. So the view
+and the clipboard are both built from one function over the same decisions, and
+a test pins that what is copied equals what the panel reads, in every state the
+panel has — Claude's changes, a change put back, the blind fallback, and typed
+text.
+
+**Safari on iPad is the constraint, and it shapes the code.** Three things,
+all in `src/lib/clipboard.js`:
+
+1. **The write happens in the turn of the tap.** Safari ties clipboard access
+   to a user gesture and an `await` before the write spends it, so the text is
+   built synchronously in the handler and handed over with nothing awaited
+   first. A mutation that adds one microtask ahead of the write fails a test,
+   because on the one device she uses that is the difference between working
+   and silently refusing.
+2. **`navigator.clipboard` is not always there** — it needs a secure context and
+   older iPadOS lacks `writeText` — so there is a second path through
+   `document.execCommand('copy')`, deprecated everywhere and still the only
+   thing that works on those devices.
+3. **iOS will not select a plain hidden textarea.** The fallback needs a
+   `contentEditable` element that is in the layout but off-screen, a `Range`
+   over it, and `setSelectionRange` after — all three. That is the whole reason
+   it looks the way it does. It puts back whatever the person had selected, and
+   leaves nothing in the page.
+
+The clipboard API is tried first and a *rejection* falls through to the old way
+as well as an absence, because iPadOS does reject. A copy that did not happen
+says so plainly rather than looking like it worked: she is about to paste.
+
+### Recording adds on, and a Clear button
+
+**The decision.** Each recording appends to the end, so a paragraph is built a
+sentence at a time, with the marks on earlier sentences kept. A Clear button
+starts fresh, and asks first if there is anything to lose.
+
+**What was actually wrong.** The raw text already appended; what was lost was
+every correction mark on it. Tapping record re-read the entire paragraph, so
+the earlier sentences dropped to the blind find-and-replace during the wait and
+then came back *recomputed* — silently putting back anything the parent had
+undone. So only the new words are sent now, and the decisions already made are
+kept and their positions offset. That also stops the wait growing with every
+sentence, which is what §10's effort dial exists to keep short.
+
+**Typed text is read whole, not skipped.** Typing invalidates the decisions
+about what is in the box, so when the parent has typed there is nothing to
+protect — the lot goes to Claude together, which has the side benefit that the
+typed words get read rather than stepped over.
+
+**One limitation, deliberate.** If a reading fails, the whole box drops back to
+the blind find-and-replace, earlier sentences included, rather than showing two
+kinds of correction at once with no way to tell them apart. The banner says so,
+as §10 requires, and the marks return with the next reading that succeeds.
+
+**Clear asks, because the tap that throws a paragraph away sits next to the one
+that copies it.** It empties the text, the marks and the notes, and touches
+nothing else — her bank is not involved, and a test pins that.
