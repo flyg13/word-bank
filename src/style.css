@@ -389,6 +389,14 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
 .write-note{ font-size:16px; color:var(--checked); margin-top:11px; }
 .write-note:empty{ margin:0; }
 
+/* Getting the finished text out, which is what this tab is for. Copy is the
+   filled button because it is the one that ends the job; Clear is quiet,
+   because it throws work away. */
+.out-actions{ display:flex; align-items:center; gap:10px; margin-top:13px; flex-wrap:wrap; }
+.copy-note{ font-size:16px; color:var(--checked); line-height:1.55; }
+/* A copy that did not happen is not a quiet outcome: she is about to paste. */
+.copy-note.warn{ color:var(--gold-text); font-weight:700; }
+
 /* What the context step did, or why it could not. The plain state is a quiet
    line; a failure takes the gold notice treatment, because running on the old
    blind find-and-replace is the thing the parent must not miss. */

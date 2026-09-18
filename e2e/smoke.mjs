@@ -866,6 +866,83 @@ check('the change is in the log, with its reason',
 check('and undoing it is recorded rather than erased',
   ctxLog.includes('you put it back'), ctxLog);
 
+// ---- Building a paragraph, and getting it out ----
+// The tab's actual job: homework that ends up pasted into Seesaw or Word.
+
+await page.click('.tab[data-tab="write"]');
+await page.fill('#rawInput', '');
+await page.dispatchEvent('#rawInput', 'input');
+check('Copy and Clear are off with an empty box',
+  (await page.locator('#copyBtn').isDisabled()) &&
+  (await page.locator('#clearBtn').isDisabled()));
+
+await page.evaluate(() => {
+  window.__contextDown = false;
+  window.__nextTranscript = 'the flibber is here';
+  window.__contextChanges = [{ index: 1, to: 'flobber', reason: 'She means her toy.' }];
+});
+await tapMic('writeMic');
+await page.waitForSelector('#correctedOutput .wtok.ctx-fixed');
+
+await page.evaluate(() => {
+  window.__nextTranscript = 'it was warm';
+  window.__contextChanges = [];
+});
+await tapMic('writeMic');
+await page.waitForFunction(() =>
+  document.getElementById('rawInput').value.includes('warm'));
+check('a second recording adds to the end rather than starting over',
+  (await page.locator('#rawInput').inputValue()) === 'the flibber is here it was warm',
+  await page.locator('#rawInput').inputValue());
+check('and the sentence already read keeps its mark',
+  (await page.locator('#correctedOutput .wtok.ctx-fixed').allTextContents()).join() === 'flobber',
+  await page.locator('#correctedOutput').textContent());
+check('only the new sentence was sent to be read',
+  (await page.evaluate(() => window.__lastContextBody.tokens.join(' '))) === 'it was warm',
+  JSON.stringify(await page.evaluate(() => window.__lastContextBody)));
+
+// The copy itself. Headless Chromium has the clipboard API but no permission,
+// so what is pinned here is the string that gets handed to it — which is the
+// part that must carry no marks.
+const copied = await page.evaluate(async () => {
+  const seen = [];
+  navigator.clipboard.writeText = async (t) => { seen.push(t); };
+  document.getElementById('copyBtn').click();
+  await new Promise((r) => setTimeout(r, 20));
+  return { seen, note: document.getElementById('copyNote').textContent };
+});
+check('Copy hands over the words only — no arrows, no marks',
+  copied.seen.length === 1 && copied.seen[0] === 'the flobber is here it was warm' &&
+  !/[\u2192\u21a9\u2248\u2713\u2717]/.test(copied.seen[0]),
+  JSON.stringify(copied.seen));
+check('and it says it copied',
+  copied.note.toLowerCase().includes('copied'), copied.note);
+check('what was copied is exactly what the panel reads',
+  copied.seen[0] === (await page.locator('#correctedOutput').textContent()));
+
+// Clear asks first, because a paragraph built across several recordings is not
+// something to lose to a stray tap.
+// The page-wide dialog handler above already dismisses every dialog, so the
+// answer is steered from inside the page instead — which also lets the
+// question itself be read back.
+await page.evaluate(() => {
+  window.__asked = [];
+  window.confirm = (message) => { window.__asked.push(message); return false; };
+});
+await page.locator('#clearBtn').click();
+check('Clear asks before throwing the paragraph away',
+  (await page.evaluate(() => window.__asked.length)) === 1 &&
+  (await page.locator('#rawInput').inputValue()) === 'the flibber is here it was warm',
+  JSON.stringify(await page.evaluate(() => window.__asked)));
+
+await page.evaluate(() => { window.confirm = () => true; });
+await page.locator('#clearBtn').click();
+await page.waitForFunction(() => document.getElementById('rawInput').value === '');
+check('and clears the text, the marks and the note when accepted',
+  (await page.locator('#correctedOutput').textContent()).includes('Nothing here yet') &&
+  (await page.locator('#contextNote').textContent()) === '' &&
+  (await page.locator('#copyBtn').isDisabled()));
+
 // When the context step cannot be reached, the old behaviour is what happens —
 // and it is said out loud rather than left to look like the new one.
 await page.click('.tab[data-tab="write"]');
