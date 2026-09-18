@@ -194,6 +194,37 @@ describe('copying the finished text', () => {
     }
   });
 
+  it('copies whichever word is showing when a change has been toggled', async () => {
+    // The two features meet here: a word the parent put back is the word that
+    // has to land in her homework, and the word they put back on is Claude's.
+    await speak({
+      transcript: 'i want the liquor one',
+      changes: [{ index: 3, to: 'little', reason: 'Choosing a size.' }]
+    });
+    expect(correctedPlainText()).toBe('i want the little one');
+
+    out().querySelector('.ctx-fixed').click();
+    expect(correctedPlainText()).toBe('i want the liquor one');
+    expect(correctedPlainText()).toBe(out().textContent);
+
+    out().querySelector('.ctx-original').click();
+    expect(correctedPlainText()).toBe('i want the little one');
+    expect(correctedPlainText()).toBe(out().textContent);
+  });
+
+  it('carries no mark from a word that was put back', async () => {
+    // A word put back keeps its mark on screen — a dashed rule and a ↩, both
+    // pseudo-elements. Neither belongs in a Seesaw post.
+    await speak({
+      transcript: 'the liquor cabinet',
+      changes: [{ index: 1, to: 'little', reason: 'x' }]
+    });
+    out().querySelector('.ctx-fixed').click();
+    expect(out().querySelector('.ctx-original')).not.toBe(null);
+    expect(correctedPlainText()).toBe('the liquor cabinet');
+    expect(correctedPlainText()).not.toMatch(/[\u2192\u21a9\u2248\u2713\u2717]/);
+  });
+
   it('copies the bank-corrected text when Claude could not be reached', async () => {
     await speak({ transcript: 'the liquor cabinet', down: true });
     expect(note()).toContain('unavailable');
