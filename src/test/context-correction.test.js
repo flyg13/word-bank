@@ -30,6 +30,7 @@ const out = () => document.getElementById('correctedOutput');
 const note = () => document.getElementById('contextNote').textContent;
 const shown = () => [...out().querySelectorAll('.wtok')].map((el) => el.textContent).join(' ');
 const marked = () => [...out().querySelectorAll('.wtok.ctx-fixed')].map((el) => el.textContent);
+const putBack = () => [...out().querySelectorAll('.wtok.ctx-original')].map((el) => el.textContent);
 
 const DOM = `
   <nav class="tabs"><div class="tab" data-tab="write"></div></nav>
@@ -150,6 +151,101 @@ describe('reading a transcript with its own sentence in view', () => {
     expect(marked()).toEqual([]);
   });
 
+  it('puts the change back on when the word is tapped again', async () => {
+    // The tap is a toggle, not a one-way door. She will tap a marked word out
+    // of curiosity, and a first tap that could not be undone would destroy a
+    // correction with no way to ask for it back.
+    serve({
+      transcript: 'the liquor cabinet',
+      changes: [{ index: 1, to: 'little', reason: 'Guessed.' }]
+    });
+    await speak();
+
+    out().querySelector('.wtok.ctx-fixed').click();
+    expect(shown()).toBe('the liquor cabinet');
+
+    out().querySelector('.wtok.ctx-original').click();
+    expect(shown()).toBe('the little cabinet');
+    expect(marked()).toEqual(['little']);
+  });
+
+  it('keeps toggling however many times it is tapped', async () => {
+    serve({
+      transcript: 'the liquor cabinet',
+      changes: [{ index: 1, to: 'little', reason: 'Guessed.' }]
+    });
+    await speak();
+
+    for (let i = 0; i < 6; i++) {
+      out().querySelector('.wtok.ctx-fixed').click();
+      expect(shown()).toBe('the liquor cabinet');
+      out().querySelector('.wtok.ctx-original').click();
+      expect(shown()).toBe('the little cabinet');
+    }
+  });
+
+  it('leaves the word marked once it is put back, so it still reads as tappable', async () => {
+    serve({
+      transcript: 'the liquor cabinet',
+      changes: [{ index: 1, to: 'little', reason: 'Guessed.' }]
+    });
+    await speak();
+    out().querySelector('.wtok.ctx-fixed').click();
+
+    // Marked, in its own state — not folded back in with the words Claude
+    // never touched.
+    expect(putBack()).toEqual(['liquor']);
+    expect(out().querySelectorAll('.wtok.ctx-fixed, .wtok.ctx-original')).toHaveLength(1);
+  });
+
+  it('says both ways round, so the second tap is discoverable', async () => {
+    serve({
+      transcript: 'the liquor cabinet',
+      changes: [{ index: 1, to: 'little', reason: 'Guessed.' }]
+    });
+    await speak();
+    expect(note()).toContain('tap it again');
+    expect(out().querySelector('.wtok.ctx-fixed').title).toContain('tap to put “liquor” back');
+
+    out().querySelector('.wtok.ctx-fixed').click();
+    expect(note()).toContain('tap it again');
+    expect(out().querySelector('.wtok.ctx-original').title).toContain('tap for Claude’s “little”');
+  });
+
+  it('toggles each changed word on its own', async () => {
+    serve({
+      transcript: 'the liquor and the liquor',
+      changes: [
+        { index: 1, to: 'little', reason: 'x' },
+        { index: 4, to: 'little', reason: 'x' }
+      ]
+    });
+    await speak();
+    expect(shown()).toBe('the little and the little');
+
+    out().querySelectorAll('.wtok.ctx-fixed')[0].click();
+    expect(shown()).toBe('the liquor and the little');
+    expect(marked()).toEqual(['little']);
+    expect(putBack()).toEqual(['liquor']);
+  });
+
+  it('never opens the correction panel from a changed word, in either state', async () => {
+    // Both states belong to the toggle. Opening the panel here would attach a
+    // bank entry to a word Claude decided about, and Claude's decisions are
+    // deliberately not evidence the bank ever sees.
+    serve({
+      transcript: 'the liquor cabinet',
+      changes: [{ index: 1, to: 'little', reason: 'x' }]
+    });
+    await speak();
+    const panel = document.getElementById('fixPanel');
+
+    out().querySelector('.wtok.ctx-fixed').click();
+    expect(panel.classList.contains('show')).toBe(false);
+    out().querySelector('.wtok.ctx-original').click();
+    expect(panel.classList.contains('show')).toBe(false);
+  });
+
   it('falls back to the blind find-and-replace, and says so', async () => {
     serve({ transcript: 'the liquor cabinet', contextStatus: 503 });
     await speak();
@@ -235,5 +331,23 @@ describe('the log of what Claude changed', () => {
     await speak();
     out().querySelector('.wtok.ctx-fixed').click();
     expect(readCorrectionLog()[0].reverted) .toBe(true);
+  });
+
+  it('stops calling it undone once the change is put back on', async () => {
+    // The entry carries how the change stands, not a tally of taps. A curious
+    // tap and tap-back must not leave a permanent mark on a change the parent
+    // never objected to — that is the signal this log exists to keep clean.
+    serve({
+      transcript: 'the liquor one',
+      changes: [{ index: 1, to: 'little', reason: 'Guessed.' }]
+    });
+    await speak();
+    out().querySelector('.wtok.ctx-fixed').click();
+    expect(readCorrectionLog()[0].reverted).toBe(true);
+
+    out().querySelector('.wtok.ctx-original').click();
+    expect(readCorrectionLog()[0].reverted).toBe(false);
+    // And it is still the same one entry, not a second one appended.
+    expect(readCorrectionLog()).toHaveLength(1);
   });
 });

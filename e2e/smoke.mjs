@@ -800,12 +800,62 @@ check('and it says what it did',
   (await page.locator('#contextNote').textContent()).includes('1 word changed'),
   await page.locator('#contextNote').textContent());
 
+// How the two states are told apart, before either is tapped. Colour is the
+// last signal here, not the only one: the glyph, the rule and the weight all
+// survive greyscale and a colour-blind reader.
+const ctxStates = await page.evaluate(() => {
+  const read = (el) => {
+    const s = getComputedStyle(el);
+    const b = getComputedStyle(el, '::before');
+    return {
+      glyph: b.content, rule: s.borderBottomStyle, weight: s.fontWeight,
+      colour: s.color, cursor: s.cursor
+    };
+  };
+  const el = document.querySelector('#correctedOutput .wtok.ctx-fixed');
+  const applied = read(el);
+  el.click();
+  const undone = read(document.querySelector('#correctedOutput .wtok.ctx-original'));
+  document.querySelector('#correctedOutput .wtok.ctx-original').click();
+  return { applied, undone };
+});
+check('the two states differ by glyph, rule and weight, not only colour',
+  ctxStates.applied.glyph !== ctxStates.undone.glyph &&
+  ctxStates.applied.rule !== ctxStates.undone.rule &&
+  ctxStates.applied.weight !== ctxStates.undone.weight,
+  JSON.stringify(ctxStates));
+check('and both states still read as tappable',
+  ctxStates.applied.cursor === 'pointer' && ctxStates.undone.cursor === 'pointer',
+  JSON.stringify([ctxStates.applied.cursor, ctxStates.undone.cursor]));
+
 // One tap puts it back. This is the whole safety story for a step that
 // rewrites without being asked.
 await page.locator('#correctedOutput .wtok.ctx-fixed').first().click();
 check('tapping a marked word puts the original back',
   (await page.locator('#correctedOutput').textContent()).includes('flibber') &&
   (await page.locator('#correctedOutput .wtok.ctx-fixed').count()) === 0);
+check('and it stays marked, so it does not look like the change is gone for good',
+  (await page.locator('#correctedOutput .wtok.ctx-original').allTextContents()).join() === 'flibber');
+
+// And tapping it again brings Claude's word back — a child who taps out of
+// curiosity must not be able to destroy a correction.
+await page.locator('#correctedOutput .wtok.ctx-original').first().click();
+check('tapping it again reapplies the correction',
+  (await page.locator('#correctedOutput .wtok.ctx-fixed').allTextContents()).join() === 'flobber' &&
+  (await page.locator('#correctedOutput .wtok.ctx-original').count()) === 0);
+
+// Repeatable, not a single spare life.
+for (let i = 0; i < 3; i++) {
+  await page.locator('#correctedOutput .wtok.ctx-fixed').first().click();
+  await page.locator('#correctedOutput .wtok.ctx-original').first().click();
+}
+check('and it keeps toggling however many times it is tapped',
+  (await page.locator('#correctedOutput').textContent()).replace(/\s+/g, ' ').trim()
+    === 'the flobber is here',
+  await page.locator('#correctedOutput').textContent());
+
+// Left in the undone state, so the log below is read with the change put back.
+await page.locator('#correctedOutput .wtok.ctx-fixed').first().click();
 
 // The log the parent reads, in Word Bank.
 await page.click('.tab[data-tab="bank"]');
