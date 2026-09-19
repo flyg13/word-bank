@@ -227,7 +227,7 @@ describe('copying the finished text', () => {
 
   it('copies the bank-corrected text when Claude could not be reached', async () => {
     await speak({ transcript: 'the liquor cabinet', down: true });
-    expect(note()).toContain('unavailable');
+    expect(note()).toContain('could not be read in context');
     expect(correctedPlainText()).toBe('the little cabinet');
     expect(correctedPlainText()).toBe(out().textContent);
   });
@@ -381,5 +381,187 @@ describe('clearing it to start fresh', () => {
     const before = JSON.stringify(state.wordBank);
     document.getElementById('clearBtn').click();
     expect(JSON.stringify(state.wordBank)).toBe(before);
+  });
+});
+
+describe('when one sentence could not be read in context', () => {
+  const runs = () => [...out().querySelectorAll('.unread-run')];
+  const retryBtn = () => document.getElementById('contextNote').querySelector('.retry-read');
+
+  it('leaves the sentences already read exactly as they were', async () => {
+    // The parent hit this on the iPad with a dropped connection. It used to
+    // reset the whole box: sentences that had been read correctly were
+    // silently recomputed, and one lost connection undid a paragraph of work.
+    await speak({
+      transcript: 'i want the liquor one',
+      changes: [{ index: 3, to: 'little', reason: 'Choosing a size.' }]
+    });
+    expect(out().textContent).toBe('i want the little one');
+
+    await speak({ transcript: 'the liquor cabinet', down: true });
+
+    // The first sentence still carries Claude's mark, unrecomputed.
+    expect([...out().querySelectorAll('.ctx-fixed')].map((e) => e.textContent))
+      .toEqual(['little']);
+    // The second is marked as unchecked, with the bank applied blindly in it.
+    expect(runs()).toHaveLength(1);
+    expect(runs()[0].textContent).toBe('the little cabinet');
+    expect(out().textContent).toBe('i want the little one the little cabinet');
+  });
+
+  it('keeps a word the parent deliberately put back', async () => {
+    // The sharpest version of the complaint: a decision they made by hand,
+    // undone by someone else's wifi.
+    await speak({
+      transcript: 'i want the liquor one',
+      changes: [{ index: 3, to: 'little', reason: 'x' }]
+    });
+    out().querySelector('.ctx-fixed').click();
+    expect(out().textContent).toBe('i want the liquor one');
+
+    await speak({ transcript: 'a big one', down: true });
+    expect(out().textContent).toBe('i want the liquor one a big one');
+    expect(out().querySelectorAll('.ctx-fixed')).toHaveLength(0);
+    expect(out().querySelectorAll('.ctx-original')).toHaveLength(1);
+  });
+
+  it('marks only the words that were being read, not the gap before them', async () => {
+    await speak({ transcript: 'the cat sat', changes: [] });
+    await speak({ transcript: 'it was warm', down: true });
+    expect(runs()).toHaveLength(1);
+    expect(runs()[0].textContent).toBe('it was warm');
+  });
+
+  it('says what happened, names the code, and does not pretend it was checked', async () => {
+    await speak({ transcript: 'the cat sat', changes: [] });
+    await speak({ transcript: 'the liquor cabinet', down: true });
+    expect(note()).toContain('could not be read in context');
+    expect(note()).toContain('not-configured');
+    expect(note()).toContain('every match');
+    expect(note()).toContain('Everything before it is untouched');
+    expect(document.getElementById('contextNote').classList.contains('warn')).toBe(true);
+  });
+
+  it('offers to read it again, and does when asked', async () => {
+    await speak({ transcript: 'i want the liquor one', changes: [] });
+    await speak({ transcript: 'the liquor cabinet', down: true });
+    expect(retryBtn()).not.toBe(null);
+
+    // The connection is back.
+    queue.push({ changes: [{ index: 1, to: 'little', reason: 'Describing a toy.' }] });
+    retryBtn().click();
+    await settle(); await settle();
+
+    expect(runs()).toHaveLength(0);
+    expect([...out().querySelectorAll('.ctx-fixed')].map((e) => e.textContent))
+      .toEqual(['little']);
+    expect(out().textContent).toBe('i want the liquor one the little cabinet');
+    expect(note()).not.toContain('could not be read');
+  });
+
+  it('sends only that sentence when it is read again', async () => {
+    await speak({ transcript: 'the cat sat', changes: [] });
+    await speak({ transcript: 'it was warm', down: true });
+
+    queue.push({ changes: [] });
+    retryBtn().click();
+    await settle(); await settle();
+
+    const sent = globalThis.fetch.mock.calls
+      .filter(([url]) => String(url).includes('contextual-correct'))
+      .map(([, init]) => JSON.parse(init.body).tokens);
+    expect(sent).toEqual([['the', 'cat', 'sat'], ['it', 'was', 'warm'], ['it', 'was', 'warm']]);
+  });
+
+  it('keeps the mark up while it is asking again, rather than clearing it first', async () => {
+    // Clearing it first would show the words with no correction at all for as
+    // long as the request takes, and would say the stretch had been read
+    // before anyone knew whether it had.
+    await speak({ transcript: 'the cat sat', changes: [] });
+    await speak({ transcript: 'it was warm', down: true });
+
+    let release;
+    const held = new Promise((r) => { release = r; });
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (url, init) => {
+      if (String(url).includes('contextual-correct')) {
+        await held;
+        return new Response(JSON.stringify({ changes: [] }), { status: 200 });
+      }
+      return realFetch(url, init);
+    });
+
+    retryBtn().click();
+    await settle();
+    expect(runs()).toHaveLength(1);
+    expect(out().textContent).toBe('the cat sat it was warm');
+
+    release();
+    await settle(); await settle();
+    expect(runs()).toHaveLength(0);
+  });
+
+  it('leaves the mark in place when reading again fails again', async () => {
+    await speak({ transcript: 'the cat sat', changes: [] });
+    await speak({ transcript: 'it was warm', down: true });
+
+    queue.push({ down: true });
+    retryBtn().click();
+    await settle(); await settle();
+
+    expect(runs()).toHaveLength(1);
+    expect(runs()[0].textContent).toBe('it was warm');
+    expect(retryBtn()).not.toBe(null);
+  });
+
+  it('drops the offer entirely once the parent edits the text', async () => {
+    // Editing already makes every decision about the box stale, unread
+    // stretches included — the view falls back and there is nothing to retry.
+    await speak({ transcript: 'the cat sat', changes: [] });
+    await speak({ transcript: 'it was warm', down: true });
+    expect(retryBtn()).not.toBe(null);
+
+    raw().value = 'something else entirely';
+    raw().dispatchEvent(new Event('input'));
+    expect(retryBtn()).toBe(null);
+    expect(runs()).toHaveLength(0);
+    expect(note()).toBe('');
+  });
+
+  it('refuses to read again if the text moved under it', async () => {
+    // Belt and braces for the hazard the run's word positions create: a retry
+    // that lands on the wrong words is worse than no retry at all.
+    await speak({ transcript: 'the cat sat', changes: [] });
+    await speak({ transcript: 'it was warm', down: true });
+
+    // Changed without the input event that would clear the note, which is the
+    // only way the button and a stale text can coexist.
+    raw().value = 'the cat sat it was cold';
+    const before = globalThis.fetch.mock.calls.length;
+    retryBtn().click();
+    await settle();
+
+    expect(globalThis.fetch.mock.calls.length).toBe(before);
+    expect(note()).toContain('The text changed');
+  });
+
+  it('copies what is on screen, unread stretch included', async () => {
+    await speak({
+      transcript: 'i want the liquor one',
+      changes: [{ index: 3, to: 'little', reason: 'x' }]
+    });
+    await speak({ transcript: 'the liquor cabinet', down: true });
+    expect(correctedPlainText()).toBe('i want the little one the little cabinet');
+    expect(correctedPlainText()).toBe(out().textContent);
+    expect(correctedPlainText()).not.toMatch(/[?→↩]/);
+  });
+
+  it('carries the unread mark through the next recording', async () => {
+    await speak({ transcript: 'the cat sat', down: true });
+    await speak({ transcript: 'it was warm', changes: [] });
+    // The first sentence is still the one that was not read; the second was.
+    expect(runs()).toHaveLength(1);
+    expect(runs()[0].textContent).toBe('the cat sat');
+    expect(note()).toContain('could not be read in context');
   });
 });

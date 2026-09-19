@@ -251,10 +251,13 @@ describe('reading a transcript with its own sentence in view', () => {
   it('falls back to the blind find-and-replace, and says so', async () => {
     serve({ transcript: 'the liquor cabinet', contextStatus: 503 });
     await speak();
-    // The old behaviour: every "liquor" becomes "little", context or not.
+    // The old behaviour: every "liquor" becomes "little", context or not —
+    // but now confined to the sentence that could not be read, and said out
+    // loud rather than left to look like the new behaviour.
     expect(shown()).toBe('the little cabinet');
-    expect(note()).toContain('Context correction unavailable');
+    expect(note()).toContain('could not be read in context');
     expect(note()).toContain('not-configured');
+    expect(note()).toContain('every match');
     expect(document.getElementById('contextNote').classList.contains('warn')).toBe(true);
   });
 

@@ -60,6 +60,24 @@ It is never in the repo, never in the built bundle, and never sent to the
 browser — there is a test asserting each of those. See [CLAUDE.md](CLAUDE.md)
 §9 for why this provider and this model, and what to watch for.
 
+**If recording stops too soon, or hangs on too long.** Tapping the mic again
+always ends a recording immediately; the settings below only decide when it
+gives up waiting on its own. Unlike the function-side variables on this page,
+these are read when the site is *built*, so changing one needs a redeploy —
+Netlify's **Trigger deploy** is enough, there is no code change. A value that
+is not a number between 300 and 120000 is ignored and the default is used.
+
+| Variable | Default | The pause it controls |
+|---|---|---|
+| `VITE_SILENCE_MS_FREEFORM` | `1500` | Speech-To-Text. Short, because recordings add to the end: cut off early, the next tap carries on |
+| `VITE_SILENCE_MS_WORD` | `1200` | Practice. One word, with nothing to pause inside |
+| `VITE_SILENCE_MS_SENTENCE` | `2000` | Sentences. Longer, because being cut off costs her the whole sentence again |
+| `VITE_SILENCE_MS_PASSAGE` | `2500` | Reading Passage. Longest: a passage has real pauses in it |
+| `VITE_NO_SPEECH_MS` | `6000` | How long it waits if she taps and then says nothing at all |
+
+Raise one if she is being cut off mid-sentence; lower it if the app feels like
+it has frozen after she stops talking.
+
 ### Running the function locally
 
 `npm run dev` serves the app but not the function, so speech falls back to the

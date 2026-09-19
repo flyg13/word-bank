@@ -4,7 +4,7 @@ import { state } from '../lib/store.js';
 
 export const MIC_IDLE = 'Tap to record';
 export const MIC_RECORDING = 'Recording — tap when done';
-const MIC_WORKING = 'Working it out…';
+export const MIC_WORKING = 'Working it out\u2026';
 const MIC_FALLBACK = 'Reduced accuracy — say it again';
 const MIC_FALLBACK_TAP = 'Reduced accuracy — tap and say it again';
 
@@ -103,18 +103,50 @@ function setAccuracyNotice(code) {
  *   expected?: () => string,
  *   canListen?: () => boolean,
  *   onBlocked?: () => void,
+ *   onWorking?: () => void,
  *   onResult: (text: string) => void
  * }} options
+ *
+ * `onWorking` fires when the recording ends and the clip starts being turned
+ * into text, for a screen that wants to say so somewhere other than the mic.
  */
 export function bindMic({
   buttonId, labelId, mode = 'word', expected = () => '',
-  canListen = () => true, onBlocked, onResult
+  canListen = () => true, onBlocked, onWorking, onResult
 }) {
   const button = document.getElementById(buttonId);
   const label = labelId ? document.getElementById(labelId) : null;
 
   const setLabel = (text) => {
-    if (label) label.textContent = text;
+    if (label) {
+      label.textContent = text;
+      label.classList.remove('working');
+    }
+  };
+
+  /**
+   * Recording is over and the clip is on its way.
+   *
+   * This is its own visible state, not a relabelling. While it was missing,
+   * the button kept the gold "listening" fill through the entire upload, so
+   * the one thing on screen said "still recording" when nothing was being
+   * recorded — and an auto-stop never even changed the label. On the iPad that
+   * reads as the app having frozen, which is what the parent reported.
+   */
+  const enterWorking = () => {
+    // Both ways a recording ends lead here — the tap, and capture's own
+    // `onSending` — and a tap-to-stop travels both. Entering the state twice
+    // is harmless on the button, but `onWorking` is somebody else's callback
+    // and it is told once.
+    if (workingShown) return;
+    workingShown = true;
+    button.classList.remove('listening');
+    button.classList.add('working');
+    if (label) {
+      label.textContent = MIC_WORKING;
+      label.classList.add('working');
+    }
+    if (onWorking) onWorking();
   };
 
   // One capture at a time per button. `active` holds the live capture so the
@@ -133,12 +165,15 @@ export function bindMic({
   let starting = false;
   let stopRequested = false;
   let fallbackArmed = false;
+  let workingShown = false;
 
   const finishIdle = () => {
     button.classList.remove('listening');
+    button.classList.remove('working');
     active = null;
     starting = false;
     stopRequested = false;
+    workingShown = false;
   };
 
   /** The browser's own recogniser — the fallback, and never the first choice. */
@@ -158,6 +193,7 @@ export function bindMic({
       },
       onError: (code) => {
         button.classList.remove('listening');
+        button.classList.remove('working');
         if (code === 'aborted') {
           setLabel(MIC_FALLBACK_TAP);
           return;
@@ -169,6 +205,7 @@ export function bindMic({
       },
       onEnd: () => {
         button.classList.remove('listening');
+        button.classList.remove('working');
         active = null;
         if (!failed) setLabel(fallbackArmed ? MIC_FALLBACK_TAP : MIC_IDLE);
       }
@@ -193,12 +230,13 @@ export function bindMic({
   const runCapture = async () => {
     starting = true;
     stopRequested = false;
+    workingShown = false;
     button.classList.add('listening');
     setLabel(MIC_RECORDING);
 
     let capture;
     try {
-      capture = await startCapture({ mode, expected: expected() });
+      capture = await startCapture({ mode, expected: expected(), onSending: enterWorking });
     } catch (e) {
       finishIdle();
       const code = e instanceof CaptureError ? e.code : 'mic-failed';
@@ -235,7 +273,7 @@ export function bindMic({
     // length limits in CAPTURE_MODES only exist so a recording can never be
     // left running.
     if (active) {
-      setLabel(MIC_WORKING);
+      enterWorking();
       active.stop('tap');
       return;
     }
@@ -243,7 +281,7 @@ export function bindMic({
     // Tapped again before the microphone was live. Remembered, not dropped.
     if (starting) {
       stopRequested = true;
-      setLabel(MIC_WORKING);
+      enterWorking();
       return;
     }
 

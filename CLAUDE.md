@@ -664,7 +664,115 @@ typed words get read rather than stepped over.
 the blind find-and-replace, earlier sentences included, rather than showing two
 kinds of correction at once with no way to tell them apart. The banner says so,
 as §10 requires, and the marks return with the next reading that succeeds.
+*Reversed in §13, September 2026: the parent hit this with a dropped connection
+and lost a paragraph of review to it. A failure now affects only the sentence
+that was being read.*
 
 **Clear asks, because the tap that throws a paragraph away sits next to the one
 that copies it.** It empties the text, the marks and the notes, and touches
 nothing else — her bank is not involved, and a test pins that.
+
+## 13. Three things real use on the iPad found (parent's decisions)
+
+All three came back from Harlie actually using Speech-To-Text for homework,
+which is exactly the loop §7 asks for. None of them is a correctness bug; all
+three are the app failing to say what it is doing.
+
+### The wait before recording stops
+
+**The decision.** Speech-To-Text's trailing-silence threshold drops from 3.5
+seconds to 1.5, and every mode's threshold becomes tunable from Netlify.
+
+**Why 3.5 was wrong, and why 1.5 is safe.** Three and a half seconds of nothing
+happening after she stops talking does not read as patience, it reads as the
+app having frozen — the parent's words. What makes the shorter pause safe is a
+change that landed since the number was chosen: recordings now add to the end
+rather than replacing (§12). Being cut off early used to lose the attempt; now
+it ends that sentence and the next tap carries straight on. The cost of
+impatience here is one extra tap.
+
+**The other modes were reviewed and deliberately left alone.** Practice stays
+at 1200ms — one word has nothing to pause inside it, and it was already the
+most impatient. Sentences (2000ms) and Reading (2500ms) stay long, because
+there the recording is scored against a target sentence: cutting her off
+mid-sentence costs her the whole thing again, which is a worse failure than a
+wait. The asymmetry is the point — Speech-To-Text can afford to be impatient
+precisely because nothing there is scored.
+
+**Tunable, with one honest caveat.** `VITE_SILENCE_MS_FREEFORM`, `_WORD`,
+`_SENTENCE`, `_PASSAGE` and `VITE_NO_SPEECH_MS` override the defaults. These
+are *build-time* variables — Vite substitutes them into the bundle — so
+changing one needs a redeploy, unlike `ANTHROPIC_EFFORT` and the other
+function-side variables, which are live. It is still not a code change, and
+Netlify's Trigger deploy is the whole operation, but it is not as immediate
+and the README says so. A value that is not a number in a sane range is
+ignored rather than used, the same discipline as §10's effort level: a typo
+must not be what leaves a recording running for a minute, or stops it before
+she has drawn breath.
+
+### Nothing on screen while the clip is transcribed
+
+**The decision.** Turning a clip into text gets its own visible state.
+
+**What was actually missing.** There was a label — *Working it out…* — but it
+only ever appeared on a tap-to-stop, and even then the button kept its gold
+recording fill for the entire upload. So the largest thing on screen said
+"still recording" while nothing was being recorded. On an **auto-stop** there
+was no signal at all: nothing in the app knew the recording had ended until the
+transcript came back several seconds later. That is the case the parent hit,
+and the same one the threshold above makes more common.
+
+**The fix is a seam, not a label.** `startCapture` takes an `onSending`
+callback and fires it the moment recording ends — before the silence check and
+before the clip gates, because even a clip about to be refused has stopped
+being a recording. The mic button then swaps the recording green for gold and
+grows a ring, the label says so, and `bindMic` passes an `onWorking` hook up so
+a screen can say it somewhere other than the mic. Speech-To-Text uses it:
+*Writing down what she said…* appears under the corrected text, which is where
+the parent is actually looking.
+
+Only one of the three signals is motion, deliberately. The app has a global
+`prefers-reduced-motion` rule that stops animations, so a spinner alone would
+be invisible to anyone who has that on: the fill colour changes and the ring
+appears whether or not it turns.
+
+### A dropped connection undoing a paragraph of review
+
+**The problem, in the parent's words.** The wifi went mid-paragraph. The
+context reading failed, and the blind find-and-replace was applied to the
+*whole* box — silently recomputing sentences that had already been read
+correctly, and putting back words they had deliberately tapped to keep. One
+dropped connection undid all of their earlier review.
+
+This was a known, documented limitation (§12, *One limitation, deliberate*) and
+it was the wrong call. The reasoning was that showing two kinds of correction
+at once with no way to tell them apart would be worse. That trade only holds if
+the two kinds are genuinely indistinguishable — and they can be told apart, so
+the trade was never necessary.
+
+**The decision.** A failed reading affects only the sentence that was being
+read.
+
+- Earlier sentences keep their context marks and every put-back decision,
+  untouched.
+- The stretch that was not read is marked as one **run** — a gold wash with a
+  rule down its left and a leading `?` — rather than word by word, because what
+  went wrong happened to the whole sentence, not to any word in it.
+- Her confirmed corrections still fire *inside* that run, the way the whole box
+  used to be treated. That is the §10 fallback, now confined to where it
+  belongs, and it uses the bank's own single-token rule (`blindToken`) rather
+  than a second copy of it that could drift.
+- The note names the code, says the run is running on the blind
+  find-and-replace, and says plainly that everything before it is untouched.
+- **Read it again** retries that sentence, and only that sentence. The mark
+  stays up while it asks: clearing it first would show the words with no
+  correction at all for as long as the request takes, and would say the stretch
+  had been read before anyone knew whether it had. A retry that fails puts the
+  mark straight back.
+
+Two things a retry deliberately will not do. It will not run against text that
+has changed since the failure — the run's word positions would no longer mean
+anything, and a retry landing on the wrong words is worse than no retry. And
+editing the box clears the run along with everything else, because editing
+already makes every decision about it stale; the way back from there is to
+record the sentence again.

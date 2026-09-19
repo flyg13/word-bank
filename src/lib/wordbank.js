@@ -63,13 +63,21 @@ export function wordsMatch(expectedWord, heardWord) {
  * Tokenise text into display parts, applying active corrections.
  * Whitespace is preserved as its own part so the original spacing survives.
  */
+/**
+ * The bank's blind answer for one token: what a find-and-replace would make of
+ * it, with no sentence in view. Exported so that the one stretch of text the
+ * context step could not read gets exactly the same treatment the whole box
+ * used to get, rather than a second copy of the rule that could drift from it.
+ */
+export function blindToken(token) {
+  const key = normalize(token);
+  const entry = getBankEntry(key);
+  if (key && entry && entry.active) {
+    return { raw: token, display: entry.correct, fixed: true, key };
+  }
+  return { raw: token, display: token, fixed: false, key };
+}
+
 export function applyBankToText(text) {
-  return text.split(/(\s+)/).map((token) => {
-    const key = normalize(token);
-    const entry = getBankEntry(key);
-    if (key && entry && entry.active) {
-      return { raw: token, display: entry.correct, fixed: true, key };
-    }
-    return { raw: token, display: token, fixed: false, key };
-  });
+  return text.split(/(\s+)/).map(blindToken);
 }
