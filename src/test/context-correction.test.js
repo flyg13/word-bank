@@ -38,6 +38,8 @@ const DOM = `
   <textarea id="rawInput"></textarea>
   <button id="writeMic"></button><div id="writeMicLabel"></div>
   <div id="correctedOutput"></div>
+  <button id="copyBtn"></button><button id="clearBtn"></button>
+  <span class="copy-note" id="copyNote"></span>
   <div class="context-note" id="contextNote"></div>
   <div class="write-note" id="writeNote"></div>
   <div class="fix-panel" id="fixPanel">
