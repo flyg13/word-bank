@@ -21,8 +21,25 @@ window.AudioContext = class {
 };
 
 const { state } = await import('../lib/store.js');
-const { initFreeWrite, renderCorrectedOutput, correctedPlainText } =
-  await import('../features/freewrite.js');
+// One answer, mounted on the ids this file's fixture already uses. The page
+// gives every question its own set; the behaviour under test is the same.
+const { createAnswer } = await import('../features/answer.js');
+const { initFixPanel } = await import('../features/fix-panel.js');
+
+const LEGACY_IDS = {
+  input: 'rawInput', output: 'correctedOutput', contextNote: 'contextNote',
+  writeNote: 'writeNote', copyNote: 'copyNote', mic: 'writeMic',
+  micLabel: 'writeMicLabel', copy: 'copyBtn', clear: 'clearBtn',
+  readBack: 'readBackBtn'
+};
+
+let answer = null;
+function initFreeWrite() {
+  initFixPanel();
+  answer = createAnswer({ ids: LEGACY_IDS });
+}
+const renderCorrectedOutput = () => answer.render();
+const correctedPlainText = () => answer.plainText();
 const { copyViaSelection } = await import('../lib/clipboard.js');
 
 const settle = () => new Promise((r) => setTimeout(r, 5));
@@ -227,7 +244,7 @@ describe('copying the finished text', () => {
 
   it('copies the bank-corrected text when Claude could not be reached', async () => {
     await speak({ transcript: 'the liquor cabinet', down: true });
-    expect(note()).toContain('could not be read in context');
+    expect(note()).toContain('could not check');
     expect(correctedPlainText()).toBe('the little cabinet');
     expect(correctedPlainText()).toBe(out().textContent);
   });
@@ -297,7 +314,7 @@ describe('copying the finished text', () => {
 
     document.getElementById('copyBtn').click();
     await settle();
-    expect(copyNote()).toContain('Could not copy');
+    expect(copyNote()).toContain('would not copy');
   });
 
   it('leaves the page selection as it found it', async () => {
@@ -435,10 +452,10 @@ describe('when one sentence could not be read in context', () => {
   it('says what happened, names the code, and does not pretend it was checked', async () => {
     await speak({ transcript: 'the cat sat', changes: [] });
     await speak({ transcript: 'the liquor cabinet', down: true });
-    expect(note()).toContain('could not be read in context');
+    expect(note()).toContain('could not check');
     expect(note()).toContain('not-configured');
     expect(note()).toContain('every match');
-    expect(note()).toContain('Everything before it is untouched');
+    expect(note()).toContain('Everything before it is fine');
     expect(document.getElementById('contextNote').classList.contains('warn')).toBe(true);
   });
 
@@ -456,7 +473,7 @@ describe('when one sentence could not be read in context', () => {
     expect([...out().querySelectorAll('.ctx-fixed')].map((e) => e.textContent))
       .toEqual(['little']);
     expect(out().textContent).toBe('i want the liquor one the little cabinet');
-    expect(note()).not.toContain('could not be read');
+    expect(note()).not.toContain('could not check');
   });
 
   it('sends only that sentence when it is read again', async () => {
@@ -542,7 +559,7 @@ describe('when one sentence could not be read in context', () => {
     await settle();
 
     expect(globalThis.fetch.mock.calls.length).toBe(before);
-    expect(note()).toContain('The text changed');
+    expect(note()).toContain('Your words changed');
   });
 
   it('copies what is on screen, unread stretch included', async () => {
@@ -562,6 +579,6 @@ describe('when one sentence could not be read in context', () => {
     // The first sentence is still the one that was not read; the second was.
     expect(runs()).toHaveLength(1);
     expect(runs()[0].textContent).toBe('the cat sat');
-    expect(note()).toContain('could not be read in context');
+    expect(note()).toContain('could not check');
   });
 });

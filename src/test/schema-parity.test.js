@@ -99,7 +99,12 @@ async function runPorted(drive, initial = {}) {
   const practice = await import('../features/practice.js');
   const { initSentences } = await import('../features/sentences.js');
   const { initReading } = await import('../features/reading.js');
-  const { initFreeWrite } = await import('../features/freewrite.js');
+  // The real worksheet, not a stand-in: this test exists to prove the port and
+  // the original write the same document, so the port has to be driven through
+  // the page it actually ships.
+  const { initWorksheet } = await import('../features/worksheet.js');
+  const { initFixPanel } = await import('../features/fix-panel.js');
+  const initFreeWrite = () => { initFixPanel(); initWorksheet(); };
   const { initBank } = await import('../features/bank.js');
 
   initTabs();
@@ -211,12 +216,20 @@ describe('schema parity: manually adding a correction', () => {
 });
 
 describe('schema parity: correcting a word in Speech-To-Text', () => {
+  // The two apps reach the same box by different routes now — the original
+  // has one fixed answer box, the port builds one per question on the sheet —
+  // so each is driven through its own UI and the documents they write are
+  // what gets compared.
+  const answerBox = (doc) => doc.getElementById('rawInput') || doc.querySelector('.answer-box');
+  const answerOut = (doc) =>
+    doc.getElementById('correctedOutput') || doc.querySelector('.answer-out');
+
   const drive = async (doc) => {
     doc.querySelector('.tab[data-tab="write"]').click();
-    const input = doc.getElementById('rawInput');
+    const input = answerBox(doc);
     input.value = 'wibble';
     input.dispatchEvent(new window.Event('input'));
-    doc.querySelector('#correctedOutput .wtok').click();
+    answerOut(doc).querySelector('.wtok').click();
     doc.getElementById('fixInput').value = 'wobble';
     doc.getElementById('saveFix').click();
     await new Promise((r) => setTimeout(r, 0));

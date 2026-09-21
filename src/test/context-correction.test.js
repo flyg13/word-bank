@@ -22,7 +22,25 @@ window.AudioContext = class {
 };
 
 const { state } = await import('../lib/store.js');
-const { initFreeWrite } = await import('../features/freewrite.js');
+// One answer, mounted on the ids this file's fixture already uses. The page
+// gives every question its own set; the behaviour under test is the same.
+const { createAnswer } = await import('../features/answer.js');
+const { initFixPanel } = await import('../features/fix-panel.js');
+
+const LEGACY_IDS = {
+  input: 'rawInput', output: 'correctedOutput', contextNote: 'contextNote',
+  writeNote: 'writeNote', copyNote: 'copyNote', mic: 'writeMic',
+  micLabel: 'writeMicLabel', copy: 'copyBtn', clear: 'clearBtn',
+  readBack: 'readBackBtn'
+};
+
+let answer = null;
+function initFreeWrite() {
+  initFixPanel();
+  answer = createAnswer({ ids: LEGACY_IDS });
+}
+const renderCorrectedOutput = () => answer.render();
+const correctedPlainText = () => answer.plainText();
 const { readCorrectionLog } = await import('../lib/correction-log.js');
 
 const settle = () => new Promise((r) => setTimeout(r, 5));
@@ -206,12 +224,12 @@ describe('reading a transcript with its own sentence in view', () => {
       changes: [{ index: 1, to: 'little', reason: 'Guessed.' }]
     });
     await speak();
-    expect(note()).toContain('tap it again');
-    expect(out().querySelector('.wtok.ctx-fixed').title).toContain('tap to put “liquor” back');
+    expect(note()).toContain('Tap a word to change it back');
+    expect(out().querySelector('.wtok.ctx-fixed').title).toContain('tap to change it back');
 
     out().querySelector('.wtok.ctx-fixed').click();
-    expect(note()).toContain('tap it again');
-    expect(out().querySelector('.wtok.ctx-original').title).toContain('tap for Claude’s “little”');
+    expect(note()).toContain('Tap it again');
+    expect(out().querySelector('.wtok.ctx-original').title).toContain('tap to use “little”');
   });
 
   it('toggles each changed word on its own', async () => {
@@ -255,7 +273,7 @@ describe('reading a transcript with its own sentence in view', () => {
     // but now confined to the sentence that could not be read, and said out
     // loud rather than left to look like the new behaviour.
     expect(shown()).toBe('the little cabinet');
-    expect(note()).toContain('could not be read in context');
+    expect(note()).toContain('could not check');
     expect(note()).toContain('not-configured');
     expect(note()).toContain('every match');
     expect(document.getElementById('contextNote').classList.contains('warn')).toBe(true);

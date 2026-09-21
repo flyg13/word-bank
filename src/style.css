@@ -419,6 +419,43 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
 }
 .unread-run::before{ content:'? '; color:var(--gold-text); font-weight:700; }
 
+/* ---------- Her worksheet ---------- */
+/* One sheet of schoolwork: a name, then a card per question. The question is
+   the thing she pastes in, so its box is the largest input on the page — it
+   has to be an obvious target for a paste on an iPad. */
+.sheet-title{
+  width:100%; font-family:var(--font-read); font-size:20px; padding:13px 14px;
+  border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--white);
+  color:var(--ink);
+}
+.sheet-title:focus{ outline:2px solid var(--gold); }
+.sheet-actions{ margin-top:12px; }
+.sheet-list{ margin-top:4px; }
+.sheet-row{ display:flex; align-items:center; gap:8px; padding:5px 0; }
+.sheet-open{ flex:1; text-align:left; font-family:var(--font-read); }
+.sheet-foot{ display:flex; flex-direction:column; gap:10px; }
+
+.qa-card{ border-left:4px solid var(--gold-lit); }
+.qa-head{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.qa-number{ flex:1; font-size:19px; margin:0; font-family:var(--font-ui); }
+.question-box{
+  width:100%; min-height:96px; font-family:var(--font-read); font-size:19px;
+  line-height:1.7; padding:14px; border:2px dashed var(--gold); border-radius:var(--radius-sm);
+  background:var(--gold-wash); color:var(--ink); resize:vertical;
+}
+.question-box:focus{ outline:2px solid var(--gold); border-style:solid; }
+
+/* The speaker. Sized for a nine-year-old's finger, not a cursor: this is the
+   control she reaches for every time a question has a word she cannot read. */
+.icon-btn{
+  flex:none; width:48px; height:48px; border-radius:50%; border:1px solid var(--line);
+  background:var(--white); cursor:pointer; display:flex; align-items:center;
+  justify-content:center; padding:0;
+}
+.icon-btn svg{ width:24px; height:24px; fill:var(--ink); }
+.icon-btn:hover{ border-color:var(--ink); }
+.icon-btn:active{ transform:scale(.96); }
+
 .read-note{ margin-top:12px; font-size:16px; font-weight:700; font-family:var(--font-ui); }
 .read-note.clean{ color:var(--checked); }
 .write-note{ font-size:16px; color:var(--checked); margin-top:11px; }
@@ -437,6 +474,9 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
    blind find-and-replace is the thing the parent must not miss. */
 .context-note{ display:none; font-size:16px; line-height:1.55; color:var(--muted); margin-top:11px; }
 .context-note.show{ display:block; }
+/* The error code, for whoever has to work out why. Small and grey: she does
+   not need it, and the person who does needs it to still be there. */
+.context-note .code-hint{ color:var(--muted); }
 .context-note .retry-read{
   display:inline-block; margin-left:8px; font:inherit; font-weight:700;
   color:var(--ink); background:var(--white); border:1px solid var(--gold);

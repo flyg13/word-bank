@@ -193,31 +193,29 @@
 
   <!-- SPEECH-TO-TEXT TAB -->
   <div id="tab-write" style="display:none;">
+    <div class="card sheet-head">
+      <label class="eyebrow" for="sheetTitle">What is this work called?</label>
+      <input type="text" id="sheetTitle" class="sheet-title"
+             placeholder="Monday diary entry" autocomplete="off">
+      <div class="row sheet-actions">
+        <button class="btn btn-outline" id="newSheet">New sheet</button>
+      </div>
+      <div class="eyebrow">Your saved work</div>
+      <div class="sheet-list" id="recentSheets"></div>
+    </div>
+
+    <div id="sheetQuestions"></div>
+
+    <div class="card sheet-foot">
+      <div class="row">
+        <button class="btn btn-outline" id="addQuestion">Add another question</button>
+        <button class="btn btn-primary" id="copySheet">Copy whole sheet</button>
+      </div>
+      <span class="copy-note" id="sheetCopyNote" role="status"></span>
+    </div>
+
+    <!-- One panel for the whole app: every tab sends a mis-heard word here. -->
     <div class="card">
-      <div class="eyebrow">Say a sentence, or type it here to test corrections</div>
-      <p class="sub">Each recording adds to the end, so a paragraph can be built a sentence at a time.</p>
-      <textarea id="rawInput" placeholder="Tap the mic, or type here&hellip;"></textarea>
-      <div class="centre-row centre-col">
-        <button class="mic-btn mic-btn-sm" id="writeMic" aria-label="Tap to record">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
-        </button>
-        <div class="mic-label" id="writeMicLabel">Tap to record</div>
-      </div>
-
-      <div class="eyebrow">Corrected &mdash; tap any word to fix it</div>
-      <div class="read-out" id="correctedOutput"><span class="empty-note">Nothing here yet.</span></div>
-      <!-- What the context step did, or why it could not. Never silent. -->
-      <div class="context-note" id="contextNote" role="status"></div>
-      <div class="write-note" id="writeNote"></div>
-
-      <!-- Getting the finished text out. This is what the whole tab is for:
-           homework that ends up pasted into Seesaw or Word. -->
-      <div class="out-actions">
-        <button class="btn btn-primary" id="copyBtn">Copy</button>
-        <button class="btn btn-ghost" id="clearBtn">Clear</button>
-        <span class="copy-note" id="copyNote" role="status"></span>
-      </div>
-
       <div class="fix-panel" id="fixPanel">
         <div class="eyebrow">Fixing: <span id="fixingWord"></span></div>
         <input type="text" id="fixInput" placeholder="What word should this be?">

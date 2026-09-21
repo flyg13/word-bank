@@ -24,6 +24,9 @@ export const state = {
   // can read it from any device; never read by anything that decides a
   // correction.
   contextLog: [],
+  // Her schoolwork: a rolling five sheets, newest first. See lib/sheets.js for
+  // the shape and CLAUDE.md §14 for why only her own words are stored.
+  sheets: [],
 
   // Local only — not persisted
   practiceQueue: [],

@@ -37,6 +37,7 @@ export function foldSnapshot(state, data) {
   state.phonicBank = data.phonic_bank || {};
   state.speechLang = validLang(data.speech_lang);
   state.contextLog = Array.isArray(data.context_log) ? data.context_log : [];
+  state.sheets = Array.isArray(data.sheets) ? data.sheets : [];
 }
 
 /** Fall back rather than hand the recognizer something it will reject. */
@@ -56,6 +57,7 @@ export const SYNCED_FIELDS = [
   'sentence_index',
   'sentence_progress',
   'session_log',
+  'sheets',
   'speech_lang',
   'verified_words',
   'word_bank'

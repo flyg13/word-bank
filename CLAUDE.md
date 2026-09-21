@@ -776,3 +776,107 @@ anything, and a retry landing on the wrong words is worse than no retry. And
 editing the box clears the run along with everything else, because editing
 already makes every decision about it stale; the way back from there is to
 record the sentence again.
+
+## 14. Speech-To-Text becomes a worksheet (parent's decisions)
+
+**Why the page changed shape.** It was one scratch box, which is not the shape
+of the work she actually does. Her schoolwork is a weekly creative-writing
+piece in paragraphs — a diary entry written as a character — and short reading
+and writing questions. Every one of them is *a question she has to answer*,
+and every answer goes back into Seesaw. A single box made her hold the question
+in her head, and gave the app no way to help with it.
+
+**A sheet is one piece of schoolwork**: a name, and one or more
+question-and-answer pairs.
+
+### The question is hers to paste in
+
+**Parent's decision: she does this herself.** She is nine, and copying the
+question across from Seesaw is part of doing her own schoolwork. So the app
+does not fetch it, guess it or ask the parent for it — it gives her a box.
+The box is the largest input on the page, a textarea with a dashed gold border,
+because a paste target on an iPad has to be unmissable and forgiving of a
+mistimed tap.
+
+**A speaker beside it reads it out, as many times as she wants.** This is not a
+convenience. A question with a word she cannot read is a question she cannot
+answer, and re-reading it aloud is the thing that unblocks her. It uses her
+configured accent, the same as everywhere else, and `speak()` cancels whatever
+was already talking so a second tap restarts rather than overlapping.
+
+### Her answer is the old page, unchanged
+
+The mic, recordings adding to the end, context correction, tap-to-toggle and
+Copy all behave exactly as §10, §12 and §13 describe. What changed is that they
+are no longer a singleton: `features/answer.js` is a factory, and a sheet has
+one instance per question. Every piece of state that used to sit at module
+level now belongs to one answer, because two answers on one sheet must not see
+each other's decisions — a test drives two at once and pins that.
+
+The one genuinely new control is **Read it to me**, and it is the parent's
+decision and the reason for it: *she cannot proofread by reading, so hearing it
+is how she checks it.* It speaks the **corrected** text — the same string Copy
+puts on the clipboard, from the same function, pinned by a test. Reading her
+the raw transcript would have her check the wrong thing.
+
+### More than one question
+
+**Add another question** appends a block. **Copy answer** copies that answer
+alone. **Copy whole sheet** copies every question with its answer beneath it,
+in order, blank line separated — and it uses the *live* corrected text for any
+answer that is on screen, because only the page knows which corrections are
+currently showing. The sheet's own name is deliberately not in that copy: what
+she pastes into Seesaw is the work, not the label she gave it.
+
+A sheet always has at least one question, so Remove is hidden when there is
+only one, and asks first when the question it would take has anything in it.
+
+### Saving
+
+**Parent's decision: the five most recent, and no long history to manage.**
+Older sheets drop off on their own. They are a synced field, `sheets`, on the
+family document — the same way the rest of her data syncs — so a sheet started
+on the iPad is on the parent's device too. The whole list is written on every
+change, which is what bounds the field: five sheets is the cap, not a
+suggestion. It is purely additive; the differential test pins that the fields
+that were there before are untouched.
+
+**Only her own words are stored, never Claude's.** A stored answer is the
+transcript as the recogniser heard it. Freezing Claude's changes into storage
+would make a guess indistinguishable from a transcript the next time the sheet
+was opened, and §10's rule that this step "only ever changes what is on screen"
+would stop being true. **What that costs, plainly:** a reopened answer shows
+her confirmed corrections applied the blind way — the same treatment typed text
+has always had — until she records into it again. Copy still gives what is on
+screen, so nothing is wrong; it is just not as good as it was before the sheet
+was closed. Storing the corrected text instead would be a one-line change, and
+it is the wrong trade.
+
+An empty sheet is never stored: opening the tab makes one, and a blank sheet
+pushing real work off the end of a five-long list would be a bad bargain.
+Starting a new sheet asks nothing, because nothing is lost — the sheet on
+screen is saved on the way out and is the first row of the list underneath.
+
+### Wording
+
+Every label on this page was written for a parent testing corrections, and
+this is a page a nine-year-old uses on her own. They are now short and plain:
+*Say your answer*, *Your answer*, *Copy answer*, *Read it to me*, *Start
+again*, *Paste the question here*. The notes changed too — *Checking your
+words…*, *I changed 2 words. Tap a word to change it back.*, *Copied! Now paste
+it into Seesaw.*
+
+**One thing the rewrite was not allowed to drop.** §10 requires the fallback
+note to name the error code, because that code is the only diagnostic there is
+when something goes wrong on a device nobody is holding. The plain sentence is
+hers; the code follows it in small grey text rather than disappearing. A test
+pins that it is still there.
+
+### What this does not settle
+
+Whether the page reads clearly to *her* is not knowable from here. The specific
+things to watch on the iPad: whether she finds the paste box without being
+shown, whether the speaker button is where her hand goes when a word stops her,
+and whether several question cards on one sheet scroll comfortably or turn into
+a wall. The wording is a guess at nine-year-old plain, made by someone who is
+not nine.

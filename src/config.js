@@ -144,6 +144,14 @@ export const NO_SPEECH_MS = envMs('VITE_NO_SPEECH_MS', 6000);
 // enough to describe the whole bank would start biasing every transcript.
 export const VOCAB_HINT_LIMIT = 90;
 
+// ---------- Her worksheets ----------
+
+// How many sheets of schoolwork are kept. The parent's number: enough to pick
+// yesterday's work back up, and deliberately not a history to manage. The
+// whole list is written to the family document on every change, so this also
+// bounds how large that field can get.
+export const SHEET_LIMIT = 5;
+
 // ---------- Context-aware correction ----------
 
 // Where Speech-To-Text sends a transcript to be read with its own sentence in

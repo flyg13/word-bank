@@ -95,7 +95,7 @@ process.on('uncaughtException', async (e) => {
       };
       return {
         tab: (document.querySelector('.tab.active') || {}).textContent,
-        micLabels: ['practiceMicLabel', 'sentenceMicLabel', 'readingMicLabel', 'writeMicLabel', 'phonicMicLabel']
+        micLabels: ['practiceMicLabel', 'sentenceMicLabel', 'readingMicLabel', 'phonicMicLabel']
           .reduce((acc, id) => { acc[id] = text(id); return acc; }, {}),
         listening: [...document.querySelectorAll('.listening')].map((el) => el.id),
         phonicWord: text('phonicWord'),
@@ -259,7 +259,7 @@ check('the app behind it is now usable',
  * (nothing to say yet, permission denied), where the second tap is the point.
  */
 async function tapMic(micId) {
-  const selector = micId.startsWith('#') ? micId : '#' + micId;
+  const selector = /^[#.]/.test(micId) ? micId : '#' + micId;
   await page.click(selector);
   await page.waitForSelector(selector + '.listening', { timeout: 2000 }).catch(() => {});
   // Only tap again if it is still recording. Two cases must not get a second
@@ -330,20 +330,20 @@ check('banked correction appears, pending confirmation',
 
 // ---- Speech-To-Text, and the pending -> active flow ----
 await page.click('.tab[data-tab="write"]');
-await page.fill('#rawInput', 'zzquump is here');
+await page.fill('.answer-box', 'zzquump is here');
 check('pending correction is NOT applied',
-  (await page.locator('#correctedOutput').textContent()).includes('zzquump'));
+  (await page.locator('.answer-out').textContent()).includes('zzquump'));
 
 await page.click('.tab[data-tab="bank"]');
 await page.locator('#bankList button', { hasText: 'Confirm' }).first().click();
 await page.click('.tab[data-tab="write"]');
 check('confirmed correction IS applied',
-  (await page.locator('#correctedOutput').textContent()).includes(target2),
-  await page.locator('#correctedOutput').textContent());
+  (await page.locator('.answer-out').textContent()).includes(target2),
+  await page.locator('.answer-out').textContent());
 
 // Tap a word to correct it.
-await page.fill('#rawInput', 'wibble');
-await page.locator('#correctedOutput .wtok').first().click();
+await page.fill('.answer-box', 'wibble');
+await page.locator('.answer-out .wtok').first().click();
 await page.fill('#fixInput', 'wobble');
 await page.click('#saveFix');
 await page.click('.tab[data-tab="bank"]');
@@ -733,33 +733,33 @@ check('turning it off restores the full queue',
 // ---- Speech-To-Text: pronunciations as suggestions, never applied ----
 
 await page.click('.tab[data-tab="write"]');
-await page.fill('#rawInput', 'the flibber and the yo yo');
-await page.dispatchEvent('#rawInput', 'input');
-await page.waitForFunction(() => document.querySelectorAll('#correctedOutput .wtok').length > 0);
+await page.fill('.answer-box', 'the flibber and the yo yo');
+await page.dispatchEvent('.answer-box', 'input');
+await page.waitForFunction(() => document.querySelectorAll('.answer-out .wtok').length > 0);
 
-const suggested = await page.locator('#correctedOutput .wtok.suggest').allTextContents();
+const suggested = await page.locator('.answer-out .wtok.suggest').allTextContents();
 check('a strong pronunciation suggests what a loose word probably was',
   suggested.length === 1 && suggested[0] === 'flibber', JSON.stringify(suggested));
 check('and it is offered, not applied',
-  (await page.locator('#correctedOutput').textContent()).includes('flibber') &&
-  !(await page.locator('#correctedOutput').textContent()).includes('flobber'));
+  (await page.locator('.answer-out').textContent()).includes('flibber') &&
+  !(await page.locator('.answer-out').textContent()).includes('flobber'));
 check('a loose pronunciation stays out of Speech-To-Text entirely',
   !suggested.includes('yo') && !suggested.includes('yeyo'));
 
 // Accepting is one sighting, not an instant correction.
-await page.locator('#correctedOutput .wtok.suggest').first().click();
-await page.waitForFunction(() => document.getElementById('writeNote').textContent.trim() !== '');
+await page.locator('.answer-out .wtok.suggest').first().click();
+await page.waitForFunction(() => document.querySelector('.qa-card .write-note').textContent.trim() !== '');
 check('accepting once records a sighting without applying it',
-  (await page.locator('#writeNote').textContent()).includes('One more sighting') &&
-  (await page.locator('#correctedOutput .wtok.suggest').count()) === 1,
-  await page.locator('#writeNote').textContent());
+  (await page.locator('.qa-card .write-note').textContent()).includes('one more time') &&
+  (await page.locator('.answer-out .wtok.suggest').count()) === 1,
+  await page.locator('.qa-card .write-note').textContent());
 
-await page.locator('#correctedOutput .wtok.suggest').first().click();
+await page.locator('.answer-out .wtok.suggest').first().click();
 await page.waitForFunction(() =>
-  document.getElementById('writeNote').textContent.includes('Confirmed'));
+  document.querySelector('.qa-card .write-note').textContent.includes('now means'));
 check('the second sighting confirms it, and then it applies',
-  (await page.locator('#correctedOutput .wtok.fixed').allTextContents()).includes('flobber') &&
-  (await page.locator('#correctedOutput .wtok.suggest').count()) === 0);
+  (await page.locator('.answer-out .wtok.fixed').allTextContents()).includes('flobber') &&
+  (await page.locator('.answer-out .wtok.suggest').count()) === 0);
 
 await page.click('.tab[data-tab="bank"]');
 // Scoped to this row: other entries in the list are legitimately still pending.
@@ -774,21 +774,21 @@ check('and it reached the word bank as a confirmed correction',
 // rewrites every "flibber"; this step is supposed to decide.
 
 await page.click('.tab[data-tab="write"]');
-await page.fill('#rawInput', '');
-await page.dispatchEvent('#rawInput', 'input');
+await page.fill('.answer-box', '');
+await page.dispatchEvent('.answer-box', 'input');
 await page.evaluate(() => {
   window.__contextDown = false;
   window.__nextTranscript = 'the flibber is here';
   window.__contextChanges = [{ index: 1, to: 'flobber', reason: 'She means her toy.' }];
 });
-await tapMic('writeMic');
-await page.waitForSelector('#correctedOutput .wtok.ctx-fixed');
+await tapMic('.qa-card .mic-btn');
+await page.waitForSelector('.answer-out .wtok.ctx-fixed');
 check('a word Claude changed is marked, not silently swapped',
-  (await page.locator('#correctedOutput .wtok.ctx-fixed').allTextContents()).join() === 'flobber');
+  (await page.locator('.answer-out .wtok.ctx-fixed').allTextContents()).join() === 'flobber');
 check('and the sentence around it is untouched',
-  (await page.locator('#correctedOutput').textContent()).replace(/\s+/g, ' ').trim()
+  (await page.locator('.answer-out').textContent()).replace(/\s+/g, ' ').trim()
     === 'the flobber is here',
-  await page.locator('#correctedOutput').textContent());
+  await page.locator('.answer-out').textContent());
 check('it was sent her patterns, not just the words',
   await page.evaluate(() => {
     const body = window.__lastContextBody;
@@ -797,8 +797,8 @@ check('it was sent her patterns, not just the words',
   }),
   JSON.stringify(await page.evaluate(() => window.__lastContextBody)));
 check('and it says what it did',
-  (await page.locator('#contextNote').textContent()).includes('1 word changed'),
-  await page.locator('#contextNote').textContent());
+  (await page.locator('.qa-card .context-note').textContent()).includes('I changed 1 word'),
+  await page.locator('.qa-card .context-note').textContent());
 
 // How the two states are told apart, before either is tapped. Colour is the
 // last signal here, not the only one: the glyph, the rule and the weight all
@@ -812,11 +812,11 @@ const ctxStates = await page.evaluate(() => {
       colour: s.color, cursor: s.cursor
     };
   };
-  const el = document.querySelector('#correctedOutput .wtok.ctx-fixed');
+  const el = document.querySelector('.answer-out .wtok.ctx-fixed');
   const applied = read(el);
   el.click();
-  const undone = read(document.querySelector('#correctedOutput .wtok.ctx-original'));
-  document.querySelector('#correctedOutput .wtok.ctx-original').click();
+  const undone = read(document.querySelector('.answer-out .wtok.ctx-original'));
+  document.querySelector('.answer-out .wtok.ctx-original').click();
   return { applied, undone };
 });
 check('the two states differ by glyph, rule and weight, not only colour',
@@ -830,32 +830,32 @@ check('and both states still read as tappable',
 
 // One tap puts it back. This is the whole safety story for a step that
 // rewrites without being asked.
-await page.locator('#correctedOutput .wtok.ctx-fixed').first().click();
+await page.locator('.answer-out .wtok.ctx-fixed').first().click();
 check('tapping a marked word puts the original back',
-  (await page.locator('#correctedOutput').textContent()).includes('flibber') &&
-  (await page.locator('#correctedOutput .wtok.ctx-fixed').count()) === 0);
+  (await page.locator('.answer-out').textContent()).includes('flibber') &&
+  (await page.locator('.answer-out .wtok.ctx-fixed').count()) === 0);
 check('and it stays marked, so it does not look like the change is gone for good',
-  (await page.locator('#correctedOutput .wtok.ctx-original').allTextContents()).join() === 'flibber');
+  (await page.locator('.answer-out .wtok.ctx-original').allTextContents()).join() === 'flibber');
 
 // And tapping it again brings Claude's word back — a child who taps out of
 // curiosity must not be able to destroy a correction.
-await page.locator('#correctedOutput .wtok.ctx-original').first().click();
+await page.locator('.answer-out .wtok.ctx-original').first().click();
 check('tapping it again reapplies the correction',
-  (await page.locator('#correctedOutput .wtok.ctx-fixed').allTextContents()).join() === 'flobber' &&
-  (await page.locator('#correctedOutput .wtok.ctx-original').count()) === 0);
+  (await page.locator('.answer-out .wtok.ctx-fixed').allTextContents()).join() === 'flobber' &&
+  (await page.locator('.answer-out .wtok.ctx-original').count()) === 0);
 
 // Repeatable, not a single spare life.
 for (let i = 0; i < 3; i++) {
-  await page.locator('#correctedOutput .wtok.ctx-fixed').first().click();
-  await page.locator('#correctedOutput .wtok.ctx-original').first().click();
+  await page.locator('.answer-out .wtok.ctx-fixed').first().click();
+  await page.locator('.answer-out .wtok.ctx-original').first().click();
 }
 check('and it keeps toggling however many times it is tapped',
-  (await page.locator('#correctedOutput').textContent()).replace(/\s+/g, ' ').trim()
+  (await page.locator('.answer-out').textContent()).replace(/\s+/g, ' ').trim()
     === 'the flobber is here',
-  await page.locator('#correctedOutput').textContent());
+  await page.locator('.answer-out').textContent());
 
 // Left in the undone state, so the log below is read with the change put back.
-await page.locator('#correctedOutput .wtok.ctx-fixed').first().click();
+await page.locator('.answer-out .wtok.ctx-fixed').first().click();
 
 // The log the parent reads, in Word Bank.
 await page.click('.tab[data-tab="bank"]');
@@ -870,33 +870,33 @@ check('and undoing it is recorded rather than erased',
 // The tab's actual job: homework that ends up pasted into Seesaw or Word.
 
 await page.click('.tab[data-tab="write"]');
-await page.fill('#rawInput', '');
-await page.dispatchEvent('#rawInput', 'input');
+await page.fill('.answer-box', '');
+await page.dispatchEvent('.answer-box', 'input');
 check('Copy and Clear are off with an empty box',
-  (await page.locator('#copyBtn').isDisabled()) &&
-  (await page.locator('#clearBtn').isDisabled()));
+  (await page.locator('.ans-copy').isDisabled()) &&
+  (await page.locator('.ans-clear').isDisabled()));
 
 await page.evaluate(() => {
   window.__contextDown = false;
   window.__nextTranscript = 'the flibber is here';
   window.__contextChanges = [{ index: 1, to: 'flobber', reason: 'She means her toy.' }];
 });
-await tapMic('writeMic');
-await page.waitForSelector('#correctedOutput .wtok.ctx-fixed');
+await tapMic('.qa-card .mic-btn');
+await page.waitForSelector('.answer-out .wtok.ctx-fixed');
 
 await page.evaluate(() => {
   window.__nextTranscript = 'it was warm';
   window.__contextChanges = [];
 });
-await tapMic('writeMic');
+await tapMic('.qa-card .mic-btn');
 await page.waitForFunction(() =>
-  document.getElementById('rawInput').value.includes('warm'));
+  document.querySelector('.answer-box').value.includes('warm'));
 check('a second recording adds to the end rather than starting over',
-  (await page.locator('#rawInput').inputValue()) === 'the flibber is here it was warm',
-  await page.locator('#rawInput').inputValue());
+  (await page.locator('.answer-box').inputValue()) === 'the flibber is here it was warm',
+  await page.locator('.answer-box').inputValue());
 check('and the sentence already read keeps its mark',
-  (await page.locator('#correctedOutput .wtok.ctx-fixed').allTextContents()).join() === 'flobber',
-  await page.locator('#correctedOutput').textContent());
+  (await page.locator('.answer-out .wtok.ctx-fixed').allTextContents()).join() === 'flobber',
+  await page.locator('.answer-out').textContent());
 check('only the new sentence was sent to be read',
   (await page.evaluate(() => window.__lastContextBody.tokens.join(' '))) === 'it was warm',
   JSON.stringify(await page.evaluate(() => window.__lastContextBody)));
@@ -907,9 +907,9 @@ check('only the new sentence was sent to be read',
 const copied = await page.evaluate(async () => {
   const seen = [];
   navigator.clipboard.writeText = async (t) => { seen.push(t); };
-  document.getElementById('copyBtn').click();
+  document.querySelector('.ans-copy').click();
   await new Promise((r) => setTimeout(r, 20));
-  return { seen, note: document.getElementById('copyNote').textContent };
+  return { seen, note: document.querySelector('.qa-card .copy-note').textContent };
 });
 check('Copy hands over the words only — no arrows, no marks',
   copied.seen.length === 1 && copied.seen[0] === 'the flobber is here it was warm' &&
@@ -918,7 +918,7 @@ check('Copy hands over the words only — no arrows, no marks',
 check('and it says it copied',
   copied.note.toLowerCase().includes('copied'), copied.note);
 check('what was copied is exactly what the panel reads',
-  copied.seen[0] === (await page.locator('#correctedOutput').textContent()));
+  copied.seen[0] === (await page.locator('.answer-out').textContent()));
 
 // Clear asks first, because a paragraph built across several recordings is not
 // something to lose to a stray tap.
@@ -929,68 +929,68 @@ await page.evaluate(() => {
   window.__asked = [];
   window.confirm = (message) => { window.__asked.push(message); return false; };
 });
-await page.locator('#clearBtn').click();
+await page.locator('.ans-clear').click();
 check('Clear asks before throwing the paragraph away',
   (await page.evaluate(() => window.__asked.length)) === 1 &&
-  (await page.locator('#rawInput').inputValue()) === 'the flibber is here it was warm',
+  (await page.locator('.answer-box').inputValue()) === 'the flibber is here it was warm',
   JSON.stringify(await page.evaluate(() => window.__asked)));
 
 await page.evaluate(() => { window.confirm = () => true; });
-await page.locator('#clearBtn').click();
-await page.waitForFunction(() => document.getElementById('rawInput').value === '');
+await page.locator('.ans-clear').click();
+await page.waitForFunction(() => document.querySelector('.answer-box').value === '');
 check('and clears the text, the marks and the note when accepted',
-  (await page.locator('#correctedOutput').textContent()).includes('Nothing here yet') &&
-  (await page.locator('#contextNote').textContent()) === '' &&
-  (await page.locator('#copyBtn').isDisabled()));
+  (await page.locator('.answer-out').textContent()).includes('Nothing here yet') &&
+  (await page.locator('.qa-card .context-note').textContent()) === '' &&
+  (await page.locator('.ans-copy').isDisabled()));
 
 // When the context step cannot be reached, the old behaviour is what happens —
 // and it is said out loud rather than left to look like the new one.
 await page.click('.tab[data-tab="write"]');
-await page.fill('#rawInput', '');
-await page.dispatchEvent('#rawInput', 'input');
+await page.fill('.answer-box', '');
+await page.dispatchEvent('.answer-box', 'input');
 await page.evaluate(() => {
   window.__contextDown = true;
   window.__nextTranscript = 'the flibber is here';
 });
-await tapMic('writeMic');
+await tapMic('.qa-card .mic-btn');
 await page.waitForFunction(() =>
-  document.getElementById('contextNote').textContent.includes('could not be read'));
-const downNote = await page.locator('#contextNote').textContent();
+  document.querySelector('.qa-card .context-note').textContent.includes('could not check'));
+const downNote = await page.locator('.qa-card .context-note').textContent();
 check('an outage falls back to the blind find-and-replace, naming the code',
   downNote.includes('not-configured') && downNote.includes('every match'), downNote);
 check('and the fallback really is the old behaviour',
-  (await page.locator('#correctedOutput .wtok.fixed').allTextContents()).includes('flobber'));
+  (await page.locator('.answer-out .wtok.fixed').allTextContents()).includes('flobber'));
 check('the unread sentence is marked as one run, not word by word',
-  (await page.locator('#correctedOutput .unread-run').count()) === 1,
-  await page.locator('#correctedOutput').innerHTML());
+  (await page.locator('.answer-out .unread-run').count()) === 1,
+  await page.locator('.answer-out').innerHTML());
 
 // ---- A failure mid-paragraph leaves the earlier review alone ----
 // The parent hit this with a dropped connection: the blind fallback used to be
 // applied to the whole box, silently recomputing sentences already read and
 // undoing words they had tapped to put back.
-await page.fill('#rawInput', '');
-await page.dispatchEvent('#rawInput', 'input');
+await page.fill('.answer-box', '');
+await page.dispatchEvent('.answer-box', 'input');
 await page.evaluate(() => {
   window.__contextDown = false;
   window.__nextTranscript = 'the flibber is here';
   window.__contextChanges = [{ index: 1, to: 'flobber', reason: 'She means her toy.' }];
 });
-await tapMic('writeMic');
-await page.waitForSelector('#correctedOutput .wtok.ctx-fixed');
+await tapMic('.qa-card .mic-btn');
+await page.waitForSelector('.answer-out .wtok.ctx-fixed');
 
 await page.evaluate(() => {
   window.__contextDown = true;
   window.__nextTranscript = 'the flibber broke';
 });
-await tapMic('writeMic');
-await page.waitForSelector('#correctedOutput .unread-run');
+await tapMic('.qa-card .mic-btn');
+await page.waitForSelector('.answer-out .unread-run');
 check('the sentence already read keeps its mark through the outage',
-  (await page.locator('#correctedOutput .wtok.ctx-fixed').allTextContents()).join() === 'flobber',
-  await page.locator('#correctedOutput').textContent());
+  (await page.locator('.answer-out .wtok.ctx-fixed').allTextContents()).join() === 'flobber',
+  await page.locator('.answer-out').textContent());
 check('and only the new sentence is marked unread',
-  (await page.locator('#correctedOutput .unread-run').allTextContents()).join()
+  (await page.locator('.answer-out .unread-run').allTextContents()).join()
     === 'the flobber broke',
-  await page.locator('#correctedOutput .unread-run').allTextContents().then(JSON.stringify));
+  await page.locator('.answer-out .unread-run').allTextContents().then(JSON.stringify));
 check('the two states are told apart without colour',
   await page.evaluate(() => {
     const run = getComputedStyle(document.querySelector('.unread-run'));
@@ -1003,22 +1003,120 @@ await page.evaluate(() => {
   window.__contextDown = false;
   window.__contextChanges = [{ index: 1, to: 'flobber', reason: 'Still her toy.' }];
 });
-await page.locator('#contextNote .retry-read').click();
+await page.locator('.qa-card .context-note .retry-read').click();
 // Wait for the answer, not for the mark: the mark stays up while the asking
 // happens, so its absence is the result rather than the signal to look.
 await page.waitForFunction(() =>
-  document.getElementById('contextNote').textContent.includes('Read in context'));
+  document.querySelector('.qa-card .context-note').textContent.includes('I changed'));
 check('reading it again clears the mark and applies the real decision',
-  (await page.locator('#correctedOutput .wtok.ctx-fixed').allTextContents()).join()
+  (await page.locator('.answer-out .wtok.ctx-fixed').allTextContents()).join()
     === 'flobber,flobber' &&
-  (await page.locator('#correctedOutput').textContent()).replace(/\s+/g, ' ').trim()
+  (await page.locator('.answer-out').textContent()).replace(/\s+/g, ' ').trim()
     === 'the flobber is here the flobber broke',
-  await page.locator('#correctedOutput').textContent());
+  await page.locator('.answer-out').textContent());
 check('and only that sentence was sent to be read again',
   (await page.evaluate(() => window.__lastContextBody.tokens.join(' '))) === 'the flibber broke',
   JSON.stringify(await page.evaluate(() => window.__lastContextBody)));
 
 await page.evaluate(() => { window.__contextDown = false; });
+
+// ---- The worksheet: a question she pastes in, an answer she says ----
+// This is the shape of her actual schoolwork — a question from Seesaw and an
+// answer that goes back into Seesaw — so it is driven end to end.
+
+await page.click('.tab[data-tab="write"]');
+await page.evaluate(() => {
+  window.__spoken = [];
+  window.speechSynthesis.speak = (u) => window.__spoken.push(u.text);
+});
+await page.fill('#sheetTitle', 'Pirate diary');
+await page.fill('.qa-card .question-box', 'Write a diary entry as a pirate.');
+
+check('the question box is a big target, not a one-line input',
+  await page.evaluate(() => {
+    const q = document.querySelector('.qa-card .question-box');
+    const a = document.querySelector('.qa-card .answer-box');
+    return q.tagName === 'TEXTAREA' && q.getBoundingClientRect().width > 200 &&
+      q.getBoundingClientRect().height >= a.getBoundingClientRect().height * 0.75;
+  }));
+
+// The speaker reads the question out, as many times as she needs.
+await page.locator('.qa-card .icon-btn').click();
+await page.locator('.qa-card .icon-btn').click();
+check('the speaker reads the question out, every time it is tapped',
+  await page.evaluate(() => window.__spoken.length === 2 &&
+    window.__spoken.every((t) => t === 'Write a diary entry as a pirate.')),
+  JSON.stringify(await page.evaluate(() => window.__spoken)));
+
+await page.fill('.qa-card .answer-box', '');
+await page.dispatchEvent('.qa-card .answer-box', 'input');
+await page.evaluate(() => {
+  window.__contextDown = false;
+  window.__nextTranscript = 'i saw a flibber';
+  window.__contextChanges = [{ index: 3, to: 'flobber', reason: 'Her toy.' }];
+});
+await tapMic('.qa-card .mic-btn');
+await page.waitForSelector('.answer-out .wtok.ctx-fixed');
+
+// Read it back — she checks her work by ear, so it has to be the corrected
+// words, not the raw transcript.
+await page.evaluate(() => { window.__spoken = []; });
+await page.locator('.qa-card .ans-read').click();
+check('Read it to me speaks the corrected answer, exactly what Copy would give',
+  await page.evaluate(() =>
+    window.__spoken.length === 1 &&
+    window.__spoken[0] === document.querySelector('.answer-out').textContent),
+  JSON.stringify(await page.evaluate(() => window.__spoken)));
+
+// A second question, with its own answer, independent of the first.
+await page.locator('#addQuestion').click();
+await page.waitForFunction(() => document.querySelectorAll('.qa-card').length === 2);
+await page.fill('.qa-card:nth-of-type(2) .question-box', 'What did you find?');
+await page.fill('.qa-card:nth-of-type(2) .answer-box', 'a chest of gold');
+await page.dispatchEvent('.qa-card:nth-of-type(2) .answer-box', 'input');
+check('each answer keeps to its own question',
+  (await page.locator('.qa-card:nth-of-type(1) .answer-out').textContent()).includes('flobber') &&
+  (await page.locator('.qa-card:nth-of-type(2) .answer-out').textContent()) === 'a chest of gold',
+  await page.locator('#sheetQuestions').textContent());
+
+const sheetCopy = await page.evaluate(async () => {
+  const seen = [];
+  navigator.clipboard.writeText = async (t) => { seen.push(t); };
+  document.getElementById('copySheet').click();
+  await new Promise((r) => setTimeout(r, 30));
+  const one = [];
+  navigator.clipboard.writeText = async (t) => { one.push(t); };
+  document.querySelector('.qa-card:nth-of-type(2) .ans-copy').click();
+  await new Promise((r) => setTimeout(r, 30));
+  return { sheet: seen[0], answer: one[0] };
+});
+check('Copy whole sheet gives every question with its answer beneath it',
+  sheetCopy.sheet === 'Write a diary entry as a pirate.\n\ni saw a flobber\n\n' +
+    'What did you find?\n\na chest of gold',
+  JSON.stringify(sheetCopy.sheet));
+check('and Copy on one answer gives that answer alone',
+  sheetCopy.answer === 'a chest of gold', JSON.stringify(sheetCopy.answer));
+
+// Saved, and picked up again. (That the field is *synced* is pinned in the unit
+// tests, where a saver can be installed; Firestore is deliberately unreachable
+// in this run.)
+await page.locator('#newSheet').click();
+await page.waitForFunction(() => document.getElementById('sheetTitle').value === '');
+check('starting a new sheet keeps the old one in the list',
+  (await page.locator('#recentSheets').textContent()).includes('Pirate diary'),
+  await page.locator('#recentSheets').textContent());
+
+await page.locator('#recentSheets .sheet-open').first().click();
+await page.waitForFunction(() => document.getElementById('sheetTitle').value === 'Pirate diary');
+check('and opening it brings her words back, both questions',
+  (await page.locator('.qa-card').count()) === 2 &&
+  (await page.locator('.qa-card').first().locator('.question-box').inputValue())
+    === 'Write a diary entry as a pirate.' &&
+  (await page.locator('.qa-card').first().locator('.answer-box').inputValue())
+    === 'i saw a flibber' &&
+  (await page.locator('.qa-card').nth(1).locator('.answer-box').inputValue())
+    === 'a chest of gold',
+  await page.locator('#sheetQuestions').textContent());
 
 // ---- Export / import round trip, through the real file ----
 // Not a state round trip: the actual Blob the Export button produces, fed back

@@ -471,7 +471,7 @@ describe('the provider interface', () => {
   });
 
   it('keeps the keys out of the repo and out of the bundle', () => {
-    ['src/lib/context-correct.js', 'src/config.js', 'src/features/freewrite.js'].forEach((file) => {
+    ['src/lib/context-correct.js', 'src/config.js', 'src/features/answer.js'].forEach((file) => {
       const source = readFileSync(resolve(ROOT, file), 'utf8');
       expect(source).not.toContain('BEDROCK_API_KEY');
       expect(source).not.toContain('ANTHROPIC_API_KEY');
