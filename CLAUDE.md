@@ -880,3 +880,98 @@ shown, whether the speaker button is where her hand goes when a word stops her,
 and whether several question cards on one sheet scroll comfortably or turn into
 a wall. The wording is a guess at nine-year-old plain, made by someone who is
 not nine.
+
+## 15. Four things the first worksheet build got wrong (parent's decisions)
+
+All four came back from the iPad, which is the only place any of them was
+findable.
+
+### The question box was white all along
+
+**The decision: remove the gold wash; white, like every other input.** The box
+had three things saying "paste here" — a thick gold dashed rule, a second rule
+on focus, and a filled background. The first two do the job. The wash made the
+box read as *already filled in*, which is the opposite of an invitation, and it
+was the one signal that did not survive being looked at on a real screen.
+
+### "Read it to me" did not work on her answer
+
+**What was actually wrong, and it was not the wiring.** The question spoke and
+the answer did not, and the handler, the button and the text were all correct —
+proved by driving the real page in a browser, where both reached
+`speechSynthesis.speak()`. The difference is length: **Safari on iPad silently
+fails to speak a long utterance.** A question is a sentence; her answer is a
+paragraph.
+
+**The fix is one utterance per word,** which is the documented way around that
+limit — and it is the same mechanism §15's next item needs, so the two are one
+change rather than two.
+
+### Each word lights up as it is spoken
+
+**Parent's decision, and the reason:** *this is a standard reading support for
+dyslexia — seeing the word light up as she hears it links the sound to the
+written word.* It applies to the question and to her answer.
+
+**Why one utterance per word rather than `onboundary`.** The obvious
+implementation is to speak the whole text and highlight from the API's word
+boundary events. WebKit has never fired those reliably, so on the one device
+that matters it would highlight nothing. Speaking word by word makes the
+highlight *exact* rather than estimated: the word lit is the word being spoken,
+because they are the same utterance. It also fixes the item above. The cost is
+prosody — a paragraph read word by word is more deliberate than natural speech,
+and whether that reads as "helping her follow" or "stilted" is the thing to
+listen to on the iPad.
+
+Two details that are load-bearing:
+
+- **The words come from the same parts the panel is drawn from**, not from
+  splitting the finished string. A confirmed correction can be two words for
+  one token — "yo yo" for "yoyo" — and splitting would put the highlight one
+  word out from there to the end. A test pins that case.
+- **A question is a textarea, and a textarea cannot light up one word inside
+  it.** So the question is repeated underneath as word spans, on screen only
+  while it is being read.
+
+Tapping the speaker again stops the reading rather than starting a second one
+on top of it.
+
+### The wait after she stops talking
+
+**Parent's decision: show a rough live preview while she speaks.** The
+browser's own recogniser runs alongside the recording, and its guesses appear
+as she talks — greyed and italic in a box of their own, with a leading
+ellipsis — then the accurate transcript replaces them. It was worst on a
+paragraph built sentence by sentence, where the same wait is paid on every
+recording.
+
+**The preview is a preview and nothing else.** It is never saved, never
+copied, never read aloud and never sent to be checked in context. That is not
+a promise made by being careful: it holds because the preview never touches the
+box everything else reads from. Saving, Copy, Read it to me and the context
+step all read `rawText()`, and the preview writes only to its own element. A
+mutation that puts the preview into that box fails four tests.
+
+**It stays up through the wait, not just while she talks.** The recogniser
+stops the moment recording ends, but the rough words stay on screen until the
+real transcript arrives to replace them — the wait they exist to cover starts
+exactly when she stops speaking. Clearing them at that point would leave the
+gap the whole thing was for.
+
+**Every way it can fail is silent.** No second recogniser, a recogniser that
+refuses, an error part way through: the preview simply never appears and the
+app behaves as it did before, with §13's working indicator doing the talking.
+It is on its own recogniser instance rather than the shared one, because the
+shared one is the fallback that stands in when the transcription service cannot
+be reached, and reassigning its handlers from here would break that.
+
+**One risk worth naming.** Two things now want the microphone at once — the
+recorder and the browser recogniser. That combination is not something the
+tests can settle, and iOS is the likeliest place for it to misbehave. If the
+recording itself degrades on the iPad, the preview is the first thing to
+suspect and it is one handler to remove.
+
+### What this does not settle
+
+Whether word-by-word reading sounds right to her, and whether two microphone
+consumers coexist on iPadOS. Both are listen-and-see, on the device.

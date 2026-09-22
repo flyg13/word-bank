@@ -1026,8 +1026,21 @@ await page.evaluate(() => { window.__contextDown = false; });
 
 await page.click('.tab[data-tab="write"]');
 await page.evaluate(() => {
+  // A synthesiser that actually speaks: each utterance starts and ends, so the
+  // word-by-word highlight runs and can be watched.
   window.__spoken = [];
-  window.speechSynthesis.speak = (u) => window.__spoken.push(u.text);
+  window.__litWords = [];
+  const watch = () => {
+    const lit = document.querySelector('.saying');
+    if (lit) window.__litWords.push(lit.textContent);
+  };
+  window.speechSynthesis.speak = (u) => {
+    window.__spoken.push(u.text);
+    if (u.onstart) u.onstart();
+    watch();
+    if (u.onend) u.onend();
+  };
+  window.speechSynthesis.cancel = () => {};
 });
 await page.fill('#sheetTitle', 'Pirate diary');
 await page.fill('.qa-card .question-box', 'Write a diary entry as a pirate.');
@@ -1040,13 +1053,52 @@ check('the question box is a big target, not a one-line input',
       q.getBoundingClientRect().height >= a.getBoundingClientRect().height * 0.75;
   }));
 
-// The speaker reads the question out, as many times as she needs.
+// White, like every other input. The dashed rule carries it on its own; a wash
+// on top made the box read as already filled in.
+const questionSkin = await page.evaluate(() => {
+  // Unfocused: `page.fill` leaves the box focused, and focus deliberately
+  // turns the dashed rule solid and adds the second one.
+  document.activeElement.blur();
+  const q = getComputedStyle(document.querySelector('.qa-card .question-box'));
+  const a = getComputedStyle(document.querySelector('.qa-card .answer-box'));
+  return {
+    question: q.backgroundColor, answer: a.backgroundColor,
+    border: q.borderTopStyle, width: parseFloat(q.borderTopWidth)
+  };
+});
+check('the question box is white, like the other inputs',
+  questionSkin.question === questionSkin.answer, JSON.stringify(questionSkin));
+check('and the thick dashed rule is what marks it out',
+  questionSkin.border === 'dashed' && questionSkin.width >= 2,
+  JSON.stringify(questionSkin));
+check('with a second rule on top of it once she is in the box',
+  await page.evaluate(() => {
+    const el = document.querySelector('.qa-card .question-box');
+    el.focus();
+    const s2 = getComputedStyle(el);
+    const ok = s2.borderTopStyle === 'solid' && s2.outlineStyle === 'solid';
+    el.blur();
+    return ok;
+  }));
+
+// The speaker reads the question out, a word at a time — which is what works
+// on Safari for iPad, and what makes the follow-along highlight exact.
 await page.locator('.qa-card .icon-btn').click();
-await page.locator('.qa-card .icon-btn').click();
-check('the speaker reads the question out, every time it is tapped',
-  await page.evaluate(() => window.__spoken.length === 2 &&
-    window.__spoken.every((t) => t === 'Write a diary entry as a pirate.')),
+check('the speaker reads the question out, one word per utterance',
+  await page.evaluate(() =>
+    window.__spoken.join(' ') === 'Write a diary entry as a pirate.' &&
+    window.__spoken.every((t) => !/\s/.test(t))),
   JSON.stringify(await page.evaluate(() => window.__spoken)));
+check('and it lights each word up as it says it, then leaves none lit',
+  await page.evaluate(() => window.__litWords.slice(0, 3).join('|') === 'Write|a|diary' &&
+    document.querySelectorAll('.read-along .saying').length === 0 &&
+    !document.querySelector('.read-along').classList.contains('show')),
+  JSON.stringify(await page.evaluate(() => window.__litWords)));
+
+await page.evaluate(() => { window.__spoken = []; });
+await page.locator('.qa-card .icon-btn').click();
+check('and it reads again, every time it is tapped',
+  (await page.evaluate(() => window.__spoken.length)) === 7);
 
 await page.fill('.qa-card .answer-box', '');
 await page.dispatchEvent('.qa-card .answer-box', 'input');
@@ -1058,15 +1110,33 @@ await page.evaluate(() => {
 await tapMic('.qa-card .mic-btn');
 await page.waitForSelector('.answer-out .wtok.ctx-fixed');
 
+// The rough live preview never survives into her answer. By the time the real
+// transcript is in, the preview box is empty and the words came from the
+// service, not the browser's guess.
+check('the rough preview is gone once the real words arrive',
+  await page.evaluate(() => {
+    const box = document.querySelector('.qa-card .interim');
+    return box.textContent === '' && !box.classList.contains('show');
+  }),
+  await page.locator('.qa-card .interim').textContent());
+check('and it is styled as provisional, not as her answer',
+  await page.evaluate(() => {
+    const box = getComputedStyle(document.querySelector('.qa-card .interim'));
+    const out = getComputedStyle(document.querySelector('.qa-card .answer-out'));
+    return box.fontStyle === 'italic' && box.color !== out.color;
+  }));
+
 // Read it back — she checks her work by ear, so it has to be the corrected
 // words, not the raw transcript.
-await page.evaluate(() => { window.__spoken = []; });
+await page.evaluate(() => { window.__spoken = []; window.__litWords = []; });
 await page.locator('.qa-card .ans-read').click();
 check('Read it to me speaks the corrected answer, exactly what Copy would give',
   await page.evaluate(() =>
-    window.__spoken.length === 1 &&
-    window.__spoken[0] === document.querySelector('.answer-out').textContent),
+    window.__spoken.join(' ') === document.querySelector('.answer-out').textContent),
   JSON.stringify(await page.evaluate(() => window.__spoken)));
+check('and lights each word of her answer as it is said',
+  await page.evaluate(() => window.__litWords.join('|') === 'i|saw|a|flobber'),
+  JSON.stringify(await page.evaluate(() => window.__litWords)));
 
 // A second question, with its own answer, independent of the first.
 await page.locator('#addQuestion').click();

@@ -22,9 +22,28 @@ window.AudioContext = class {
   close() {}
 };
 
+// A synthesiser that actually "speaks": each utterance fires onstart and then
+// onend, so the word-by-word highlight can be driven and watched. `holdAt`
+// stops the run part way, to look at the screen mid-sentence.
 const spoken = [];
-window.speechSynthesis = { cancel() {}, speak: (u) => spoken.push(u.text) };
+let holdAt = null;
+const queued = [];
+window.speechSynthesis = {
+  cancel() { queued.length = 0; },
+  speak(u) {
+    spoken.push(u.text);
+    if (holdAt !== null && spoken.length > holdAt) { queued.push(u); return; }
+    if (u.onstart) u.onstart();
+    if (u.onend) u.onend();
+  }
+};
 window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+/** Let a held run finish. */
+function finishSpeaking() {
+  holdAt = null;
+  const rest = queued.splice(0, queued.length);
+  rest.forEach((u) => { if (u.onstart) u.onstart(); if (u.onend) u.onend(); });
+}
 
 const { state } = await import('../lib/store.js');
 const store = await import('../lib/store.js');
@@ -51,6 +70,8 @@ let saved;
 function mount() {
   document.body.innerHTML = BODY;
   spoken.length = 0;
+  queued.length = 0;
+  holdAt = null;
   saved = [];
   store.setSaver(async (key, value) => { saved.push({ key, value }); });
   initFixPanel();
@@ -157,17 +178,44 @@ describe('a sheet of schoolwork', () => {
 });
 
 describe('hearing the question', () => {
-  it('reads it out in her accent, as many times as she wants', () => {
+  it('reads it out, as many times as she wants', () => {
     state.speechLang = 'en-AU';
     questionBox(0).value = 'What did the pirate find?';
     questionBox(0).dispatchEvent(new Event('input'));
 
     cards()[0].querySelector('.icon-btn').click();
+    expect(spoken).toEqual(['What', 'did', 'the', 'pirate', 'find?']);
     cards()[0].querySelector('.icon-btn').click();
     cards()[0].querySelector('.icon-btn').click();
-    expect(spoken).toEqual([
-      'What did the pirate find?', 'What did the pirate find?', 'What did the pirate find?'
-    ]);
+    expect(spoken).toHaveLength(15);
+  });
+
+  it('lights up each word as it is said, then leaves none lit', () => {
+    // A standard reading support: seeing the word at the moment she hears it
+    // is what ties the sound to the shape of it.
+    questionBox(0).value = 'What did the pirate find?';
+    questionBox(0).dispatchEvent(new Event('input'));
+
+    holdAt = 1;
+    cards()[0].querySelector('.icon-btn').click();
+    const along = cards()[0].querySelector('.read-along');
+    expect(along.classList.contains('show')).toBe(true);
+    expect(along.querySelector('.along-word.saying').textContent).toBe('What');
+
+    finishSpeaking();
+    expect(along.querySelectorAll('.saying')).toHaveLength(0);
+    expect(along.classList.contains('show')).toBe(false);
+  });
+
+  it('stops when it is tapped again, rather than reading twice at once', () => {
+    questionBox(0).value = 'What did the pirate find?';
+    questionBox(0).dispatchEvent(new Event('input'));
+    holdAt = 1;
+    cards()[0].querySelector('.icon-btn').click();
+    const before = spoken.length;
+    cards()[0].querySelector('.icon-btn').click();
+    expect(spoken).toHaveLength(before);
+    expect(cards()[0].querySelector('.read-along').classList.contains('show')).toBe(false);
   });
 
   it('says so rather than nothing when there is no question yet', () => {
@@ -183,8 +231,55 @@ describe('hearing her answer back', () => {
     state.wordBank = { liquor: { correct: 'little', count: 2, active: true } };
     type(0, 'i want the liquor one');
     button(0, 'Read it to me').click();
-    expect(spoken).toEqual(['i want the little one']);
-    expect(spoken[0]).toBe(answerOut(0).textContent);
+    expect(spoken).toEqual(['i', 'want', 'the', 'little', 'one']);
+    expect(spoken.join(' ')).toBe(answerOut(0).textContent);
+  });
+
+  it('says it one word at a time, which is what works on her iPad', () => {
+    // Safari on iPad silently fails to speak a long utterance — the question
+    // spoke and a paragraph of her answer did not. Short utterances are the
+    // way around it, and they are what makes the highlight exact.
+    type(0, 'i found a big chest of gold coins under the old wooden floor');
+    button(0, 'Read it to me').click();
+    expect(spoken).toHaveLength(13);
+    expect(spoken.every((word) => !/\s/.test(word))).toBe(true);
+  });
+
+  it('lights up each word of her answer as it is said', () => {
+    type(0, 'the cat sat');
+    holdAt = 2;
+    button(0, 'Read it to me').click();
+    const lit = [...answerOut(0).querySelectorAll('.wtok.saying')].map((s2) => s2.textContent);
+    expect(lit).toEqual(['cat']);
+
+    finishSpeaking();
+    expect(answerOut(0).querySelectorAll('.saying')).toHaveLength(0);
+  });
+
+  it('keeps the highlight on the right word when a swap is two words', () => {
+    // "yo yo" for one token: splitting the finished string would put the
+    // highlight one word out from there on, so the words come from the same
+    // parts the panel is drawn from.
+    state.wordBank = { yoyo: { correct: 'yo yo', count: 2, active: true } };
+    type(0, 'my yoyo broke');
+    holdAt = 2;
+    button(0, 'Read it to me').click();
+    expect(spoken).toEqual(['my', 'yo yo', 'broke']);
+    // Two words in one token: the highlight is on that token, not one past it.
+    expect([...answerOut(0).querySelectorAll('.wtok.saying')].map((s2) => s2.textContent))
+      .toEqual(['yo yo']);
+    finishSpeaking();
+  });
+
+  it('stops when tapped again, and puts its own label back', () => {
+    type(0, 'the cat sat');
+    holdAt = 1;
+    button(0, 'Read it to me').click();
+    const stopBtn = cards()[0].querySelector('.ans-read');
+    expect(stopBtn.textContent).toBe('Stop reading');
+    stopBtn.click();
+    expect(stopBtn.textContent).toBe('Read it to me');
+    expect(answerOut(0).querySelectorAll('.saying')).toHaveLength(0);
   });
 
   it('is off until there is something to read', () => {

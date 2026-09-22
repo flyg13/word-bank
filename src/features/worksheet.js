@@ -12,7 +12,7 @@
 // question she cannot answer.
 
 import { state, onRender, renderAll } from '../lib/store.js';
-import { speak } from '../lib/speech.js';
+import { readAloud } from '../lib/speech.js';
 import { copyText } from '../lib/clipboard.js';
 import { MIC_IDLE } from './mic.js';
 import { createAnswer } from './answer.js';
@@ -40,8 +40,10 @@ function idsFor(questionId) {
   return {
     question: base + '_ask',
     speak: base + '_speak',
+    readAlong: base + '_along',
     remove: base + '_remove',
     input: base + '_said',
+    interim: base + '_rough',
     output: base + '_out',
     contextNote: base + '_ctx',
     writeNote: base + '_note',
@@ -81,6 +83,9 @@ function questionBlock(question, index) {
     <label class="eyebrow" for="${ids.question}">Paste the question here</label>
     <textarea class="question-box" id="${ids.question}"
       placeholder="Copy the question from Seesaw and paste it here"></textarea>
+    <!-- The question again, word by word, only while it is being read out:
+         a textarea cannot light up one word inside it. -->
+    <div class="read-along" id="${ids.readAlong}" aria-hidden="true"></div>
 
     <div class="eyebrow">Say your answer</div>
     <textarea class="answer-box" id="${ids.input}" placeholder="Tap the mic and talk. You can type here too."></textarea>
@@ -88,6 +93,10 @@ function questionBlock(question, index) {
       <button class="mic-btn mic-btn-sm" id="${ids.mic}" aria-label="Tap to record your answer">${MIC}</button>
       <div class="mic-label" id="${ids.micLabel}">${MIC_IDLE}</div>
     </div>
+
+    <!-- A rough preview of what she is saying, while she says it. Never her
+         answer: it is not in the box anything reads from. -->
+    <div class="interim" id="${ids.interim}" aria-hidden="true"></div>
 
     <div class="eyebrow">Your answer</div>
     <div class="read-out answer-out" id="${ids.output}"><span class="empty-note">Nothing here yet.</span></div>
@@ -122,11 +131,59 @@ function build() {
       store();
     });
 
-    // As many times as she needs. `speak` cancels whatever was already
-    // talking, so a second tap restarts rather than overlapping.
-    document.getElementById(ids.speak).addEventListener('click', () => {
+    // As many times as she needs, with each word lit as it is said. A second
+    // tap while it is reading stops it rather than starting a second one.
+    const speaker = document.getElementById(ids.speak);
+    const along = document.getElementById(ids.readAlong);
+    let reading = null;
+
+    speaker.addEventListener('click', () => {
+      if (reading) {
+        reading.stop();
+        return;
+      }
       const asked = (question.question || '').trim();
-      speak(asked || 'There is no question here yet.');
+      if (!asked) {
+        readAloud(['There is no question here yet.']);
+        return;
+      }
+
+      // The words again, as spans, because a textarea cannot light up one word
+      // inside it. It is shown only while it is being read.
+      const words = asked.split(/\s+/);
+      along.innerHTML = '';
+      words.forEach((word, index) => {
+        const span = document.createElement('span');
+        span.className = 'along-word';
+        span.dataset.index = String(index);
+        span.textContent = word;
+        along.append(span, document.createTextNode(' '));
+      });
+      along.classList.add('show');
+      speaker.classList.add('reading');
+
+      // See answer.js: a run that finishes inside readAloud calls onDone before
+      // the handle exists, and assigning it afterwards would resurrect it.
+      let finished = false;
+      const handle = readAloud(words, {
+        onWord: (index) => {
+          along.querySelectorAll('.along-word.saying')
+            .forEach((span) => span.classList.remove('saying'));
+          const span = along.querySelector('.along-word[data-index="' + index + '"]');
+          if (span) {
+            span.classList.add('saying');
+            if (span.scrollIntoView) span.scrollIntoView({ block: 'nearest' });
+          }
+        },
+        onDone: () => {
+          finished = true;
+          reading = null;
+          along.classList.remove('show');
+          along.innerHTML = '';
+          speaker.classList.remove('reading');
+        }
+      });
+      reading = finished ? null : handle;
     });
 
     document.getElementById(ids.remove).addEventListener('click', () => {

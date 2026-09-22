@@ -25,13 +25,132 @@ export function speak(text) {
   if (!('speechSynthesis' in window)) return;
   try {
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.9;
-    utterance.lang = state.speechLang;
-    window.speechSynthesis.speak(utterance);
+    window.speechSynthesis.speak(utteranceFor(text));
   } catch (e) {
     /* speech synthesis is a nicety, never a blocker */
   }
+}
+
+function utteranceFor(text) {
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.9;
+  utterance.lang = state.speechLang;
+  return utterance;
+}
+
+// Which read-aloud is current. A later one silences an earlier one's callbacks
+// rather than letting two highlights chase each other across the screen.
+let readingId = 0;
+
+/**
+ * Read a run of words aloud, one utterance per word, saying which word is
+ * being spoken as it starts.
+ *
+ * **One utterance per word, deliberately.** It looks like the wrong shape —
+ * one utterance for the whole text would sound more natural — and it is the
+ * only version that works on the device she uses. Safari on iPad silently
+ * fails to speak a long utterance: a question spoke and a paragraph of her
+ * answer did not, which is exactly what the parent reported. Short utterances
+ * are the documented way around that.
+ *
+ * It also buys the highlight for free and buys it *exactly*. The alternative
+ * is `SpeechSynthesisUtterance.onboundary`, which WebKit has never fired
+ * reliably; here the word being highlighted is the word being spoken, because
+ * they are the same utterance. See CLAUDE.md §15.
+ *
+ * @param {string[]} words in order. Whatever is on screen, so a caller that
+ *   shows a multi-word replacement as one token passes it as one word.
+ * @param {{onWord?: (index: number) => void, onDone?: () => void}} handlers
+ * @returns {{stop: () => void}}
+ */
+export function readAloud(words, { onWord, onDone } = {}) {
+  readingId += 1;
+  const mine = readingId;
+  const live = () => mine === readingId;
+  const stop = () => {
+    if (!live()) return;
+    readingId += 1;
+    try { window.speechSynthesis.cancel(); } catch (e) { /* nothing to cancel */ }
+    if (onDone) onDone();
+  };
+
+  const list = (words || []).filter((word) => String(word).trim());
+  if (!('speechSynthesis' in window) || !list.length) {
+    if (onDone) onDone();
+    return { stop() {} };
+  }
+
+  try {
+    window.speechSynthesis.cancel();
+    list.forEach((word, index) => {
+      const utterance = utteranceFor(word);
+      utterance.onstart = () => { if (live() && onWord) onWord(index); };
+      // An utterance that failed is not a reason to stop reading the rest, but
+      // the last one has to finish the run either way or the highlight would
+      // be left sitting on a word nobody is saying.
+      const finish = () => {
+        if (live() && index === list.length - 1) stop();
+      };
+      utterance.onend = finish;
+      utterance.onerror = finish;
+      window.speechSynthesis.speak(utterance);
+    });
+  } catch (e) {
+    stop();
+  }
+
+  return { stop };
+}
+
+/**
+ * A second recogniser, running alongside the recording, for a rough preview of
+ * what she is saying while she says it.
+ *
+ * Its own instance, not the shared one above: the shared recogniser is the
+ * fallback that stands in when the transcription service cannot be reached,
+ * and reassigning its handlers from here would break that. Nothing this
+ * produces is ever kept — see CLAUDE.md §15.
+ *
+ * @param {{onText: (text: string) => void}} handlers
+ * @returns {{stop: () => void}}
+ */
+export function listenInterim({ onText }) {
+  if (!SpeechRecognitionCtor) return { stop() {} };
+
+  let instance;
+  try {
+    instance = new SpeechRecognitionCtor();
+    instance.continuous = true;
+    instance.interimResults = true;
+    instance.lang = state.speechLang;
+  } catch (e) {
+    return { stop() {} };
+  }
+
+  let stopped = false;
+  instance.onresult = (e) => {
+    if (stopped) return;
+    let text = '';
+    for (let i = 0; i < e.results.length; i += 1) text += e.results[i][0].transcript;
+    onText(text.trim());
+  };
+  // Every failure is silent. This is a preview; a device that will not give a
+  // second recogniser should behave exactly as it did before there was one.
+  instance.onerror = () => { stopped = true; };
+
+  try {
+    instance.start();
+  } catch (e) {
+    return { stop() {} };
+  }
+
+  return {
+    stop() {
+      stopped = true;
+      try { instance.stop(); } catch (e) { /* already stopped */ }
+      try { instance.abort(); } catch (e) { /* not all browsers have abort */ }
+    }
+  };
 }
 
 /**

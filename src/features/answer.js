@@ -11,7 +11,7 @@ import { state, save, renderAll } from '../lib/store.js';
 import { applyBankToText, blindToken, recordBankObservation, getBankEntry } from '../lib/wordbank.js';
 import { suggestFromSound } from '../lib/phonicbank.js';
 import { normalize } from '../lib/text.js';
-import { speak } from '../lib/speech.js';
+import { readAloud } from '../lib/speech.js';
 import { correctWithContext, splitForCorrection, ContextError } from '../lib/context-correct.js';
 import { recordContextChanges, markReverted, markReapplied } from '../lib/correction-log.js';
 import { copyText } from '../lib/clipboard.js';
@@ -192,6 +192,23 @@ export function createAnswer({ ids, onChange }) {
         suggestion: part.fixed ? null : suggestFromSound(part.raw)
       };
     });
+  }
+
+  /**
+   * The words of the finished answer, in order — one entry per token on
+   * screen, so the nth word here is the nth `.wtok` in the panel.
+   *
+   * Built from the same parts as the view and as Copy rather than by splitting
+   * the finished string, because a bank replacement can itself be two words
+   * ("yo yo" for one token) and splitting would put the highlight one word out
+   * from there on.
+   */
+  function spokenWords() {
+    const text = rawText();
+    if (!text.trim()) return [];
+    return correctedParts(text, contextFor(text))
+      .filter((part) => !part.space)
+      .map((part) => part.display);
   }
 
   /**
@@ -494,6 +511,20 @@ export function createAnswer({ ids, onChange }) {
     });
   }
 
+  /**
+   * Show, or clear, the rough preview of what she is saying.
+   *
+   * It lives in its own element and goes nowhere else. It is never in the box
+   * her words are read from, so it cannot be saved, copied, read aloud or sent
+   * to be checked — those all read `rawText()`, which this never touches.
+   */
+  function showInterim(text) {
+    const box = el('interim');
+    if (!box) return;
+    box.textContent = text || '';
+    box.classList.toggle('show', Boolean(text));
+  }
+
   bindMic({
     buttonId: ids.mic,
     labelId: ids.micLabel,
@@ -503,6 +534,7 @@ export function createAnswer({ ids, onChange }) {
     // The gap between the recording ending and the words arriving is several
     // seconds, and this is where she is looking — not at the mic.
     onWorking: () => showContextNote('Writing down what you said…', ''),
+    onInterim: showInterim,
     onResult: (heard) => appendHeard(heard)
   });
 
@@ -527,17 +559,58 @@ export function createAnswer({ ids, onChange }) {
     });
   }
 
+  // The read-aloud currently running on this answer, so a second tap stops it
+  // rather than starting a second one underneath the first.
+  let reading = null;
+
+  function clearHighlight() {
+    const out = el('output');
+    if (!out) return;
+    out.querySelectorAll('.wtok.saying').forEach((span) => span.classList.remove('saying'));
+  }
+
   const readBack = el('readBack');
   if (readBack) {
     readBack.addEventListener('click', () => {
+      if (reading) {
+        reading.stop();
+        return;
+      }
       // The corrected words, not what she said into the mic: she checks her
       // work by ear, so what she hears has to be what she would hand in.
-      const text = plainText();
-      if (!text) {
+      const words = spokenWords();
+      if (!words.length) {
         showCopyNote('Nothing to read yet.', 'warn');
         return;
       }
-      speak(text);
+      readBack.textContent = 'Stop reading';
+      // `finished` rather than clearing `reading` from onDone: a run that ends
+      // inside readAloud — every word already spoken, or synthesis refusing —
+      // calls onDone *before* the handle exists, and the assignment below
+      // would then put a finished run back. It would never stop again.
+      let finished = false;
+      const handle = readAloud(words, {
+        // Each word lights up as it is said. Seeing the word at the moment she
+        // hears it is the point — it is what ties the sound to the shape of it.
+        onWord: (index) => {
+          const out = el('output');
+          if (!out) return;
+          clearHighlight();
+          const spans = out.querySelectorAll('.wtok');
+          const span = spans[index];
+          if (span) {
+            span.classList.add('saying');
+            if (span.scrollIntoView) span.scrollIntoView({ block: 'nearest' });
+          }
+        },
+        onDone: () => {
+          finished = true;
+          reading = null;
+          readBack.textContent = 'Read it to me';
+          clearHighlight();
+        }
+      });
+      reading = finished ? null : handle;
     });
   }
 
@@ -567,6 +640,7 @@ export function createAnswer({ ids, onChange }) {
     setText(text) {
       const box = el('input');
       if (!box) return;
+      if (reading) reading.stop();
       box.value = text || '';
       context = null;
       showContextNote('');
