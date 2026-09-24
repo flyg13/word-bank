@@ -20,6 +20,7 @@ import { initSession } from './features/session.js';
 import { initPractice, buildQueue, reconcileQueue } from './features/practice.js';
 import { initSentences } from './features/sentences.js';
 import { initReading } from './features/reading.js';
+import { initQuick } from './features/quick.js';
 import { initWorksheet } from './features/worksheet.js';
 import { initFixPanel } from './features/fix-panel.js';
 import { initBank, renderFamilyCode } from './features/bank.js';
@@ -57,6 +58,7 @@ async function main() {
   initSentences();
   initReading();
   initFixPanel();
+  initQuick();
   initWorksheet();
   initBank();
 

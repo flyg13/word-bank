@@ -2,7 +2,7 @@
 
 A personal speech-to-text trainer that learns her voice, one correction at a time.
 
-Five modes — Practice, Sentences, Reading, Speech-To-Text (her worksheet: a
+Six modes — Practice, Sentences, Reading, a quick answer box, her worksheet (a
 question she pastes in from Seesaw and an answer she says), Word Bank — synced across
 devices through Firebase Firestore using a shared family code.
 
@@ -351,9 +351,9 @@ Two faces, self-hosted from npm so nothing depends on a CDN: **Andika** for what
 she reads (the practice word, sentences, the heard-back text) and **Atkinson
 Hyperlegible** for the parent's interface. Latin subset only.
 
-Six tabs in three groups, separated by spacing rather than colour: build the
-bank (Practice, Sentences, Reading), use it (Speech-To-Text — her worksheet),
-teach it (Corrections), and the brain (Word Bank).
+Seven tabs in three groups, separated by spacing rather than colour: build the
+bank (Practice, Sentences, Reading), use it (two giraffes — a quick answer, and
+her worksheet), teach it (Corrections), and the brain (Word Bank).
 
 ## Layout
 

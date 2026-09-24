@@ -1,4 +1,4 @@
-import { DEFAULT_SPEECH_LANG } from '../config.js';
+import { DEFAULT_SPEECH_LANG, SPEECH_RATE_DEFAULT } from '../config.js';
 
 /**
  * All synced app state in one place. Feature modules read from and write to
@@ -20,6 +20,11 @@ export const state = {
   attemptLog: {},
   phonicBank: {},
   speechLang: DEFAULT_SPEECH_LANG,
+  // How fast anything is read out, and which installed voice reads it. Synced
+  // with the accent, because they are the same setting seen from three sides
+  // and a device that got one without the others would sound wrong.
+  speechRate: SPEECH_RATE_DEFAULT,
+  speechVoice: '',
   // What Claude changed in Speech-To-Text, newest first. Synced so the parent
   // can read it from any device; never read by anything that decides a
   // correction.

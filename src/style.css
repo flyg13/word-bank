@@ -186,9 +186,22 @@ h1{ font-size:25px; font-weight:700; letter-spacing:-.01em; margin:0; }
 .fg-body-ink{ -webkit-mask-image:url(/giraffe-body.png); mask-image:url(/giraffe-body.png); }
 .fg-wing-ink{ -webkit-mask-image:url(/giraffe-wing.png); mask-image:url(/giraffe-wing.png); }
 
+/* The second giraffe: her worksheet, beside the quick page's.
+   Smaller, and peach rather than the full holographic colour, so the two read
+   as a pair with one of them plainly the secondary. The size difference does
+   the work in greyscale; the tint only reinforces it. Selected, both become
+   the same ink silhouette, so "which page am I on" is answered the same way
+   whichever giraffe you tapped. */
+.tab-giraffe-sm{ width:64px; height:64px; }
+.tab-giraffe-sm .fg{ height:48px; width:43px; }
+.tab-giraffe-sm .fg-body, .tab-giraffe-sm .fg-wing{
+  filter:sepia(.75) saturate(1.7) hue-rotate(-18deg) brightness(1.06);
+}
+.tab-giraffe-sm.active .fg-body, .tab-giraffe-sm.active .fg-wing{ filter:none; }
+
 /* Selected: she has arrived, and settles into silhouette. The tab's own
    ink fill is turned off — the shape carries the state, not a box. */
-.tab.tab-giraffe.active[data-tab='write']{ background:none; box-shadow:none; }
+.tab.tab-giraffe.active{ background:none; box-shadow:none; }
 .tab-giraffe.active .fg-body, .tab-giraffe.active .fg-wing{ display:none; }
 .tab-giraffe.active .fg-body-ink, .tab-giraffe.active .fg-wing-ink{ display:block; }
 @media (prefers-reduced-motion: reduce){
@@ -537,6 +550,15 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
   border:1px solid var(--line); border-radius:var(--radius); padding:16px; text-align:left;
 }
 .fix-panel.show, .phonic-panel.show{ display:block; }
+
+/* The shared panel is not inside a page any more, so it needs to place itself.
+   A sheet at the bottom of the screen: it is answering a word she just tapped,
+   and it must not push the words she is looking at off the screen to do it. */
+.fix-panel-float{
+  position:fixed; left:50%; transform:translateX(-50%); bottom:14px; z-index:40;
+  width:min(520px, calc(100vw - 28px)); margin-top:0; background:var(--white);
+  box-shadow:0 8px 28px rgba(36,31,27,.22); border-color:var(--gold);
+}
 .fix-panel input, .phonic-panel input{ margin:0 0 10px; }
 #fixingWord{ color:var(--ink); text-transform:none; letter-spacing:0; }
 
@@ -603,6 +625,16 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
 
 .lang-select{ appearance:none; background-image:none; }
 .lang-select:focus{ outline:2px solid var(--gold); }
+
+/* Set-once settings, stacked under the accent they belong with. */
+.setting-title{
+  font-family:var(--font-ui); font-size:17px; margin:22px 0 4px; color:var(--ink);
+}
+.slider-row{ display:flex; align-items:center; gap:11px; flex-wrap:wrap; margin-top:4px; }
+.slider-row .lang-select{ flex:1; min-width:200px; }
+/* A 44px-tall track so the thumb is a real target on an iPad, not a hairline. */
+.rate-slider{ flex:1; min-width:190px; height:44px; accent-color:var(--gold-text); }
+.rate-slider:focus{ outline:2px solid var(--gold); }
 
 @media (prefers-reduced-motion: reduce){
   *, *::before, *::after{ animation-duration:.001ms !important; animation-iteration-count:1 !important;

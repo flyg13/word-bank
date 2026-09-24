@@ -1,6 +1,6 @@
 import { renderAll } from '../lib/store.js';
 
-const TAB_NAMES = ['practice', 'sentences', 'reading', 'write', 'corrections', 'bank'];
+const TAB_NAMES = ['practice', 'sentences', 'reading', 'quick', 'write', 'corrections', 'bank'];
 
 /** Show one tab and refresh the UI behind it. */
 export function activateTab(name) {

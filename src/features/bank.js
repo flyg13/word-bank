@@ -1,4 +1,8 @@
-import { MASTERY_THRESHOLD, SPEECH_LANGS } from '../config.js';
+import {
+  MASTERY_THRESHOLD, SPEECH_LANGS,
+  SPEECH_RATE_DEFAULT, SPEECH_RATE_MIN, SPEECH_RATE_MAX, SPEECH_RATE_STEP
+} from '../config.js';
+import { speak, voicesForLang, isUpgradedVoice, onVoicesReady } from '../lib/speech.js';
 import { normalize, parsePassage } from '../lib/text.js';
 import { state, save, onRender, renderAll } from '../lib/store.js';
 import { getBankEntry } from '../lib/wordbank.js';
@@ -301,6 +305,72 @@ export function renderSpeechLang() {
     'Listening for ' + state.speechLang + ', and reading words out in the same accent.';
 }
 
+// ---------- How it reads to her ----------
+
+/** A sentence with some shape to it, so a speed is judged on real speech. */
+const RATE_SAMPLE = 'The quick brown fox jumped over the lazy dog.';
+
+export function renderSpeechRate() {
+  const slider = document.getElementById('speechRate');
+  if (!slider) return;
+  slider.min = String(SPEECH_RATE_MIN);
+  slider.max = String(SPEECH_RATE_MAX);
+  slider.step = String(SPEECH_RATE_STEP);
+  slider.value = String(state.speechRate);
+  document.getElementById('speechRateNote').textContent = describeRate(state.speechRate);
+}
+
+function describeRate(rate) {
+  const how = rate < SPEECH_RATE_DEFAULT ? 'Slower than normal'
+    : rate > SPEECH_RATE_DEFAULT ? 'Faster than normal'
+      : 'Normal speed';
+  return how + ' (' + rate.toFixed(1) + '\u00d7). Used everywhere the app reads out loud.';
+}
+
+/**
+ * The voices this device has for her accent.
+ *
+ * Only ever what the browser reports: the app cannot install a voice, and
+ * pretending otherwise would be a dead end. When none of them is one of the
+ * better ones, the note says where to get one — that is the whole reason the
+ * picker is worth having, because the built-in iPad voice is what made her ask.
+ */
+export function renderSpeechVoice() {
+  const select = document.getElementById('speechVoice');
+  const note = document.getElementById('speechVoiceNote');
+  if (!select || !note) return;
+
+  const voices = voicesForLang(state.speechLang);
+  select.innerHTML = '';
+  select.appendChild(new Option('The one this device picks', ''));
+  voices.forEach((voice) => {
+    const label = voice.name + (isUpgradedVoice(voice) ? '  \u00b7  better quality' : '');
+    select.appendChild(new Option(label, voice.name));
+  });
+
+  // A voice chosen on another device that is not installed here: shown, so the
+  // setting does not look as though it silently forgot itself.
+  const missing = state.speechVoice && !voices.some((v) => v.name === state.speechVoice);
+  if (missing) select.appendChild(new Option(state.speechVoice + '  \u00b7  not on this device', state.speechVoice));
+  select.value = state.speechVoice;
+
+  if (!voices.length) {
+    note.textContent = 'This device has not told the app about any voices yet. ' +
+      'If this stays empty, it has none for ' + state.speechLang + '.';
+    return;
+  }
+  if (missing) {
+    note.textContent = '\u201c' + state.speechVoice + '\u201d is not installed here, so this ' +
+      'device reads in its own voice. Her other devices are unaffected.';
+    return;
+  }
+  note.textContent = voices.some(isUpgradedVoice)
+    ? 'The ones marked better quality are the downloaded voices \u2014 they sound far less robotic.'
+    : 'Only the built-in voice is here, which is the robotic one. On an iPad, better ones are a ' +
+      'free download: Settings \u203a Accessibility \u203a Spoken Content \u203a Voices. ' +
+      'Download an Enhanced or Premium voice and it will appear in this list.';
+}
+
 // ---------- Import / export ----------
 
 function exportBank() {
@@ -313,6 +383,8 @@ function exportBank() {
     reading_progress: state.readingProgress,
     phonic_bank: state.phonicBank,
     speech_lang: state.speechLang,
+    speech_rate: state.speechRate,
+    speech_voice: state.speechVoice,
     context_log: state.contextLog
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -367,6 +439,15 @@ function importBank(file) {
     if (data.speech_lang && SPEECH_LANGS.some((l) => l.code === data.speech_lang)) {
       state.speechLang = data.speech_lang;
       save('speech_lang', state.speechLang);
+    }
+    const rate = Number(data.speech_rate);
+    if (Number.isFinite(rate) && rate >= SPEECH_RATE_MIN && rate <= SPEECH_RATE_MAX) {
+      state.speechRate = rate;
+      save('speech_rate', rate);
+    }
+    if (typeof data.speech_voice === 'string') {
+      state.speechVoice = data.speech_voice;
+      save('speech_voice', state.speechVoice);
     }
     if (Array.isArray(data.context_log)) {
       // Newest first on both sides; entries already here are not repeated.
@@ -469,8 +550,40 @@ export function initBank({ reload = () => window.location.reload() } = {}) {
   document.getElementById('speechLang').addEventListener('change', (e) => {
     state.speechLang = e.target.value;
     save('speech_lang', state.speechLang);
+    // The voices on offer are per accent, so the list is now wrong; a voice
+    // that does not belong to the new accent is dropped rather than left to
+    // read her Australian words in an American one.
+    if (state.speechVoice &&
+        !voicesForLang(state.speechLang).some((v) => v.name === state.speechVoice)) {
+      state.speechVoice = '';
+      save('speech_voice', '');
+    }
     renderAll();
   });
+
+  const rate = document.getElementById('speechRate');
+  // `input`, not `change`: the number under the thumb should mean something
+  // while it is being dragged. Each step saves, which is a handful of writes
+  // for one drag and the same shape of write the accent already makes.
+  rate.addEventListener('input', (e) => {
+    const value = Number(e.target.value);
+    if (!Number.isFinite(value)) return;
+    state.speechRate = value;
+    save('speech_rate', value);
+    document.getElementById('speechRateNote').textContent = describeRate(value);
+  });
+  document.getElementById('speechRateTry').addEventListener('click', () => speak(RATE_SAMPLE));
+
+  document.getElementById('speechVoice').addEventListener('change', (e) => {
+    state.speechVoice = e.target.value;
+    save('speech_voice', state.speechVoice);
+    renderSpeechVoice();
+  });
+  document.getElementById('speechVoiceTry').addEventListener('click', () => speak(RATE_SAMPLE));
+
+  // getVoices() is empty on the first call in most browsers and fills in
+  // later, so the picker is built again once the list arrives.
+  onVoicesReady(renderSpeechVoice);
 
   document.getElementById('exportBtn').addEventListener('click', exportBank);
 
@@ -491,6 +604,8 @@ export function initBank({ reload = () => window.location.reload() } = {}) {
   onRender(renderAttemptLog);
   onRender(renderPhonicList);
   onRender(renderSpeechLang);
+  onRender(renderSpeechRate);
+  onRender(renderSpeechVoice);
   onRender(renderContextLog);
 }
 

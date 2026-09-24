@@ -6,13 +6,13 @@
 
 import { state, save, renderAll } from '../lib/store.js';
 import { recordBankObservation } from '../lib/wordbank.js';
-import { activateTab } from './tabs.js';
-
 /**
  * Open the correction panel for a word token.
  *
- * Called from her worksheet and, for a mis-read word, from Sentences and
- * Reading — which is why it jumps to the worksheet tab, where the panel lives.
+ * Called from both giraffe pages and, for a mis-read word, from Sentences and
+ * Reading. The panel floats over whichever page the word was tapped on: it
+ * used to live inside one tab and drag her there, which was wrong even with
+ * one page that had words in it, and impossible with two.
  *
  * @param {HTMLElement} span   the clicked token
  * @param {boolean} fromSentence  prefill with the expected word rather than the
@@ -31,7 +31,6 @@ export function openFixPanel(span, fromSentence) {
   const input = document.getElementById('fixInput');
   input.value = fromSentence ? span.dataset.expected || '' : span.textContent;
 
-  activateTab('write');
   input.focus();
 }
 

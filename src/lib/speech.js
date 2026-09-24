@@ -33,9 +33,87 @@ export function speak(text) {
 
 function utteranceFor(text) {
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.9;
+  utterance.rate = state.speechRate;
   utterance.lang = state.speechLang;
+  // A voice chosen on one device may not exist on another, and a stale name
+  // must not silence the app: an unmatched name simply leaves the browser's
+  // default in place.
+  const chosen = voiceNamed(state.speechVoice);
+  if (chosen) utterance.voice = chosen;
   return utterance;
+}
+
+/** Every voice the browser will admit to, or [] before it has loaded them. */
+export function allVoices() {
+  if (!('speechSynthesis' in window)) return [];
+  try {
+    return window.speechSynthesis.getVoices() || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function voiceNamed(name) {
+  if (!name) return null;
+  return allVoices().find((voice) => voice.name === name) || null;
+}
+
+/**
+ * The voices worth offering for an accent.
+ *
+ * Matched on the language tag's first part as well as the whole thing: a
+ * device set to en-AU may well have only en-GB and en-US voices installed, and
+ * offering nothing would be worse than offering those. Exact matches come
+ * first so the right accent is the easy choice.
+ */
+export function voicesForLang(lang) {
+  const tag = String(lang || '').toLowerCase();
+  const base = tag.split('-')[0];
+  const matches = allVoices().filter((voice) => {
+    const voiceTag = String(voice.lang || '').toLowerCase().replace('_', '-');
+    return voiceTag === tag || voiceTag.split('-')[0] === base;
+  });
+  return matches.sort((a, b) => {
+    const exact = (v) => (String(v.lang || '').toLowerCase().replace('_', '-') === tag ? 0 : 1);
+    return exact(a) - exact(b) || a.name.localeCompare(b.name);
+  });
+}
+
+/**
+ * Whether a voice is one of the better ones iOS downloads on request.
+ *
+ * By name, because the API says nothing about quality. Apple labels them in
+ * the voice name — "Karen (Enhanced)", "Serena (Premium)" — and that label is
+ * the only thing there is to go on.
+ */
+export function isUpgradedVoice(voice) {
+  return /\b(enhanced|premium|neural|natural)\b/i.test((voice && voice.name) || '');
+}
+
+/**
+ * Run a callback when the voice list is ready, and again if it changes.
+ *
+ * `getVoices()` is empty on the first call in most browsers and fills in
+ * asynchronously, so a picker built once on load would be built empty. Safari
+ * in particular does not always fire `voiceschanged`, so there is a poll
+ * behind it that gives up once voices arrive or after a few seconds.
+ */
+export function onVoicesReady(callback) {
+  if (!('speechSynthesis' in window)) return;
+  callback();
+  try {
+    window.speechSynthesis.addEventListener('voiceschanged', callback);
+  } catch (e) {
+    /* older browsers: the poll below is the whole mechanism */
+  }
+  let tries = 0;
+  const timer = setInterval(() => {
+    tries += 1;
+    if (allVoices().length || tries > 20) {
+      clearInterval(timer);
+      if (allVoices().length) callback();
+    }
+  }, 250);
 }
 
 // Which read-aloud is current. A later one silences an earlier one's callbacks

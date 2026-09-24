@@ -975,3 +975,104 @@ suspect and it is one handler to remove.
 
 Whether word-by-word reading sounds right to her, and whether two microphone
 consumers coexist on iPadOS. Both are listen-and-see, on the device.
+
+## 16. Two giraffes, and how the app sounds (parent's decisions)
+
+### The worksheet is not the only shape of her work
+
+**The decision: two giraffe tabs, side by side at the left.** The worksheet is
+right for schoolwork — a title, questions pasted from Seesaw, answers kept
+across days. It is wrong for a maths question with a short written part, where
+naming a sheet and filling a question box are both in the way of one sentence.
+So the single box that was there before the worksheet comes back as its own
+page.
+
+- The **existing full-colour giraffe, at its current size**, opens the quick
+  page.
+- A **second, smaller giraffe in a peach tone** beside it opens the worksheet.
+
+Both keep the selected treatment §14 gave the first: the whole giraffe becomes
+a still ink silhouette while its page is open, so *which page am I on* is
+answered the same way whichever one was tapped. Both keep an aria-label and
+neither gets visible text.
+
+The size difference is the signal that survives greyscale; the peach tint only
+reinforces it. That ordering is deliberate and matches the brand rule the rest
+of the app follows — an e2e check reads both giraffes' computed styles.
+
+### The quick page is the same answer, not a copy of it
+
+**Parent's decision, and it is an engineering one as much as a product one:**
+build it from the same `createAnswer` factory the worksheet uses — one
+instance, no question attached — rather than resurrecting the old file. Two
+implementations of the same box would drift the first time either was touched,
+and the one that drifted would be this one: the page nobody looks at until she
+is using it. Everything §10 through §15 describes — corrections, tap-to-toggle,
+Copy, Read it to me, the live preview, the word highlight — is there because it
+is literally the same code.
+
+**It saves nothing.** A scratch surface is the point, and a quick answer
+quietly taking a slot in her five saved sheets would be the opposite of it. The
+page passes no `onChange`, so there is nothing to save rather than a rule
+saying not to; a test pins that real schoolwork is never pushed off the list by
+a quick one.
+
+### One fix panel, floating
+
+Moving it was forced, not optional: it lived inside the worksheet tab and
+`openFixPanel` switched tabs to reach it. With two pages that have words in
+them it could not live in either. It is now a fixed sheet at the bottom of the
+screen, outside every tab.
+
+That also fixes something that was always slightly wrong — correcting a word
+from Sentences or Reading used to throw her out of the page she was working on.
+It no longer does.
+
+### Reading speed
+
+**The decision: a slider, remembered, synced, applying everywhere the app
+speaks.** Speed is not a preference here, it is the difference between a voice
+she can follow and one that outruns her eye — and the same voice re-reading a
+question she nearly has should be able to get on with it. `speech_rate` sits
+beside `speech_lang` as a synced field; the default is the rate the app has
+always used, so nothing changes until it is moved. A value outside the
+slider's own range in a stored document is ignored rather than obeyed.
+
+It updates on `input` rather than `change` so the number under the thumb means
+something while it is being dragged, and there is a **Try it** button, because
+a speed setting you cannot hear is a guess.
+
+### Her voice
+
+**The decision: list the voices the browser reports for her accent, let the
+parent pick one, remember it.** The iPad's default voice is robotic, and iOS
+will download far better ones for free — that is the whole reason this is worth
+having.
+
+Four things this gets right that a naive picker would not:
+
+1. **Near-miss accents are offered, exact ones first.** A device set to en-AU
+   may have only en-GB and en-US voices installed. Offering nothing would be
+   worse than offering those, and sorting exact matches to the top keeps the
+   right one the easy choice.
+2. **A voice chosen on one device may not exist on another.** Her devices sync;
+   their installed voices do not. An unmatched name leaves the browser's
+   default in place rather than silencing the app, and the picker says so
+   rather than looking as though it forgot itself.
+3. **The list is built again when it arrives.** `getVoices()` is empty on the
+   first call in most browsers and fills in asynchronously; Safari does not
+   always fire `voiceschanged`, so there is a poll behind the event.
+4. **Changing accent drops a voice that no longer belongs to it**, rather than
+   reading her Australian words in an American one.
+
+**When only the built-in voice is there, the note says where to get a better
+one:** Settings › Accessibility › Spoken Content › Voices. Quality is judged by
+name — Apple labels them *(Enhanced)* and *(Premium)* — because the API says
+nothing about it and the label is the only thing there is to go on.
+
+### What this does not settle
+
+Whether the peach giraffe reads as "the other one" or just "a smaller one" at a
+glance, on a real screen, to her. And which voice and speed are actually right
+— that is a listening decision, and the Try it buttons exist so it can be made
+in the moment rather than guessed.
