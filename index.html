@@ -47,7 +47,20 @@
 
   <nav class="tabs" aria-label="Sections">
     <div class="tab-group tab-group-giraffe">
-      <button type="button" class="tab tab-giraffe" data-tab="write" aria-label="Speech-To-Text">
+      <!-- Two giraffes: the big one is the quick scratch page, the smaller
+           peach one is her worksheet. Neither takes a text label; both carry
+           their name on aria-label. -->
+      <button type="button" class="tab tab-giraffe" data-tab="quick"
+              aria-label="Quick answer">
+        <span class="fg">
+          <img class="fg-layer fg-body" src="/giraffe-body.png" alt="" width="250" height="280">
+          <img class="fg-layer fg-wing" src="/giraffe-wing.png" alt="" width="250" height="280">
+          <span class="fg-layer fg-body-ink" aria-hidden="true"></span>
+          <span class="fg-layer fg-wing-ink" aria-hidden="true"></span>
+        </span>
+      </button>
+      <button type="button" class="tab tab-giraffe tab-giraffe-sm" data-tab="write"
+              aria-label="Worksheet">
         <span class="fg">
           <img class="fg-layer fg-body" src="/giraffe-body.png" alt="" width="250" height="280">
           <img class="fg-layer fg-wing" src="/giraffe-wing.png" alt="" width="250" height="280">
@@ -192,41 +205,38 @@
   </div>
 
   <!-- SPEECH-TO-TEXT TAB -->
-  <div id="tab-write" style="display:none;">
+  <!-- QUICK ANSWER: the single box that was here before the worksheet. One
+       maths question with a short written part does not need a sheet. -->
+  <div id="tab-quick" style="display:none;">
     <div class="card">
-      <div class="eyebrow">Say a sentence, or type it here to test corrections</div>
-      <p class="sub">Each recording adds to the end, so a paragraph can be built a sentence at a time.</p>
-      <textarea id="rawInput" placeholder="Tap the mic, or type here&hellip;"></textarea>
-      <div class="centre-row centre-col">
-        <button class="mic-btn mic-btn-sm" id="writeMic" aria-label="Tap to record">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
-        </button>
-        <div class="mic-label" id="writeMicLabel">Tap to record</div>
-      </div>
-
-      <div class="eyebrow">Corrected &mdash; tap any word to fix it</div>
-      <div class="read-out" id="correctedOutput"><span class="empty-note">Nothing here yet.</span></div>
-      <!-- What the context step did, or why it could not. Never silent. -->
-      <div class="context-note" id="contextNote" role="status"></div>
-      <div class="write-note" id="writeNote"></div>
-
-      <!-- Getting the finished text out. This is what the whole tab is for:
-           homework that ends up pasted into Seesaw or Word. -->
-      <div class="out-actions">
-        <button class="btn btn-primary" id="copyBtn">Copy</button>
-        <button class="btn btn-ghost" id="clearBtn">Clear</button>
-        <span class="copy-note" id="copyNote" role="status"></span>
-      </div>
-
-      <div class="fix-panel" id="fixPanel">
-        <div class="eyebrow">Fixing: <span id="fixingWord"></span></div>
-        <input type="text" id="fixInput" placeholder="What word should this be?">
-        <div class="row">
-          <button class="btn btn-primary" id="saveFix">Save correction</button>
-          <button class="btn btn-ghost" id="cancelFix">Cancel</button>
-        </div>
-      </div>
+      <div class="eyebrow">Say your answer</div>
+      <p class="sub">For a quick one. Nothing here is saved &mdash; use the worksheet for schoolwork you want to keep.</p>
+      <div id="quickAnswer"></div>
     </div>
+  </div>
+
+  <div id="tab-write" style="display:none;">
+    <div class="card sheet-head">
+      <label class="eyebrow" for="sheetTitle">What is this work called?</label>
+      <input type="text" id="sheetTitle" class="sheet-title"
+             placeholder="Monday diary entry" autocomplete="off">
+      <div class="row sheet-actions">
+        <button class="btn btn-outline" id="newSheet">New sheet</button>
+      </div>
+      <div class="eyebrow">Your saved work</div>
+      <div class="sheet-list" id="recentSheets"></div>
+    </div>
+
+    <div id="sheetQuestions"></div>
+
+    <div class="card sheet-foot">
+      <div class="row">
+        <button class="btn btn-outline" id="addQuestion">Add another question</button>
+        <button class="btn btn-primary" id="copySheet">Copy whole sheet</button>
+      </div>
+      <span class="copy-note" id="sheetCopyNote" role="status"></span>
+    </div>
+
   </div>
 
   <!-- CORRECTIONS TAB -->
@@ -283,6 +293,23 @@
       <p class="sub">Sets the accent the app listens for <em>and</em> the voice that reads words out for her to copy. Shared across her devices.</p>
       <select id="speechLang" class="lang-select"></select>
       <div class="phonic-note" id="speechLangNote"></div>
+
+      <h3 class="setting-title">Reading speed</h3>
+      <p class="sub">How fast the app reads anything out &mdash; a question, or her own answer back to her.</p>
+      <div class="slider-row">
+        <input type="range" id="speechRate" class="rate-slider"
+               min="0.5" max="1.4" step="0.1" aria-describedby="speechRateNote">
+        <button type="button" class="btn btn-outline" id="speechRateTry">Try it</button>
+      </div>
+      <div class="phonic-note" id="speechRateNote"></div>
+
+      <h3 class="setting-title">Her voice</h3>
+      <p class="sub">The voices this device has for her accent. The built-in one sounds robotic; the enhanced and premium ones are much better and are a free download.</p>
+      <div class="slider-row">
+        <select id="speechVoice" class="lang-select"></select>
+        <button type="button" class="btn btn-outline" id="speechVoiceTry">Try it</button>
+      </div>
+      <div class="phonic-note" id="speechVoiceNote"></div>
     </div>
     <div class="card">
       <h2 class="section-title">What Claude changed</h2>
@@ -312,6 +339,19 @@
       </label>
     </div>
   </div>
+
+<!-- One panel for the whole app, outside every tab. Both giraffe pages have
+     words to correct and so do Sentences and Reading, so it sits over
+     whichever page the word was tapped on rather than throwing her to
+     another one. -->
+<div class="fix-panel fix-panel-float" id="fixPanel" role="dialog" aria-label="Fix a word">
+  <div class="eyebrow">Fixing: <span id="fixingWord"></span></div>
+  <input type="text" id="fixInput" placeholder="What word should this be?">
+  <div class="row">
+    <button class="btn btn-primary" id="saveFix">Save correction</button>
+    <button class="btn btn-ghost" id="cancelFix">Cancel</button>
+  </div>
+</div>
 
 <script type="module" src="/src/main.js"></script>
 </body>

@@ -46,6 +46,16 @@ export const SPEECH_LANGS = [
   { code: 'en-US', label: 'English (US)' }
 ];
 
+// How fast the app reads anything out, and the range the slider offers. The
+// default is the rate the app has always used. Slow matters here: she is
+// following the words as she hears them, and a voice that outruns her eye is
+// worse than no voice. Fast matters too — re-reading a question she nearly has
+// should not be a chore.
+export const SPEECH_RATE_DEFAULT = 0.9;
+export const SPEECH_RATE_MIN = 0.5;
+export const SPEECH_RATE_MAX = 1.4;
+export const SPEECH_RATE_STEP = 0.1;
+
 // ---------- Transcription ----------
 
 // Where the browser sends captured audio. A Netlify Function in this repo
@@ -143,6 +153,14 @@ export const NO_SPEECH_MS = envMs('VITE_NO_SPEECH_MS', 6000);
 // field is bounded (whisper-1 truncates past 224 tokens), and a hint list long
 // enough to describe the whole bank would start biasing every transcript.
 export const VOCAB_HINT_LIMIT = 90;
+
+// ---------- Her worksheets ----------
+
+// How many sheets of schoolwork are kept. The parent's number: enough to pick
+// yesterday's work back up, and deliberately not a history to manage. The
+// whole list is written to the family document on every change, so this also
+// bounds how large that field can get.
+export const SHEET_LIMIT = 5;
 
 // ---------- Context-aware correction ----------
 

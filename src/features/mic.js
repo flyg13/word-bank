@@ -1,4 +1,4 @@
-import { listen, speechRecognitionSupported } from '../lib/speech.js';
+import { listen, listenInterim, speechRecognitionSupported } from '../lib/speech.js';
 import { startCapture, CaptureError, mediaRecordingSupported } from '../lib/capture.js';
 import { state } from '../lib/store.js';
 
@@ -104,15 +104,21 @@ function setAccuracyNotice(code) {
  *   canListen?: () => boolean,
  *   onBlocked?: () => void,
  *   onWorking?: () => void,
+ *   onInterim?: (text: string|null) => void,
  *   onResult: (text: string) => void
  * }} options
  *
  * `onWorking` fires when the recording ends and the clip starts being turned
  * into text, for a screen that wants to say so somewhere other than the mic.
+ *
+ * `onInterim` receives a rough preview of what she is saying, while she says
+ * it, from the browser's own recogniser running alongside the recording; it is
+ * called with null when there is no longer a preview to show. A device with no
+ * second recogniser simply never calls it, and behaves exactly as before.
  */
 export function bindMic({
   buttonId, labelId, mode = 'word', expected = () => '',
-  canListen = () => true, onBlocked, onWorking, onResult
+  canListen = () => true, onBlocked, onWorking, onInterim, onResult
 }) {
   const button = document.getElementById(buttonId);
   const label = labelId ? document.getElementById(labelId) : null;
@@ -140,6 +146,9 @@ export function bindMic({
     // and it is told once.
     if (workingShown) return;
     workingShown = true;
+    // Nothing more is being said, so there is nothing left to listen for —
+    // but the rough words stay up, because the wait they cover starts now.
+    stopPreview();
     button.classList.remove('listening');
     button.classList.add('working');
     if (label) {
@@ -166,6 +175,27 @@ export function bindMic({
   let stopRequested = false;
   let fallbackArmed = false;
   let workingShown = false;
+  let preview = null;
+
+  /**
+   * Stop listening for the preview, but leave what it produced on screen.
+   *
+   * This is the whole point of it: the rough words stay up through the wait
+   * for the real transcript, which is the part that felt too long. They are
+   * cleared by `clearPreview` when the accurate text arrives to replace them,
+   * or when the attempt fails and there is nothing to replace them with.
+   */
+  const stopPreview = () => {
+    if (preview) {
+      preview.stop();
+      preview = null;
+    }
+  };
+
+  const clearPreview = () => {
+    stopPreview();
+    if (onInterim) onInterim(null);
+  };
 
   const finishIdle = () => {
     button.classList.remove('listening');
@@ -239,6 +269,7 @@ export function bindMic({
       capture = await startCapture({ mode, expected: expected(), onSending: enterWorking });
     } catch (e) {
       finishIdle();
+      clearPreview();
       const code = e instanceof CaptureError ? e.code : 'mic-failed';
       if (shouldFallBack(code)) fallBack(code);
       else setLabel(micErrorLabel(code));
@@ -247,6 +278,19 @@ export function bindMic({
 
     active = capture;
     starting = false;
+
+    // The preview starts only once the microphone is actually live, and only
+    // where there is a second recogniser to run. It is a preview: every way it
+    // can fail is silent, and the recording never waits on it or hears about
+    // it.
+    if (onInterim && speechRecognitionSupported) {
+      try {
+        preview = listenInterim({ onText: (text) => { if (preview) onInterim(text); } });
+      } catch (e) {
+        preview = null;
+      }
+    }
+
     // A tap that arrived while the microphone was coming up still meant
     // "finish" — honour it now rather than leaving the recording running.
     if (stopRequested) capture.stop('tap');
@@ -254,6 +298,9 @@ export function bindMic({
     try {
       const { text } = await capture.result;
       finishIdle();
+      // The accurate transcript is here, so the rough words have done their
+      // job. Cleared before onResult, so the two are never on screen together.
+      clearPreview();
       setLabel(MIC_IDLE);
       // A transcript came back from the service, so whatever was wrong before
       // is over. The notice clears itself rather than needing dismissing.
@@ -262,6 +309,7 @@ export function bindMic({
       onResult(text);
     } catch (e) {
       finishIdle();
+      clearPreview();
       const code = e instanceof CaptureError ? e.code : 'transcribe-failed';
       if (shouldFallBack(code)) fallBack(code);
       else setLabel(micErrorLabel(code));

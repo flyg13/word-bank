@@ -186,9 +186,22 @@ h1{ font-size:25px; font-weight:700; letter-spacing:-.01em; margin:0; }
 .fg-body-ink{ -webkit-mask-image:url(/giraffe-body.png); mask-image:url(/giraffe-body.png); }
 .fg-wing-ink{ -webkit-mask-image:url(/giraffe-wing.png); mask-image:url(/giraffe-wing.png); }
 
+/* The second giraffe: her worksheet, beside the quick page's.
+   Smaller, and peach rather than the full holographic colour, so the two read
+   as a pair with one of them plainly the secondary. The size difference does
+   the work in greyscale; the tint only reinforces it. Selected, both become
+   the same ink silhouette, so "which page am I on" is answered the same way
+   whichever giraffe you tapped. */
+.tab-giraffe-sm{ width:64px; height:64px; }
+.tab-giraffe-sm .fg{ height:48px; width:43px; }
+.tab-giraffe-sm .fg-body, .tab-giraffe-sm .fg-wing{
+  filter:sepia(.75) saturate(1.7) hue-rotate(-18deg) brightness(1.06);
+}
+.tab-giraffe-sm.active .fg-body, .tab-giraffe-sm.active .fg-wing{ filter:none; }
+
 /* Selected: she has arrived, and settles into silhouette. The tab's own
    ink fill is turned off — the shape carries the state, not a box. */
-.tab.tab-giraffe.active[data-tab='write']{ background:none; box-shadow:none; }
+.tab.tab-giraffe.active{ background:none; box-shadow:none; }
 .tab-giraffe.active .fg-body, .tab-giraffe.active .fg-wing{ display:none; }
 .tab-giraffe.active .fg-body-ink, .tab-giraffe.active .fg-wing-ink{ display:block; }
 @media (prefers-reduced-motion: reduce){
@@ -419,6 +432,78 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
 }
 .unread-run::before{ content:'? '; color:var(--gold-text); font-weight:700; }
 
+/* ---------- Her worksheet ---------- */
+/* One sheet of schoolwork: a name, then a card per question. The question is
+   the thing she pastes in, so its box is the largest input on the page — it
+   has to be an obvious target for a paste on an iPad. */
+.sheet-title{
+  width:100%; font-family:var(--font-read); font-size:20px; padding:13px 14px;
+  border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--white);
+  color:var(--ink);
+}
+.sheet-title:focus{ outline:2px solid var(--gold); }
+.sheet-actions{ margin-top:12px; }
+.sheet-list{ margin-top:4px; }
+.sheet-row{ display:flex; align-items:center; gap:8px; padding:5px 0; }
+.sheet-open{ flex:1; text-align:left; font-family:var(--font-read); }
+.sheet-foot{ display:flex; flex-direction:column; gap:10px; }
+
+.qa-card{ border-left:4px solid var(--gold-lit); }
+.qa-head{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.qa-number{ flex:1; font-size:19px; margin:0; font-family:var(--font-ui); }
+/* White, like every other input on the page. The thick dashed gold rule marks
+   it as the thing to paste into, and the second rule on focus says it is the
+   one in use — the wash on top of both was a third signal saying the same
+   thing, and it made the box read as filled in before she had touched it. */
+.question-box{
+  width:100%; min-height:96px; font-family:var(--font-read); font-size:19px;
+  line-height:1.7; padding:14px; border:2px dashed var(--gold); border-radius:var(--radius-sm);
+  background:var(--white); color:var(--ink); resize:vertical;
+}
+.question-box:focus{ outline:2px solid var(--gold); border-style:solid; }
+
+/* The question again, word by word, while it is read out. A textarea cannot
+   light up one word inside it, so the words are repeated here as spans and the
+   strip is only on screen while it is talking. */
+.read-along{
+  display:none; font-family:var(--font-read); font-size:19px; line-height:1.9;
+  margin-top:10px; padding:11px 13px; border-radius:var(--radius-sm);
+  background:var(--gold-wash); border:1px solid var(--gold-lit); color:var(--ink);
+}
+.read-along.show{ display:block; }
+
+/* The word being said, in the question strip and in her answer. Ink on a gold
+   fill with a rule under it: it has to be findable at a glance by a nine-year-
+   old following along, and readable for someone who cannot see the fill. */
+.along-word.saying, .wtok.saying{
+  background:var(--gold-lit); border-radius:3px;
+  box-shadow:0 2px 0 0 var(--gold-text); color:var(--ink);
+}
+.icon-btn.reading{ background:var(--gold-wash); border-color:var(--gold); }
+
+/* A rough preview of what she is saying, while she says it, from the browser's
+   own recogniser. Greyed and italic because it is provisional and about to be
+   replaced — it is never her answer, and nothing ever reads it. */
+.interim{
+  display:none; font-family:var(--font-read); font-size:19px; line-height:1.75;
+  margin-top:11px; padding:11px 13px; border-radius:var(--radius-sm);
+  background:var(--paper); border:1px dashed var(--line);
+  color:var(--muted); font-style:italic;
+}
+.interim.show{ display:block; }
+.interim::before{ content:'\2026 '; font-style:normal; }
+
+/* The speaker. Sized for a nine-year-old's finger, not a cursor: this is the
+   control she reaches for every time a question has a word she cannot read. */
+.icon-btn{
+  flex:none; width:48px; height:48px; border-radius:50%; border:1px solid var(--line);
+  background:var(--white); cursor:pointer; display:flex; align-items:center;
+  justify-content:center; padding:0;
+}
+.icon-btn svg{ width:24px; height:24px; fill:var(--ink); }
+.icon-btn:hover{ border-color:var(--ink); }
+.icon-btn:active{ transform:scale(.96); }
+
 .read-note{ margin-top:12px; font-size:16px; font-weight:700; font-family:var(--font-ui); }
 .read-note.clean{ color:var(--checked); }
 .write-note{ font-size:16px; color:var(--checked); margin-top:11px; }
@@ -437,6 +522,9 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
    blind find-and-replace is the thing the parent must not miss. */
 .context-note{ display:none; font-size:16px; line-height:1.55; color:var(--muted); margin-top:11px; }
 .context-note.show{ display:block; }
+/* The error code, for whoever has to work out why. Small and grey: she does
+   not need it, and the person who does needs it to still be there. */
+.context-note .code-hint{ color:var(--muted); }
 .context-note .retry-read{
   display:inline-block; margin-left:8px; font:inherit; font-weight:700;
   color:var(--ink); background:var(--white); border:1px solid var(--gold);
@@ -462,6 +550,15 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
   border:1px solid var(--line); border-radius:var(--radius); padding:16px; text-align:left;
 }
 .fix-panel.show, .phonic-panel.show{ display:block; }
+
+/* The shared panel is not inside a page any more, so it needs to place itself.
+   A sheet at the bottom of the screen: it is answering a word she just tapped,
+   and it must not push the words she is looking at off the screen to do it. */
+.fix-panel-float{
+  position:fixed; left:50%; transform:translateX(-50%); bottom:14px; z-index:40;
+  width:min(520px, calc(100vw - 28px)); margin-top:0; background:var(--white);
+  box-shadow:0 8px 28px rgba(36,31,27,.22); border-color:var(--gold);
+}
 .fix-panel input, .phonic-panel input{ margin:0 0 10px; }
 #fixingWord{ color:var(--ink); text-transform:none; letter-spacing:0; }
 
@@ -528,6 +625,16 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
 
 .lang-select{ appearance:none; background-image:none; }
 .lang-select:focus{ outline:2px solid var(--gold); }
+
+/* Set-once settings, stacked under the accent they belong with. */
+.setting-title{
+  font-family:var(--font-ui); font-size:17px; margin:22px 0 4px; color:var(--ink);
+}
+.slider-row{ display:flex; align-items:center; gap:11px; flex-wrap:wrap; margin-top:4px; }
+.slider-row .lang-select{ flex:1; min-width:200px; }
+/* A 44px-tall track so the thumb is a real target on an iPad, not a hairline. */
+.rate-slider{ flex:1; min-width:190px; height:44px; accent-color:var(--gold-text); }
+.rate-slider:focus{ outline:2px solid var(--gold); }
 
 @media (prefers-reduced-motion: reduce){
   *, *::before, *::after{ animation-duration:.001ms !important; animation-iteration-count:1 !important;

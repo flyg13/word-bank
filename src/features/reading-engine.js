@@ -3,7 +3,7 @@ import { alignWords, isCleanRead } from '../lib/align.js';
 import { toWords, normalize } from '../lib/text.js';
 import { wordsMatch } from '../lib/wordbank.js';
 import { soundsLikeHerWord } from '../lib/phonicbank.js';
-import { openFixPanel } from './freewrite.js';
+import { openFixPanel } from './fix-panel.js';
 
 // Sentences and Reading Passage differ only in where their text and progress
 // live, so the read-and-score mechanics live here once.

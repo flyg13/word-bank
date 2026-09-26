@@ -2,7 +2,8 @@
 
 A personal speech-to-text trainer that learns her voice, one correction at a time.
 
-Five modes — Practice, Sentences, Reading, Speech-To-Text, Word Bank — synced across
+Six modes — Practice, Sentences, Reading, a quick answer box, her worksheet (a
+question she pastes in from Seesaw and an answer she says), Word Bank — synced across
 devices through Firebase Firestore using a shared family code.
 
 See [CLAUDE.md](CLAUDE.md) for the architecture and build plan.
@@ -123,11 +124,12 @@ is selected.
 **3. Redeploy** (Deploys → Trigger deploy → Deploy site). Functions only pick up
 a new variable on a new deploy.
 
-**4. Check it.** Open Speech-To-Text, tap the mic, say a sentence with a word
-she has a confirmed correction for. If the key is missing or wrong, the app says
-so under the corrected text — *Context correction unavailable (not-configured)*,
-*(not-authorised)* or *(model-not-found)* — and falls back to the old blind
-find-and-replace. Then the two sentences the switch was made for, with
+**4. Check it.** Open Speech-To-Text, tap the mic under a question, say a
+sentence with a word she has a confirmed correction for. If the key is missing
+or wrong, the app says so under her answer — *I could not check the marked bit*
+with the code beside it, *(not-configured)*, *(not-authorised)* or
+*(model-not-found)* — and falls back to the old blind find-and-replace for that
+sentence only. Then the two sentences the switch was made for, with
 "liquor → little" confirmed: *"Dad brought a bottle of liquor"* must come back
 unchanged, and *"I want the liquor one"* must change.
 
@@ -349,9 +351,9 @@ Two faces, self-hosted from npm so nothing depends on a CDN: **Andika** for what
 she reads (the practice word, sentences, the heard-back text) and **Atkinson
 Hyperlegible** for the parent's interface. Latin subset only.
 
-Six tabs in three groups, separated by spacing rather than colour: build the
-bank (Practice, Sentences, Reading), use it (Speech-To-Text), teach it
-(Corrections), and the brain (Word Bank).
+Seven tabs in three groups, separated by spacing rather than colour: build the
+bank (Practice, Sentences, Reading), use it (two giraffes — a quick answer, and
+her worksheet), teach it (Corrections), and the brain (Word Bank).
 
 ## Layout
 

@@ -20,7 +20,9 @@ import { initSession } from './features/session.js';
 import { initPractice, buildQueue, reconcileQueue } from './features/practice.js';
 import { initSentences } from './features/sentences.js';
 import { initReading } from './features/reading.js';
-import { initFreeWrite } from './features/freewrite.js';
+import { initQuick } from './features/quick.js';
+import { initWorksheet } from './features/worksheet.js';
+import { initFixPanel } from './features/fix-panel.js';
 import { initBank, renderFamilyCode } from './features/bank.js';
 import { requireFamilyCode } from './features/entry.js';
 
@@ -55,7 +57,9 @@ async function main() {
   initPractice();
   initSentences();
   initReading();
-  initFreeWrite();
+  initFixPanel();
+  initQuick();
+  initWorksheet();
   initBank();
 
   setSaveErrorHandler(() => setSyncStatus('error', 'Save failed — check connection'));

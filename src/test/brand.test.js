@@ -102,7 +102,10 @@ describe('the giraffe', () => {
     expect(block).toContain('background:none');
     expect(block).toContain('border:none');
     expect(block).not.toContain('border-radius');
-    expect(css).toContain(`.tab.tab-giraffe.active[data-tab='write']{ background:none; box-shadow:none; }`);
+    // Both giraffes, not one: the rule is no longer pinned to a single tab,
+    // because there are two of them and they carry the same selected state.
+    expect(css).toContain('.tab.tab-giraffe.active{ background:none; box-shadow:none; }');
+    expect(css).not.toContain("active[data-tab='write']");
   });
 
   it('does not flap when reduced motion is asked for', () => {

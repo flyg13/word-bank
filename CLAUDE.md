@@ -776,3 +776,303 @@ anything, and a retry landing on the wrong words is worse than no retry. And
 editing the box clears the run along with everything else, because editing
 already makes every decision about it stale; the way back from there is to
 record the sentence again.
+
+## 14. Speech-To-Text becomes a worksheet (parent's decisions)
+
+**Why the page changed shape.** It was one scratch box, which is not the shape
+of the work she actually does. Her schoolwork is a weekly creative-writing
+piece in paragraphs — a diary entry written as a character — and short reading
+and writing questions. Every one of them is *a question she has to answer*,
+and every answer goes back into Seesaw. A single box made her hold the question
+in her head, and gave the app no way to help with it.
+
+**A sheet is one piece of schoolwork**: a name, and one or more
+question-and-answer pairs.
+
+### The question is hers to paste in
+
+**Parent's decision: she does this herself.** She is nine, and copying the
+question across from Seesaw is part of doing her own schoolwork. So the app
+does not fetch it, guess it or ask the parent for it — it gives her a box.
+The box is the largest input on the page, a textarea with a dashed gold border,
+because a paste target on an iPad has to be unmissable and forgiving of a
+mistimed tap.
+
+**A speaker beside it reads it out, as many times as she wants.** This is not a
+convenience. A question with a word she cannot read is a question she cannot
+answer, and re-reading it aloud is the thing that unblocks her. It uses her
+configured accent, the same as everywhere else, and `speak()` cancels whatever
+was already talking so a second tap restarts rather than overlapping.
+
+### Her answer is the old page, unchanged
+
+The mic, recordings adding to the end, context correction, tap-to-toggle and
+Copy all behave exactly as §10, §12 and §13 describe. What changed is that they
+are no longer a singleton: `features/answer.js` is a factory, and a sheet has
+one instance per question. Every piece of state that used to sit at module
+level now belongs to one answer, because two answers on one sheet must not see
+each other's decisions — a test drives two at once and pins that.
+
+The one genuinely new control is **Read it to me**, and it is the parent's
+decision and the reason for it: *she cannot proofread by reading, so hearing it
+is how she checks it.* It speaks the **corrected** text — the same string Copy
+puts on the clipboard, from the same function, pinned by a test. Reading her
+the raw transcript would have her check the wrong thing.
+
+### More than one question
+
+**Add another question** appends a block. **Copy answer** copies that answer
+alone. **Copy whole sheet** copies every question with its answer beneath it,
+in order, blank line separated — and it uses the *live* corrected text for any
+answer that is on screen, because only the page knows which corrections are
+currently showing. The sheet's own name is deliberately not in that copy: what
+she pastes into Seesaw is the work, not the label she gave it.
+
+A sheet always has at least one question, so Remove is hidden when there is
+only one, and asks first when the question it would take has anything in it.
+
+### Saving
+
+**Parent's decision: the five most recent, and no long history to manage.**
+Older sheets drop off on their own. They are a synced field, `sheets`, on the
+family document — the same way the rest of her data syncs — so a sheet started
+on the iPad is on the parent's device too. The whole list is written on every
+change, which is what bounds the field: five sheets is the cap, not a
+suggestion. It is purely additive; the differential test pins that the fields
+that were there before are untouched.
+
+**Only her own words are stored, never Claude's.** A stored answer is the
+transcript as the recogniser heard it. Freezing Claude's changes into storage
+would make a guess indistinguishable from a transcript the next time the sheet
+was opened, and §10's rule that this step "only ever changes what is on screen"
+would stop being true. **What that costs, plainly:** a reopened answer shows
+her confirmed corrections applied the blind way — the same treatment typed text
+has always had — until she records into it again. Copy still gives what is on
+screen, so nothing is wrong; it is just not as good as it was before the sheet
+was closed. Storing the corrected text instead would be a one-line change, and
+it is the wrong trade.
+
+An empty sheet is never stored: opening the tab makes one, and a blank sheet
+pushing real work off the end of a five-long list would be a bad bargain.
+Starting a new sheet asks nothing, because nothing is lost — the sheet on
+screen is saved on the way out and is the first row of the list underneath.
+
+### Wording
+
+Every label on this page was written for a parent testing corrections, and
+this is a page a nine-year-old uses on her own. They are now short and plain:
+*Say your answer*, *Your answer*, *Copy answer*, *Read it to me*, *Start
+again*, *Paste the question here*. The notes changed too — *Checking your
+words…*, *I changed 2 words. Tap a word to change it back.*, *Copied! Now paste
+it into Seesaw.*
+
+**One thing the rewrite was not allowed to drop.** §10 requires the fallback
+note to name the error code, because that code is the only diagnostic there is
+when something goes wrong on a device nobody is holding. The plain sentence is
+hers; the code follows it in small grey text rather than disappearing. A test
+pins that it is still there.
+
+### What this does not settle
+
+Whether the page reads clearly to *her* is not knowable from here. The specific
+things to watch on the iPad: whether she finds the paste box without being
+shown, whether the speaker button is where her hand goes when a word stops her,
+and whether several question cards on one sheet scroll comfortably or turn into
+a wall. The wording is a guess at nine-year-old plain, made by someone who is
+not nine.
+
+## 15. Four things the first worksheet build got wrong (parent's decisions)
+
+All four came back from the iPad, which is the only place any of them was
+findable.
+
+### The question box was white all along
+
+**The decision: remove the gold wash; white, like every other input.** The box
+had three things saying "paste here" — a thick gold dashed rule, a second rule
+on focus, and a filled background. The first two do the job. The wash made the
+box read as *already filled in*, which is the opposite of an invitation, and it
+was the one signal that did not survive being looked at on a real screen.
+
+### "Read it to me" did not work on her answer
+
+**What was actually wrong, and it was not the wiring.** The question spoke and
+the answer did not, and the handler, the button and the text were all correct —
+proved by driving the real page in a browser, where both reached
+`speechSynthesis.speak()`. The difference is length: **Safari on iPad silently
+fails to speak a long utterance.** A question is a sentence; her answer is a
+paragraph.
+
+**The fix is one utterance per word,** which is the documented way around that
+limit — and it is the same mechanism §15's next item needs, so the two are one
+change rather than two.
+
+### Each word lights up as it is spoken
+
+**Parent's decision, and the reason:** *this is a standard reading support for
+dyslexia — seeing the word light up as she hears it links the sound to the
+written word.* It applies to the question and to her answer.
+
+**Why one utterance per word rather than `onboundary`.** The obvious
+implementation is to speak the whole text and highlight from the API's word
+boundary events. WebKit has never fired those reliably, so on the one device
+that matters it would highlight nothing. Speaking word by word makes the
+highlight *exact* rather than estimated: the word lit is the word being spoken,
+because they are the same utterance. It also fixes the item above. The cost is
+prosody — a paragraph read word by word is more deliberate than natural speech,
+and whether that reads as "helping her follow" or "stilted" is the thing to
+listen to on the iPad.
+
+Two details that are load-bearing:
+
+- **The words come from the same parts the panel is drawn from**, not from
+  splitting the finished string. A confirmed correction can be two words for
+  one token — "yo yo" for "yoyo" — and splitting would put the highlight one
+  word out from there to the end. A test pins that case.
+- **A question is a textarea, and a textarea cannot light up one word inside
+  it.** So the question is repeated underneath as word spans, on screen only
+  while it is being read.
+
+Tapping the speaker again stops the reading rather than starting a second one
+on top of it.
+
+### The wait after she stops talking
+
+**Parent's decision: show a rough live preview while she speaks.** The
+browser's own recogniser runs alongside the recording, and its guesses appear
+as she talks — greyed and italic in a box of their own, with a leading
+ellipsis — then the accurate transcript replaces them. It was worst on a
+paragraph built sentence by sentence, where the same wait is paid on every
+recording.
+
+**The preview is a preview and nothing else.** It is never saved, never
+copied, never read aloud and never sent to be checked in context. That is not
+a promise made by being careful: it holds because the preview never touches the
+box everything else reads from. Saving, Copy, Read it to me and the context
+step all read `rawText()`, and the preview writes only to its own element. A
+mutation that puts the preview into that box fails four tests.
+
+**It stays up through the wait, not just while she talks.** The recogniser
+stops the moment recording ends, but the rough words stay on screen until the
+real transcript arrives to replace them — the wait they exist to cover starts
+exactly when she stops speaking. Clearing them at that point would leave the
+gap the whole thing was for.
+
+**Every way it can fail is silent.** No second recogniser, a recogniser that
+refuses, an error part way through: the preview simply never appears and the
+app behaves as it did before, with §13's working indicator doing the talking.
+It is on its own recogniser instance rather than the shared one, because the
+shared one is the fallback that stands in when the transcription service cannot
+be reached, and reassigning its handlers from here would break that.
+
+**One risk worth naming.** Two things now want the microphone at once — the
+recorder and the browser recogniser. That combination is not something the
+tests can settle, and iOS is the likeliest place for it to misbehave. If the
+recording itself degrades on the iPad, the preview is the first thing to
+suspect and it is one handler to remove.
+
+### What this does not settle
+
+Whether word-by-word reading sounds right to her, and whether two microphone
+consumers coexist on iPadOS. Both are listen-and-see, on the device.
+
+## 16. Two giraffes, and how the app sounds (parent's decisions)
+
+### The worksheet is not the only shape of her work
+
+**The decision: two giraffe tabs, side by side at the left.** The worksheet is
+right for schoolwork — a title, questions pasted from Seesaw, answers kept
+across days. It is wrong for a maths question with a short written part, where
+naming a sheet and filling a question box are both in the way of one sentence.
+So the single box that was there before the worksheet comes back as its own
+page.
+
+- The **existing full-colour giraffe, at its current size**, opens the quick
+  page.
+- A **second, smaller giraffe in a peach tone** beside it opens the worksheet.
+
+Both keep the selected treatment §14 gave the first: the whole giraffe becomes
+a still ink silhouette while its page is open, so *which page am I on* is
+answered the same way whichever one was tapped. Both keep an aria-label and
+neither gets visible text.
+
+The size difference is the signal that survives greyscale; the peach tint only
+reinforces it. That ordering is deliberate and matches the brand rule the rest
+of the app follows — an e2e check reads both giraffes' computed styles.
+
+### The quick page is the same answer, not a copy of it
+
+**Parent's decision, and it is an engineering one as much as a product one:**
+build it from the same `createAnswer` factory the worksheet uses — one
+instance, no question attached — rather than resurrecting the old file. Two
+implementations of the same box would drift the first time either was touched,
+and the one that drifted would be this one: the page nobody looks at until she
+is using it. Everything §10 through §15 describes — corrections, tap-to-toggle,
+Copy, Read it to me, the live preview, the word highlight — is there because it
+is literally the same code.
+
+**It saves nothing.** A scratch surface is the point, and a quick answer
+quietly taking a slot in her five saved sheets would be the opposite of it. The
+page passes no `onChange`, so there is nothing to save rather than a rule
+saying not to; a test pins that real schoolwork is never pushed off the list by
+a quick one.
+
+### One fix panel, floating
+
+Moving it was forced, not optional: it lived inside the worksheet tab and
+`openFixPanel` switched tabs to reach it. With two pages that have words in
+them it could not live in either. It is now a fixed sheet at the bottom of the
+screen, outside every tab.
+
+That also fixes something that was always slightly wrong — correcting a word
+from Sentences or Reading used to throw her out of the page she was working on.
+It no longer does.
+
+### Reading speed
+
+**The decision: a slider, remembered, synced, applying everywhere the app
+speaks.** Speed is not a preference here, it is the difference between a voice
+she can follow and one that outruns her eye — and the same voice re-reading a
+question she nearly has should be able to get on with it. `speech_rate` sits
+beside `speech_lang` as a synced field; the default is the rate the app has
+always used, so nothing changes until it is moved. A value outside the
+slider's own range in a stored document is ignored rather than obeyed.
+
+It updates on `input` rather than `change` so the number under the thumb means
+something while it is being dragged, and there is a **Try it** button, because
+a speed setting you cannot hear is a guess.
+
+### Her voice
+
+**The decision: list the voices the browser reports for her accent, let the
+parent pick one, remember it.** The iPad's default voice is robotic, and iOS
+will download far better ones for free — that is the whole reason this is worth
+having.
+
+Four things this gets right that a naive picker would not:
+
+1. **Near-miss accents are offered, exact ones first.** A device set to en-AU
+   may have only en-GB and en-US voices installed. Offering nothing would be
+   worse than offering those, and sorting exact matches to the top keeps the
+   right one the easy choice.
+2. **A voice chosen on one device may not exist on another.** Her devices sync;
+   their installed voices do not. An unmatched name leaves the browser's
+   default in place rather than silencing the app, and the picker says so
+   rather than looking as though it forgot itself.
+3. **The list is built again when it arrives.** `getVoices()` is empty on the
+   first call in most browsers and fills in asynchronously; Safari does not
+   always fire `voiceschanged`, so there is a poll behind the event.
+4. **Changing accent drops a voice that no longer belongs to it**, rather than
+   reading her Australian words in an American one.
+
+**When only the built-in voice is there, the note says where to get a better
+one:** Settings › Accessibility › Spoken Content › Voices. Quality is judged by
+name — Apple labels them *(Enhanced)* and *(Premium)* — because the API says
+nothing about it and the label is the only thing there is to go on.
+
+### What this does not settle
+
+Whether the peach giraffe reads as "the other one" or just "a smaller one" at a
+glance, on a real screen, to her. And which voice and speed are actually right
+— that is a listening decision, and the Try it buttons exist so it can be made
+in the moment rather than guessed.
