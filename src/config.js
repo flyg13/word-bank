@@ -84,8 +84,12 @@ export const TRANSCRIBE_TIMEOUT_MS = 15000;
 // Netlify without a code change — see `envMs` and the README — because the
 // right value is a thing only the iPad, mid-session, can settle.
 const DEFAULT_SILENCE_MS = {
-  // One word, with nothing inside it to pause for. Already the most impatient.
-  word: 1200,
+  // One word, with nothing inside it to pause for. 1200ms was still long
+  // enough to read as the app having frozen — the same complaint §13 answered
+  // for Speech-To-Text, reported again from Practice, where she is saying one
+  // word and waiting for it a dozen times in a row. Tapping again always ends
+  // a recording immediately, so the cost of cutting short is one tap.
+  word: 600,
   // A 3–5 word target sentence. She is articulating carefully and may pause
   // between words; cutting her off costs a whole retry of the sentence, so
   // this stays where it is.
