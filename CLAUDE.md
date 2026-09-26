@@ -693,7 +693,8 @@ impatience here is one extra tap.
 
 **The other modes were reviewed and deliberately left alone.** Practice stays
 at 1200ms — one word has nothing to pause inside it, and it was already the
-most impatient. Sentences (2000ms) and Reading (2500ms) stay long, because
+most impatient. *Revised in §17, September 2026: the same complaint came back
+from Practice, and 1200ms was still too long there.* Sentences (2000ms) and Reading (2500ms) stay long, because
 there the recording is scored against a target sentence: cutting her off
 mid-sentence costs her the whole thing again, which is a worse failure than a
 wait. The asymmetry is the point — Speech-To-Text can afford to be impatient
@@ -1076,3 +1077,58 @@ Whether the peach giraffe reads as "the other one" or just "a smaller one" at a
 glance, on a real screen, to her. And which voice and speed are actually right
 — that is a listening decision, and the Try it buttons exist so it can be made
 in the moment rather than guessed.
+
+## 17. The same two complaints, in Practice (parent's decisions)
+
+Both of §13's Speech-To-Text findings turned out to be true of Practice as
+well, and worse there for a reason §13 missed: in Speech-To-Text she says a
+sentence and waits once. In Practice she says one word and waits for it a dozen
+times in a row. The same pause, paid over and over, is a different experience.
+
+### The pause before a word stops recording
+
+**The decision: 1200ms down to 600ms.** §13 reviewed this number and left it,
+on the reasoning that Practice was already the most impatient mode. That was
+true and not the point — being the least bad was not the same as being short
+enough. A single word has nothing to pause inside it, so the trailing silence
+is pure waiting.
+
+Tapping the mic again always ends a recording immediately, so the cost of
+cutting her short is one tap, and the auto-stop remains what it has always been:
+a safety net, not the mechanism. `VITE_SILENCE_MS_WORD` still overrides it, and
+a test pins that Practice is the shortest of every mode and still has a hard
+ceiling above it.
+
+### A rough preview here too
+
+**The decision: the same live preview §15 gave Speech-To-Text.** The browser's
+own recogniser runs alongside the recording, its guess appears under the mic
+while she is still speaking, and the accurate transcript replaces it. It is the
+same `onInterim` seam and the same `listenInterim` — one implementation, for
+the reason §16 gives about the quick page: a second copy would drift, and the
+copy that drifted would be the one nobody is watching.
+
+**Display only, and it matters more here than in Speech-To-Text.** There, a
+leaked preview would put wrong words in her homework. Here, Practice *scores*
+what it hears — a guess that reached `handlePracticeResult` would be matched
+against the target word, could mark a word mastered that she never said, could
+advance the queue, and could teach the bank a mishearing that never happened.
+
+So it is not "we are careful not to pass it on": the preview writes to its own
+element and nothing else reads that element. A test asserts that firing the
+*exact target word* as a guess changes `verified_words`, `confirm_counts`,
+`word_bank`, `attempt_log` and the queue by nothing at all, and writes nothing
+to Firestore. A mutation that pipes the guess into the scorer fails it.
+
+It is cleared whenever the attempt ends — by the transcript arriving, by the
+attempt failing, or by the word changing underneath it — so a stale guess can
+never sit under a word it was not about. And as in §15, every way the second
+recogniser can fail is silent: no preview, and the app behaves as it did.
+
+### What this does not settle
+
+Whether 600ms cuts her off in practice. It is a feel judgement and the only
+place to make it is the iPad — if she is being clipped mid-word,
+`VITE_SILENCE_MS_WORD` is the dial and the README says so. The two-microphones
+risk §15 named applies here too, and Practice is where it would show up
+soonest, because it is the mode she uses most.

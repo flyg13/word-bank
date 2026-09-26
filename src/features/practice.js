@@ -121,7 +121,25 @@ function renderRepeatDots(word) {
  * Firestore snapshot can refresh the screen without yanking the confirmation
  * buttons out from under whoever is mid-decision.
  */
+/**
+ * The browser recogniser's rough guess, while she is still saying the word.
+ *
+ * Display only, and that is load-bearing here in a way it is not in
+ * Speech-To-Text: Practice *scores* what it hears. A guess that reached
+ * `handlePracticeResult` would be matched against the target word, could mark
+ * a word mastered, and could teach the bank a mishearing that never happened.
+ * So it goes into its own element and nothing else ever reads it — see
+ * CLAUDE.md §17.
+ */
+function showRoughWord(text) {
+  const box = document.getElementById('practiceRough');
+  if (!box) return;
+  box.textContent = text || '';
+  box.classList.toggle('show', Boolean(text));
+}
+
 export function clearHeard() {
+  showRoughWord('');
   document.getElementById('heardBox').classList.remove('show');
 }
 
@@ -342,6 +360,7 @@ export function initPractice() {
     mode: 'word',
     expected: () => state.practiceQueue[0] || '',
     canListen: () => state.practiceQueue.length > 0,
+    onInterim: showRoughWord,
     onResult: handlePracticeResult
   });
 

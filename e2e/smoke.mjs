@@ -316,6 +316,27 @@ const target = (await page.locator('#targetWord').textContent()).trim();
 check('a practice word is showing', target.length > 0 && target !== '—', target);
 check('mastery dots rendered', (await page.locator('#repeatDots .repeat-dot').count()) === 3);
 
+// The rough preview's presentation, checked without driving it: the app's
+// recogniser is captured at module load, so reaching in to fire an interim
+// result means fighting the harness's own fake and spending a transcript the
+// later checks are counting. What it *does* is pinned in
+// practice-preview.test.js, including that a guess is never scored.
+const roughSkin = await page.evaluate(() => {
+  const box = document.getElementById('practiceRough');
+  const cs = getComputedStyle(box);
+  const heard = document.getElementById('heardBox');
+  return {
+    exists: Boolean(box),
+    hidden: cs.display === 'none',
+    italic: cs.fontStyle,
+    separate: !heard.contains(box),
+    muted: cs.color !== getComputedStyle(document.getElementById('heardText')).color
+  };
+});
+check('Practice has a provisional box for the rough guess, outside the heard-back',
+  roughSkin.exists && roughSkin.hidden && roughSkin.italic === 'italic' &&
+  roughSkin.separate && roughSkin.muted, JSON.stringify(roughSkin));
+
 // A correct utterance advances the word.
 await page.evaluate((w) => { window.__nextTranscript = w; }, target);
 await tapMic('practiceMic');
