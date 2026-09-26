@@ -954,12 +954,70 @@ await page.evaluate(() => {
 });
 await tapMic('writeMic');
 await page.waitForFunction(() =>
-  document.getElementById('contextNote').textContent.includes('unavailable'));
+  document.getElementById('contextNote').textContent.includes('could not be read'));
 const downNote = await page.locator('#contextNote').textContent();
 check('an outage falls back to the blind find-and-replace, naming the code',
   downNote.includes('not-configured') && downNote.includes('every match'), downNote);
 check('and the fallback really is the old behaviour',
   (await page.locator('#correctedOutput .wtok.fixed').allTextContents()).includes('flobber'));
+check('the unread sentence is marked as one run, not word by word',
+  (await page.locator('#correctedOutput .unread-run').count()) === 1,
+  await page.locator('#correctedOutput').innerHTML());
+
+// ---- A failure mid-paragraph leaves the earlier review alone ----
+// The parent hit this with a dropped connection: the blind fallback used to be
+// applied to the whole box, silently recomputing sentences already read and
+// undoing words they had tapped to put back.
+await page.fill('#rawInput', '');
+await page.dispatchEvent('#rawInput', 'input');
+await page.evaluate(() => {
+  window.__contextDown = false;
+  window.__nextTranscript = 'the flibber is here';
+  window.__contextChanges = [{ index: 1, to: 'flobber', reason: 'She means her toy.' }];
+});
+await tapMic('writeMic');
+await page.waitForSelector('#correctedOutput .wtok.ctx-fixed');
+
+await page.evaluate(() => {
+  window.__contextDown = true;
+  window.__nextTranscript = 'the flibber broke';
+});
+await tapMic('writeMic');
+await page.waitForSelector('#correctedOutput .unread-run');
+check('the sentence already read keeps its mark through the outage',
+  (await page.locator('#correctedOutput .wtok.ctx-fixed').allTextContents()).join() === 'flobber',
+  await page.locator('#correctedOutput').textContent());
+check('and only the new sentence is marked unread',
+  (await page.locator('#correctedOutput .unread-run').allTextContents()).join()
+    === 'the flobber broke',
+  await page.locator('#correctedOutput .unread-run').allTextContents().then(JSON.stringify));
+check('the two states are told apart without colour',
+  await page.evaluate(() => {
+    const run = getComputedStyle(document.querySelector('.unread-run'));
+    return run.borderLeftStyle === 'solid' && parseFloat(run.borderLeftWidth) >= 2 &&
+      getComputedStyle(document.querySelector('.unread-run'), '::before').content.includes('?');
+  }));
+
+// And it can be asked again once the connection is back.
+await page.evaluate(() => {
+  window.__contextDown = false;
+  window.__contextChanges = [{ index: 1, to: 'flobber', reason: 'Still her toy.' }];
+});
+await page.locator('#contextNote .retry-read').click();
+// Wait for the answer, not for the mark: the mark stays up while the asking
+// happens, so its absence is the result rather than the signal to look.
+await page.waitForFunction(() =>
+  document.getElementById('contextNote').textContent.includes('Read in context'));
+check('reading it again clears the mark and applies the real decision',
+  (await page.locator('#correctedOutput .wtok.ctx-fixed').allTextContents()).join()
+    === 'flobber,flobber' &&
+  (await page.locator('#correctedOutput').textContent()).replace(/\s+/g, ' ').trim()
+    === 'the flobber is here the flobber broke',
+  await page.locator('#correctedOutput').textContent());
+check('and only that sentence was sent to be read again',
+  (await page.evaluate(() => window.__lastContextBody.tokens.join(' '))) === 'the flibber broke',
+  JSON.stringify(await page.evaluate(() => window.__lastContextBody)));
+
 await page.evaluate(() => { window.__contextDown = false; });
 
 // ---- Export / import round trip, through the real file ----

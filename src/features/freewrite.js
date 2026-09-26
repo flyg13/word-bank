@@ -1,5 +1,5 @@
 import { state, save, onRender, renderAll } from '../lib/store.js';
-import { applyBankToText, recordBankObservation, getBankEntry } from '../lib/wordbank.js';
+import { applyBankToText, blindToken, recordBankObservation, getBankEntry } from '../lib/wordbank.js';
 import { suggestFromSound } from '../lib/phonicbank.js';
 import { normalize } from '../lib/text.js';
 import { correctWithContext, splitForCorrection, ContextError } from '../lib/context-correct.js';
@@ -8,13 +8,31 @@ import { copyText } from '../lib/clipboard.js';
 import { bindMic } from './mic.js';
 import { activateTab } from './tabs.js';
 
-// What Claude decided about the transcript currently in the box.
+// What Claude decided about the transcript currently in the box:
 //
-// Held against the exact text it read: the moment that text is edited or added
-// to, the decisions no longer describe it and the view falls back to the bank's
-// own find-and-replace. Nothing here is ever saved — see CLAUDE.md §10, the
-// bank learns in Practice, Sentences and Reading, and never from this.
+//   text     the exact text these decisions describe. The moment it is edited
+//            the decisions no longer describe it and the view falls back to
+//            the bank's own find-and-replace.
+//   changes  one per word Claude changed, at its position in `text`.
+//   unread   stretches of `text` the context step could not read at all, as
+//            half-open word ranges. Her confirmed corrections are applied
+//            blindly inside them — the old whole-box behaviour, now confined
+//            to the sentence it actually happened to — and each carries what
+//            it would take to ask again.
+//
+// Nothing here is ever saved: see CLAUDE.md §10, the bank learns in Practice,
+// Sentences and Reading, and never from this.
 let context = null;
+
+function contextWith(text, changes, unread) {
+  return { text, changes, unread: unread || [] };
+}
+
+/** The unread stretch this word index falls in, if any. */
+function unreadAt(decided, wordIndex) {
+  return (decided.unread || [])
+    .find((run) => wordIndex >= run.from && wordIndex < run.to) || null;
+}
 
 function contextFor(text) {
   return context && context.text === text ? context : null;
@@ -86,9 +104,35 @@ function correctedParts(text, decided) {
   if (decided) {
     const { parts, wordIndexOfPart } = splitForCorrection(text);
     const changeAt = new Map(decided.changes.map((change) => [change.index, change]));
+
+    // A gap belongs to an unread run only when the words on both sides of it
+    // do — otherwise the wash would bleed past the last word of the run.
+    const gapRun = (partIndex) => {
+      let before = null;
+      for (let i = partIndex - 1; i >= 0; i -= 1) {
+        if (wordIndexOfPart[i] >= 0) { before = unreadAt(decided, wordIndexOfPart[i]); break; }
+      }
+      if (!before) return null;
+      for (let i = partIndex + 1; i < parts.length; i += 1) {
+        if (wordIndexOfPart[i] >= 0) {
+          return unreadAt(decided, wordIndexOfPart[i]) === before ? before : null;
+        }
+      }
+      return null;
+    };
+
     return parts.map((raw, partIndex) => {
       const wordIndex = wordIndexOfPart[partIndex];
-      if (wordIndex < 0) return { raw, display: raw, space: true };
+      if (wordIndex < 0) return { raw, display: raw, space: true, run: gapRun(partIndex) };
+      // Inside a stretch that was never read, there is no decision to respect,
+      // so the bank fires the way it always used to — but only here, and the
+      // run is marked as not having been checked.
+      const run = unreadAt(decided, wordIndex);
+      if (run) {
+        const blind = blindToken(raw);
+        return { raw, key: blind.key, display: blind.display, fixed: blind.fixed, run };
+      }
+
       const change = changeAt.get(wordIndex);
       // A word Claude left alone is shown as she said it. The bank's blind
       // replacement is deliberately not applied on top: Claude read this
@@ -140,9 +184,29 @@ export function renderCorrectedOutput() {
   }
 
   out.innerHTML = '';
+  // A stretch that was never read is wrapped as one run, not marked word by
+  // word: what went wrong happened to the whole sentence. `wrap` is the run
+  // currently open, so consecutive parts of the same one land inside it.
+  let wrap = null;
+  let wrapFor = null;
+  const into = (run) => {
+    if (run !== wrapFor) {
+      wrapFor = run;
+      wrap = null;
+      if (run) {
+        wrap = document.createElement('span');
+        wrap.className = 'unread-run';
+        wrap.title = 'This part could not be read in context (' + run.code + '). ' +
+          'Her confirmed corrections were applied to every match here.';
+        out.appendChild(wrap);
+      }
+    }
+    return wrap || out;
+  };
+
   correctedParts(text, contextFor(text)).forEach((part) => {
     if (part.space) {
-      out.appendChild(document.createTextNode(part.raw));
+      into(part.run || null).appendChild(document.createTextNode(part.raw));
       return;
     }
     const span = document.createElement('span');
@@ -160,7 +224,7 @@ export function renderCorrectedOutput() {
       span.className = 'wtok' + (part.fixed ? ' fixed' : '');
       span.addEventListener('click', () => openFixPanel(span, false));
     }
-    out.appendChild(span);
+    into(part.run || null).appendChild(span);
   });
 }
 
@@ -266,6 +330,9 @@ export function initFreeWrite() {
     // Nothing is expected here, so there is no target to hint with and no
     // reason to be impatient about a pause.
     mode: 'freeform',
+    // The gap between the recording ending and the words arriving is several
+    // seconds, and this is where the parent is looking — not at the mic.
+    onWorking: () => showContextNote('Writing down what she said\u2026', ''),
     onResult: (heard) => appendHeard(rawInput, heard)
   });
 
@@ -329,20 +396,23 @@ async function appendHeard(rawInput, heard) {
   const settled = contextFor(before);
   const joined = before.replace(/\s+$/, '');
   const next = joined ? joined + ' ' + addition : addition;
+  const offset = settled ? splitForCorrection(joined).words.length : 0;
 
   rawInput.value = next;
   if (settled) {
     // Hold the earlier marks on screen through the wait. Appending does not
-    // move any earlier word, so their indices still point where they did.
-    context = { text: next, changes: settled.changes.slice() };
+    // move any earlier word, so their indices still point where they did, and
+    // any stretch that already failed to be read stays failed.
+    context = contextWith(next, settled.changes.slice(), settled.unread.slice());
   }
   renderCorrectedOutput();
 
   await readInContext({
     send: settled ? addition : next,
     full: next,
-    offset: settled ? splitForCorrection(joined).words.length : 0,
-    keep: settled ? settled.changes.slice() : []
+    offset,
+    keep: settled ? settled.changes.slice() : [],
+    keepUnread: settled ? settled.unread.slice() : []
   });
 }
 
@@ -352,35 +422,22 @@ async function appendHeard(rawInput, heard) {
  * Runs only on speech, never on typing: typed text is the parent testing the
  * bank, and the blind find-and-replace is exactly what they are testing.
  *
- * @param {{send:string, full:string, offset:number, keep:Array}} job
+ * @param {{send:string, full:string, offset:number, keep:Array, keepUnread:Array}} job
  *   `send` is the text Claude reads; `full` is everything in the box, which is
  *   what the decisions end up describing; `offset` shifts the word positions
- *   that come back so they point into `full`; `keep` is the decisions already
- *   made about the earlier sentences.
+ *   that come back so they point into `full`; `keep` and `keepUnread` are what
+ *   is already known about the earlier sentences, which a failure here must
+ *   not disturb.
  */
-async function readInContext({ send, full, offset, keep }) {
+async function readInContext(job) {
+  const { send, full, offset, keep, keepUnread } = job;
   showContextNote('Reading it back in context\u2026', '');
 
   let decided;
   try {
     decided = await correctWithContext(send);
   } catch (e) {
-    const code = e instanceof ContextError ? e.code : 'context-failed';
-    // Fall back to what the app did before: apply confirmed corrections
-    // blindly. That is the behaviour this feature exists to replace, so it is
-    // said out loud rather than left to look like the new one.
-    //
-    // The whole box drops back, earlier sentences included, rather than showing
-    // two kinds of correction at once with no way to tell them apart. The
-    // marks come back with the next reading that succeeds.
-    context = null;
-    showContextNote(
-      'Context correction unavailable (' + code + '). Showing her confirmed ' +
-      'corrections applied to every match, which is what this replaces \u2014 a word ' +
-      'that only looks like one of hers will have been changed too.',
-      'warn'
-    );
-    renderCorrectedOutput();
+    failedToRead(job, e instanceof ContextError ? e.code : 'context-failed');
     return;
   }
 
@@ -388,17 +445,112 @@ async function readInContext({ send, full, offset, keep }) {
   const fresh = decided.changes.map((change) => ({ ...change, index: change.index + offset }));
   const ids = recordContextChanges(fresh);
   fresh.forEach((change, i) => { change.logId = ids[i]; });
-  context = { text: full, changes: keep.concat(fresh) };
+  context = contextWith(full, keep.concat(fresh), keepUnread);
 
   showContextNote(
     fresh.length
       ? 'Read in context: ' + fresh.length +
         (fresh.length === 1 ? ' word' : ' words') +
         ' changed, marked above. Tap one to put it back, tap it again to use ' +
-        'Claude’s word.'
+        'Claude\u2019s word.'
       : 'Read in context: nothing needed changing.',
     ''
   );
+  if (keepUnread.length) showUnreadNote();
   renderCorrectedOutput();
   renderAll();
+}
+
+/**
+ * One sentence could not be read in context.
+ *
+ * What this deliberately does *not* do is throw away the rest. Until the
+ * parent hit it on the iPad with a dropped connection, a failure here reset
+ * the whole box to the blind find-and-replace: sentences that had been read
+ * correctly were silently recomputed, and words they had tapped to put back
+ * came back changed. One lost connection undid a paragraph of review.
+ *
+ * So the fallback is now confined to the words that were actually being read.
+ * Her confirmed corrections still fire inside that stretch — that is the
+ * documented behaviour and a known mispronunciation should not be left wrong —
+ * but the stretch is marked as unchecked, and it can be asked about again.
+ */
+function failedToRead(job, code) {
+  const { full, offset, keep, keepUnread } = job;
+  const total = splitForCorrection(full).words.length;
+  const run = { from: offset, to: total, code, job };
+  context = contextWith(full, keep, keepUnread.concat(run));
+  showUnreadNote();
+  renderCorrectedOutput();
+}
+
+/**
+ * Say what was not read, and offer to ask again.
+ *
+ * Never silent, and never quietly folded into the ordinary note: the marked
+ * stretch is running on the blind find-and-replace, which is the behaviour
+ * this whole feature exists to replace, so a word that only looks like one of
+ * hers will have been changed in there.
+ */
+function showUnreadNote() {
+  const runs = (context && context.unread) || [];
+  if (!runs.length) return;
+  const note = document.getElementById('contextNote');
+  if (!note) return;
+
+  const codes = [...new Set(runs.map((run) => run.code))].join(', ');
+  note.className = 'context-note warn show';
+  note.textContent =
+    (runs.length === 1 ? 'That sentence could not be read in context (' : runs.length +
+      ' sentences could not be read in context (') + codes + '). ' +
+    'It is marked above, with her confirmed corrections applied to every match ' +
+    'inside it \u2014 a word that only looks like one of hers will have been changed ' +
+    'too. Everything before it is untouched.';
+
+  const retry = document.createElement('button');
+  retry.type = 'button';
+  retry.className = 'retry-read';
+  retry.textContent = runs.length === 1 ? 'Read it again' : 'Read them again';
+  retry.addEventListener('click', () => { retry.disabled = true; retryUnread(); });
+  note.append(' ', retry);
+}
+
+/**
+ * Ask again about every stretch that was not read.
+ *
+ * Each run kept the job that produced it, so this is the same request as
+ * before rather than a reconstruction of it. A run whose text has since been
+ * edited is dropped instead of retried: its word positions would no longer
+ * mean anything, and a retry that lands on the wrong words is worse than no
+ * retry at all.
+ */
+async function retryUnread() {
+  const current = context;
+  if (!current || !current.unread.length) return;
+
+  const input = document.getElementById('rawInput');
+  if (!input || input.value !== current.text) {
+    showContextNote('The text changed, so there is nothing to read again \u2014 record ' +
+      'the sentence once more instead.', 'warn');
+    return;
+  }
+
+  const runs = current.unread.slice();
+  // The mark stays up while the asking happens. Clearing it first would show
+  // the words with no correction at all for as long as the request takes, and
+  // would say the stretch had been read before anyone knew whether it had.
+  showContextNote('Reading it back in context\u2026', '');
+
+  for (const run of runs) {
+    // Sequential, so each one's decisions land on a context that already
+    // carries the one before it. A run only leaves `unread` by being read;
+    // if this fails again, failedToRead puts it straight back.
+    const others = (context.unread || []).filter((other) => other !== run);
+    await readInContext({
+      ...run.job,
+      full: current.text,
+      keep: context.changes.slice(),
+      keepUnread: others
+    });
+  }
 }

@@ -69,11 +69,64 @@ export const TRANSCRIBE_TIMEOUT_MS = 15000;
 //
 // Auto-stop is a safety net, not the mechanism: tapping again is the intended
 // way to finish, and always ends the recording immediately.
+//
+// The numbers below are defaults. Each mode's pause can be overridden from
+// Netlify without a code change — see `envMs` and the README — because the
+// right value is a thing only the iPad, mid-session, can settle.
+const DEFAULT_SILENCE_MS = {
+  // One word, with nothing inside it to pause for. Already the most impatient.
+  word: 1200,
+  // A 3–5 word target sentence. She is articulating carefully and may pause
+  // between words; cutting her off costs a whole retry of the sentence, so
+  // this stays where it is.
+  sentence: 2000,
+  // Reading a passage has real pauses in it. Lowering this would cut her off
+  // mid-read, which is the failure that matters here.
+  passage: 2500,
+  // Speech-To-Text. Was 3500, which read as the app having frozen — the
+  // parent's report from real use. What makes 1500 safe is that recordings
+  // now add to the end rather than replacing (CLAUDE.md §12): a pause cut
+  // short ends that sentence, and the next tap carries straight on, so the
+  // cost of being impatient here is one extra tap rather than lost work.
+  freeform: 1500
+};
+
+/**
+ * Read a millisecond setting from the build environment.
+ *
+ * Vite substitutes `import.meta.env` at build time, so these come from
+ * Netlify's environment variables and changing one needs a redeploy — not a
+ * code change, but not as live as the function-side variables either. A value
+ * that is not a number in a sane range is ignored rather than used: a typo
+ * must not be what leaves a recording running for a minute, or stops it
+ * before she has drawn breath.
+ *
+ * Exported so a test can drive the real rule rather than a copy of it; `env`
+ * is only for that, since `import.meta.env` is frozen at build time.
+ */
+export function envMs(name, fallback, { min = 300, max = 120000, env } = {}) {
+  const source = env || (typeof import.meta !== 'undefined' && import.meta.env);
+  const asked = Number(source && source[name]);
+  return Number.isFinite(asked) && asked >= min && asked <= max ? asked : fallback;
+}
+
 export const CAPTURE_MODES = {
-  word: { silenceMs: 1200, maxMs: 8000 },
-  sentence: { silenceMs: 2000, maxMs: 20000 },
-  passage: { silenceMs: 2500, maxMs: 45000 },
-  freeform: { silenceMs: 3500, maxMs: 60000 }
+  word: {
+    silenceMs: envMs('VITE_SILENCE_MS_WORD', DEFAULT_SILENCE_MS.word),
+    maxMs: 8000
+  },
+  sentence: {
+    silenceMs: envMs('VITE_SILENCE_MS_SENTENCE', DEFAULT_SILENCE_MS.sentence),
+    maxMs: 20000
+  },
+  passage: {
+    silenceMs: envMs('VITE_SILENCE_MS_PASSAGE', DEFAULT_SILENCE_MS.passage),
+    maxMs: 45000
+  },
+  freeform: {
+    silenceMs: envMs('VITE_SILENCE_MS_FREEFORM', DEFAULT_SILENCE_MS.freeform),
+    maxMs: 60000
+  }
 };
 
 // Below this RMS (0–1, over a 2048-sample window) counts as silence. Set by
@@ -84,7 +137,7 @@ export const SILENCE_RMS = 0.012;
 // How long to wait for her to start at all. Distinct from silenceMs, which is
 // the pause *after* speech: if she taps and then says nothing, the recording
 // should end in a few seconds rather than running to the mode's ceiling.
-export const NO_SPEECH_MS = 6000;
+export const NO_SPEECH_MS = envMs('VITE_NO_SPEECH_MS', 6000);
 
 // Vocabulary hints are capped before they are sent. The provider's prompt
 // field is bounded (whisper-1 truncates past 224 tokens), and a hint list long

@@ -62,14 +62,18 @@ async function passesGates(clip) {
  * Start a capture. Resolves once the microphone is live; the transcript
  * arrives on the returned `result` promise.
  *
- * @param {{mode?: string, expected?: string}} options
+ * @param {{mode?: string, expected?: string, onSending?: () => void}} options
  *   mode selects the silence and length limits from CAPTURE_MODES.
  *   expected is what she was asked to say, used only as a vocabulary hint.
+ *   onSending fires the moment recording ends and the clip starts its journey,
+ *   which is the only point at which the caller can tell "still listening"
+ *   from "working on it". Without it an auto-stop leaves the button looking
+ *   exactly as it did while she was talking, for the whole upload.
  * @returns {Promise<{stop: () => void, result: Promise<{
  *   text: string, clip: object, provider: string, model: string
  * }>}>}
  */
-export async function startCapture({ mode = 'word', expected = '' } = {}) {
+export async function startCapture({ mode = 'word', expected = '', onSending } = {}) {
   if (!mediaRecordingSupported()) throw new CaptureError('no-recorder');
 
   const limits = CAPTURE_MODES[mode] || CAPTURE_MODES.word;
@@ -89,6 +93,12 @@ export async function startCapture({ mode = 'word', expected = '' } = {}) {
   const result = (async () => {
     const clip = await recording.done;
     lastClip = clip;
+    // Recording is over, whatever happens next. Said before the silence check
+    // and before the gates, because even a clip that is about to be refused
+    // has stopped being a recording.
+    if (onSending) {
+      try { onSending(); } catch (e) { /* a label must never break a capture */ }
+    }
 
     // A recording with nothing in it is not worth a round trip, and a
     // transcription model's answer to near-silence is the least trustworthy
