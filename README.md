@@ -71,7 +71,7 @@ is not a number between 300 and 120000 is ignored and the default is used.
 | Variable | Default | The pause it controls |
 |---|---|---|
 | `VITE_SILENCE_MS_FREEFORM` | `1500` | Speech-To-Text. Short, because recordings add to the end: cut off early, the next tap carries on |
-| `VITE_SILENCE_MS_WORD` | `1200` | Practice. One word, with nothing to pause inside |
+| `VITE_SILENCE_MS_WORD` | `600` | Practice. One word, with nothing to pause inside, said a dozen times in a row |
 | `VITE_SILENCE_MS_SENTENCE` | `2000` | Sentences. Longer, because being cut off costs her the whole sentence again |
 | `VITE_SILENCE_MS_PASSAGE` | `2500` | Reading Passage. Longest: a passage has real pauses in it |
 | `VITE_NO_SPEECH_MS` | `6000` | How long it waits if she taps and then says nothing at all |

@@ -492,6 +492,9 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
 }
 .interim.show{ display:block; }
 .interim::before{ content:'\2026 '; font-style:normal; }
+/* Practice says one word, centred under the mic where the heard-back appears,
+   so the rough guess and the real answer arrive in the same place. */
+.interim-word{ text-align:center; margin:11px auto 0; max-width:420px; }
 
 /* The speaker. Sized for a nine-year-old's finger, not a cursor: this is the
    control she reaches for every time a question has a word she cannot read. */
