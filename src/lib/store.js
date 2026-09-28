@@ -32,6 +32,10 @@ export const state = {
   // Her schoolwork: a rolling five sheets, newest first. See lib/sheets.js for
   // the shape and CLAUDE.md §14 for why only her own words are stored.
   sheets: [],
+  // Voice Lock: off unless switched on, because at home it can only cause
+  // problems. See lib/voiceprint.js for the shape and CLAUDE.md §18 for why
+  // every part of it is off by default and escapable.
+  voiceLock: null,
 
   // Local only — not persisted
   practiceQueue: [],

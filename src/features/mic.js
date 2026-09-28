@@ -36,7 +36,11 @@ const ERROR_HINTS = {
   'too-large': 'That recording was too long to send',
   'empty-audio': 'Nothing was recorded',
   'no-recorder': 'This browser cannot record audio',
-  'mic-failed': 'The microphone could not start'
+  'mic-failed': 'The microphone could not start',
+  // Voice Lock. Kind and plain, because she is nine and this one is about her
+  // rather than about the machine — and deliberately not "didn't catch that",
+  // which would be untrue: it caught a voice and decided it was not hers.
+  'not-her': "I didn\u2019t hear your voice that time"
 };
 
 // Failures of the online service, as opposed to failures of the microphone or
@@ -105,8 +109,14 @@ function setAccuracyNotice(code) {
  *   onBlocked?: () => void,
  *   onWorking?: () => void,
  *   onInterim?: (text: string|null) => void,
- *   onResult: (text: string) => void
+ *   localOnly?: boolean,
+ *   onClip?: (clip: object) => void,
+ *   onResult?: (text: string) => void
  * }} options
+ *
+ * `localOnly` records without sending anything anywhere, and hands the clip to
+ * `onClip` instead of a transcript to `onResult`. Voice Lock enrolment is the
+ * only caller: see capture.js for why that guarantee lives down there.
  *
  * `onWorking` fires when the recording ends and the clip starts being turned
  * into text, for a screen that wants to say so somewhere other than the mic.
@@ -118,7 +128,8 @@ function setAccuracyNotice(code) {
  */
 export function bindMic({
   buttonId, labelId, mode = 'word', expected = () => '',
-  canListen = () => true, onBlocked, onWorking, onInterim, onResult
+  canListen = () => true, onBlocked, onWorking, onInterim, onResult,
+  localOnly = false, onClip
 }) {
   const button = document.getElementById(buttonId);
   const label = labelId ? document.getElementById(labelId) : null;
@@ -243,6 +254,13 @@ export function bindMic({
   };
 
   const fallBack = (code) => {
+    if (localOnly) {
+      // Nothing to fall back to: the browser recogniser returns words, and a
+      // local-only capture exists to produce a clip. Say so and stop.
+      setLabel(micErrorLabel(code));
+      finishIdle();
+      return;
+    }
     fallbackArmed = true;
     setAccuracyNotice(code);
     if (!speechRecognitionSupported) {
@@ -266,7 +284,9 @@ export function bindMic({
 
     let capture;
     try {
-      capture = await startCapture({ mode, expected: expected(), onSending: enterWorking });
+      capture = await startCapture({
+        mode, expected: expected(), onSending: enterWorking, localOnly
+      });
     } catch (e) {
       finishIdle();
       clearPreview();
@@ -296,7 +316,7 @@ export function bindMic({
     if (stopRequested) capture.stop('tap');
 
     try {
-      const { text } = await capture.result;
+      const { text, clip } = await capture.result;
       finishIdle();
       // The accurate transcript is here, so the rough words have done their
       // job. Cleared before onResult, so the two are never on screen together.
@@ -306,7 +326,11 @@ export function bindMic({
       // is over. The notice clears itself rather than needing dismissing.
       setAccuracyNotice('');
       fallbackArmed = false;
-      onResult(text);
+      if (localOnly) {
+        if (onClip) onClip(clip);
+      } else if (onResult) {
+        onResult(text);
+      }
     } catch (e) {
       finishIdle();
       clearPreview();
@@ -338,7 +362,7 @@ export function bindMic({
       return;
     }
 
-    if (fallbackArmed || !mediaRecordingSupported()) {
+    if (!localOnly && (fallbackArmed || !mediaRecordingSupported())) {
       useBrowserRecogniser(fallbackArmed ? MIC_FALLBACK : 'Listening…');
       return;
     }

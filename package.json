@@ -3,20 +3,23 @@
   "private": true,
   "version": "2.0.0",
   "type": "module",
-  "description": "Harlie's Word Bank — a personal speech-to-text trainer that learns her voice.",
+  "description": "Harlie's Word Bank \u2014 a personal speech-to-text trainer that learns her voice.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "node e2e/smoke.mjs"
+    "test:e2e": "node e2e/smoke.mjs",
+    "voice:verify": "node tools/verify-voice-model.mjs"
   },
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.33.4",
     "@anthropic-ai/sdk": "^0.124.0",
     "@fontsource/andika": "^5.3.0",
     "@fontsource/atkinson-hyperlegible": "^5.3.0",
+    "@sherpaw/preloader": "^0.2.1",
+    "@sherpaw/speaker-identification": "^0.2.1",
     "double-metaphone": "^2.0.1",
     "firebase": "^12.18.0"
   },
