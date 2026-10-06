@@ -62,9 +62,14 @@ async function passesGates(clip) {
  * Start a capture. Resolves once the microphone is live; the transcript
  * arrives on the returned `result` promise.
  *
- * @param {{mode?: string, expected?: string, onSending?: () => void}} options
+ * @param {{mode?: string, expected?: string, onSending?: () => void,
+ *          localOnly?: boolean}} options
  *   mode selects the silence and length limits from CAPTURE_MODES.
  *   expected is what she was asked to say, used only as a vocabulary hint.
+ *   localOnly records and stops there: no clip gates, no upload, no transcript.
+ *   It exists for Voice Lock enrolment, where sending her voice away to be
+ *   transcribed would contradict the one thing that feature promises — that
+ *   her classroom's audio never leaves the iPad. Nothing else should use it.
  *   onSending fires the moment recording ends and the clip starts its journey,
  *   which is the only point at which the caller can tell "still listening"
  *   from "working on it". Without it an auto-stop leaves the button looking
@@ -73,7 +78,7 @@ async function passesGates(clip) {
  *   text: string, clip: object, provider: string, model: string
  * }>}>}
  */
-export async function startCapture({ mode = 'word', expected = '', onSending } = {}) {
+export async function startCapture({ mode = 'word', expected = '', onSending, localOnly = false } = {}) {
   if (!mediaRecordingSupported()) throw new CaptureError('no-recorder');
 
   const limits = CAPTURE_MODES[mode] || CAPTURE_MODES.word;
@@ -111,6 +116,11 @@ export async function startCapture({ mode = 'word', expected = '', onSending } =
     // silence would be worse than spending a request on it.
     const judged = clip.heardSpeech === false && clip.durationMs >= JUDGE_AFTER_MS;
     if (clip.reason === 'quiet' || judged || !clip.blob.size) throw new CaptureError('no-speech');
+
+    // Recorded and kept here. Deliberately before the gates as well as before
+    // the upload: enrolment is how the gate learns her voice, so gating it on
+    // a voiceprint that does not exist yet would be circular.
+    if (localOnly) return { clip };
 
     await passesGates(clip);
 

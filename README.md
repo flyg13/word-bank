@@ -278,6 +278,64 @@ inside the Australian regions; `global.` routes anywhere), never a bare
 `anthropic.` one. The defaults are Sydney and the AU profile of the versioned
 Sonnet 4.5 ID.
 
+## Voice Lock (off by default)
+
+In a classroom the iPad is not only hers, and another child speaking near it
+gets scored, banked and written into her homework. Voice Lock refuses a clip
+that is not her voice.
+
+**It runs on the iPad.** The recording is compared in the browser against a
+saved voiceprint. No audio is uploaded and nothing is fetched at run time —
+the model is committed to this repo at `public/voicelock/speaker.onnx`. It and
+the 12 MB runtime are only downloaded the first time Voice Lock is actually
+used, so leaving it off costs nothing.
+
+### Setting it up, in the order the card is in
+
+Word Bank → **Voice Lock**.
+
+1. **Save her voice.** Three recordings, a few seconds each, her talking
+   normally. Nothing is sent anywhere. The gate cannot be switched on until
+   this is done.
+2. **Calibrate — do this before turning the gate on.** It shows a similarity
+   score for every attempt and blocks nothing. Have her do a few words, then
+   have somebody else do a few, and tag each score **Her** or **Someone else**.
+   The card then suggests a threshold.
+   - If it says the scores **overlap**, that is a real result and it means the
+     model cannot reliably tell her from whoever you tested with. Do not pick a
+     number anyway — leave Voice Lock off and say so.
+3. **Turn the gate on**, and set the threshold. Higher is stricter.
+
+### If it misfires
+
+**Every refusal carries a "Turn Voice Lock off" button.** Being shut out of her
+own tool in front of a class is worse than the gate picking up a classmate, so
+the way out is always one tap away, on the refusal itself.
+
+The refusal reads *"I didn't hear your voice that time. Have another go."* with
+the score in small grey text after it. That number is the diagnostic: if she is
+being refused at 0.71 and enrolled around 0.74, the threshold is too high —
+lower it in Word Bank. If a classmate is getting through, raise it.
+
+**It always errs towards letting her in.** If the model will not load, the clip
+will not decode, or no voice has been saved, the clip goes through. A gate that
+cannot see does not refuse a nine-year-old's homework.
+
+### Checking the model
+
+`npm run voice:verify` confirms the committed model is the file it claims to
+be — size, SHA-256, the metadata the runtime reads, and that its licence and
+attribution files are still beside it. `public/voicelock/README.md` has its
+provenance and the measured same-speaker/different-speaker scores the default
+threshold comes from.
+
+**Licence: Apache-2.0, commercial use permitted with attribution.** The model
+is NVIDIA NeMo TitaNet-small; `public/voicelock/LICENSE` and
+`public/voicelock/NOTICE` carry the full licence and the attribution it
+requires. If attribution has to appear somewhere else — an about screen, a
+schools-procurement form, an app listing — `NOTICE` is written to be copied
+as-is.
+
 ## Testing it by hand
 
 ```bash

@@ -158,6 +158,52 @@ export const NO_SPEECH_MS = envMs('VITE_NO_SPEECH_MS', 6000);
 // enough to describe the whole bank would start biasing every transcript.
 export const VOCAB_HINT_LIMIT = 90;
 
+// ---------- Voice Lock ----------
+
+// Where the speaker model and its runtime are served from. Same origin, always:
+// the whole point of doing this in the browser is that no audio and no request
+// leaves the iPad. See CLAUDE.md §18.
+export const VOICE_MODEL_URL = '/voicelock/speaker.onnx';
+
+// How alike two voiceprints must be before a clip is accepted as hers. This
+// default is a placeholder and is *meant* to be wrong: the real number comes
+// from Calibration, by recording her and other people and seeing where the
+// scores actually fall. It is deliberately loose, because a gate that locks
+// her out in front of a class is worse than one that lets a classmate through.
+// Measured, not guessed. Seven clips from three speakers through this exact
+// model and runtime scored 0.689-0.736 within a speaker and 0.109-0.370
+// across speakers: a clean 0.32 gap with a midpoint of 0.53. The default sits
+// just under that midpoint deliberately — the parent's rule is that being
+// locked out of her own tool in front of a class is worse than the gate
+// picking up a classmate, so the bias is towards letting her through.
+// Those were adult voices, so calibration on her own is what settles it.
+export const VOICE_THRESHOLD_DEFAULT = 0.5;
+
+// sherpa's extractor refuses clips shorter than this rather than returning a
+// meaningless embedding. Its own default is a full second, which would quietly
+// disable the gate in Practice — a single word is about that long, and Practice
+// is the mode she uses most. Below this, a refusal is the honest answer and the
+// gate lets the clip through.
+export const VOICE_MIN_CLIP_SECONDS = 0.35;
+export const VOICE_THRESHOLD_MIN = 0.1;
+export const VOICE_THRESHOLD_MAX = 0.95;
+export const VOICE_THRESHOLD_STEP = 0.01;
+
+// How much of her voice makes a usable print. Speaker embeddings get steadily
+// better with more audio and stop improving somewhere around ten seconds; below
+// about three there is not enough to characterise a voice at all.
+export const VOICE_ENROL_MIN_SECONDS = 3;
+export const VOICE_ENROL_TARGET_SECONDS = 10;
+
+// Several recordings rather than one, averaged at comparison time. One
+// recording captures one mood, one distance from the microphone and one head
+// cold; three spread that out.
+export const VOICE_ENROL_CLIPS = 3;
+
+// Scores kept while calibrating. Enough to see a distribution, few enough that
+// the family document does not grow: this is tuning data, not history.
+export const VOICE_LOG_LIMIT = 40;
+
 // ---------- Her worksheets ----------
 
 // How many sheets of schoolwork are kept. The parent's number: enough to pick

@@ -23,6 +23,7 @@ import { initReading } from './features/reading.js';
 import { initQuick } from './features/quick.js';
 import { initWorksheet } from './features/worksheet.js';
 import { initFixPanel } from './features/fix-panel.js';
+import { initVoiceLock } from './features/voicelock.js';
 import { initBank, renderFamilyCode } from './features/bank.js';
 import { requireFamilyCode } from './features/entry.js';
 
@@ -58,6 +59,7 @@ async function main() {
   initSentences();
   initReading();
   initFixPanel();
+  initVoiceLock();
   initQuick();
   initWorksheet();
   initBank();

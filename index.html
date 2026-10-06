@@ -325,6 +325,44 @@
       <h2 class="section-title">Recent sessions</h2>
       <div class="session-log" id="sessionLogView"><span class="empty-note">No sessions logged yet.</span></div>
     </div>
+    <!-- VOICE LOCK: the classroom gate. Off unless switched on. -->
+    <div class="card" id="voiceLockCard">
+      <h2 class="section-title">Voice Lock</h2>
+      <p class="sub">For a classroom. Checks that a recording is Harlie and not the child next to her, on the iPad &mdash; no audio is sent anywhere for this. Leave it off at home.</p>
+
+      <h3 class="setting-title">1. Save her voice</h3>
+      <div class="phonic-note" id="voiceEnrolState"></div>
+      <div class="capture-row">
+        <button class="btn btn-outline" id="voiceEnrolMic">
+          <svg viewBox="0 0 24 24" class="btn-mic" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+          Record her talking
+        </button>
+        <span class="capture-label" id="voiceEnrolMicLabel">Tap to record</span>
+        <button class="btn btn-link" id="voiceForget">Forget her voice</button>
+      </div>
+      <div class="phonic-note" id="voiceEnrolNote"></div>
+
+      <h3 class="setting-title">2. Calibrate</h3>
+      <p class="sub">Shows a score for every recording and blocks nothing. Record her a few times, then yourself, then another child, and say which was which &mdash; then the threshold comes from her real voice instead of a guess.</p>
+      <label class="switch-row">
+        <input type="checkbox" id="voiceLockCalibrate">
+        <span>Show scores, block nothing</span>
+      </label>
+      <div class="score-list" id="voiceScores"></div>
+      <div class="phonic-note" id="voiceSuggestNote"></div>
+      <div class="right-row"><button class="btn btn-ghost" id="voiceClearScores">Clear scores</button></div>
+
+      <h3 class="setting-title">3. Turn the gate on</h3>
+      <label class="switch-row">
+        <input type="checkbox" id="voiceLockOn">
+        <span>Only accept Harlie&rsquo;s voice</span>
+      </label>
+      <div class="slider-row">
+        <input type="range" id="voiceThreshold" class="rate-slider" aria-describedby="voiceThresholdNote">
+      </div>
+      <div class="phonic-note" id="voiceThresholdNote"></div>
+    </div>
+
     <div class="card">
       <h2 class="section-title">Family code</h2>
       <p class="sub">This device is using <b id="familyCodeCurrent"></b>. Every device with the same code shares her bank. To move this device to another code &mdash; a school iPad joining her family, or a new code of your own &mdash; type it here. Nothing is deleted: her data stays under the old code, and typing that code again brings it back.</p>
@@ -348,6 +386,11 @@
      words to correct and so do Sentences and Reading, so it sits over
      whichever page the word was tapped on rather than throwing her to
      another one. -->
+<!-- Voice Lock's refusal. Fixed, outside every tab, for the reason the fix
+     panel above is: the gate can refuse in any mode, and the way to switch it
+     off has to be on the refusal itself. See CLAUDE.md §18. -->
+<div class="voice-refused" id="voiceRefusal" role="alert"></div>
+
 <div class="fix-panel fix-panel-float" id="fixPanel" role="dialog" aria-label="Fix a word">
   <div class="eyebrow">Fixing: <span id="fixingWord"></span></div>
   <input type="text" id="fixInput" placeholder="What word should this be?">

@@ -162,7 +162,7 @@ This is a small, self-contained feature — good second build after phonetic mat
 Already scoped in earlier conversation; summarizing for this document so Claude Code has the full picture without needing the chat history:
 
 - **Why not Picovoice Eagle:** trial access was declined ("reserved for opportunities with a defined commercial use case"); paid tier is the only path, and licensing risk grows if this ever serves other families.
-- **Path forward: sherpa-onnx** (Apache 2.0, open source, no per-user licensing). It has a working speaker-embedding model (`embedding.onnx`, confirmed to exist in their repo) used inside their speaker-diarization WASM demo — but there's no pre-built browser package the way Eagle had. **This requires compiling their C++ source to WebAssembly using Emscripten.** That compilation step needs to happen in a real dev environment with the ability to test the output in an actual browser — this is squarely a Claude Code task, not something to attempt blind.
+- **Path forward: sherpa-onnx** (Apache 2.0, open source, no per-user licensing). It has a working speaker-embedding model (`embedding.onnx`, confirmed to exist in their repo) used inside their speaker-diarization WASM demo — but there's no pre-built browser package the way Eagle had. ~~**This requires compiling their C++ source to WebAssembly using Emscripten.**~~ **Wrong, as of September 2026 — see §18.** `@sherpaw/speaker-identification` publishes sherpa-onnx's speaker-embedding runtime to npm as a prebuilt WASM bundle. No Emscripten, no C++ build step; Vite bundles it as an ordinary asset. The hardest and most uncertain part of this feature turned out not to exist, which is why Voice Lock arrived earlier than its place in the roadmap.
 - Once compiled, the integration pattern is conceptually the same as the Eagle build that already exists in this codebase's history: enroll (record her voice, extract an embedding, store it), then gate every recognizer call behind a live similarity check against that stored embedding.
 - **Sequencing reason for building this last:** it's the highest-uncertainty, highest-effort piece, and the other two features are lower-risk wins that directly help Harlie sooner. Get the foundation (Vite restructure) and the two quick wins shipped and tested first, then tackle the harder infrastructure with that momentum.
 
@@ -243,9 +243,14 @@ it — not to build more on top of it.
    build once matching is trusted.
 4. **Illustrated reading passages / story library** (§6) — needs the content
    corpus from §2 to exist first.
-5. **Voice Lock via sherpa-onnx** (§5) — biggest lift and highest uncertainty.
-   Deliberately last: it is infrastructure, not accuracy, and none of the above
-   depends on it.
+5. ~~**Voice Lock via sherpa-onnx** (§5)~~ — **built early, September 2026, see
+   §18.** It was sequenced last because §5 believed it needed an Emscripten
+   build of sherpa-onnx's C++. It does not — the runtime ships prebuilt on npm
+   — so the "biggest lift and highest uncertainty" was neither. It remains
+   infrastructure rather than accuracy, and nothing above it depended on it, so
+   building it early cost the evaluation nothing. Off by default; whether it
+   separates her from her classmates is itself unanswered and calibration mode
+   exists to answer it.
 
 Reading and stories, staleness, and Voice Lock all sit below the line. None of
 them should start before the two questions above have answers.
@@ -1132,3 +1137,209 @@ place to make it is the iPad — if she is being clipped mid-word,
 `VITE_SILENCE_MS_WORD` is the dial and the README says so. The two-microphones
 risk §15 named applies here too, and Practice is where it would show up
 soonest, because it is the mode she uses most.
+
+## 18. Voice Lock — the classroom gate (parent's decisions)
+
+**The problem.** In a classroom the iPad is not only hers. Another child speaks
+near it and the app treats that as her: it scores it in Practice, banks it as a
+pronunciation, writes it into her homework. Every accuracy feature in this
+document assumes the voice it hears is Harlie's, and in the one place the app
+is most used, that assumption is not safe.
+
+**The decision.** Transcribe only her voice. Reject a clip that is somebody
+else, or several voices at once.
+
+### It runs on the iPad, and no audio leaves it
+
+**Parent's decision, and the reason to accept a harder build:** *audio of other
+children must never leave the device — that is a meaningful privacy difference
+in a school.* So verification is in the browser. Nothing is uploaded, nothing
+is fetched at run time, and the answer a school gets is not "we delete it
+promptly", it is "it never arrived".
+
+**The build turned out to be much easier than §5 assumed, and §5 is now wrong.**
+That section said this needed sherpa-onnx's C++ compiled to WebAssembly with
+Emscripten, and sequenced Voice Lock last because of it. It does not:
+`@sherpaw/speaker-identification` ships that runtime prebuilt on npm, Vite
+bundles the `.wasm` as an ordinary asset, and the whole toolchain is still npm
+and nothing else. The reason this feature is arriving out of order is that its
+stated risk evaporated on contact.
+
+**Microphone contention was the risk worth checking, and there is none.** §15
+and §17 flagged that the recorder and the interim recogniser already compete
+for the microphone on iPadOS, and that Voice Lock would be a third. It is not:
+`addClipGate` runs on a finished `Blob`, after recording has stopped and before
+anything is sent. Voice Lock never opens the microphone. The two-consumer risk
+from §15 is unchanged — neither better nor worse.
+
+### The model is committed to the repo
+
+**Parent's decision, Route 1, and the reasoning recorded as given:** the build
+pipeline currently depends on npm and nothing else, and every external service
+in this project has cost days when it behaved unexpectedly. A self-contained
+app is worth a large file in git, and it gives a cleaner privacy answer for
+schools: nothing is fetched, no audio leaves the device.
+
+`public/voicelock/speaker.onnx` is NVIDIA NeMo **TitaNet-small**, 40,257,283
+bytes, sha256 `ad4a1802…a789e`, taken from the sherpa-onnx
+`speaker-recongition-models` release (their spelling) which exports it straight
+from NVIDIA's published model. `public/voicelock/model.json` pins the size,
+hash and the metadata sherpa reads; `npm run voice:verify` checks the file
+against it. `public/voicelock/README.md` carries the provenance chain.
+
+**It costs nothing until it is used.** The model and the 12 MB runtime are both
+loaded on demand, so a family that never turns Voice Lock on downloads neither
+— the main bundle is unchanged. An e2e check drives a whole session and asserts
+that no request for either was made.
+
+**Licence: settled — Apache-2.0, and commercial use is permitted.** TitaNet-small
+was picked over the smaller wespeaker CAM++ and 3D-Speaker models in the same
+release *because* of licensing, since this may become a product for schools.
+That choice is now confirmed rather than assumed: **the parent read the licence
+first-hand and it is Apache License 2.0, which permits commercial use with
+attribution.** It had been recorded here as unverified because NGC and Hugging
+Face are both unreachable from the machine this was built on; that caveat is
+withdrawn. Both links in the chain are Apache-2.0 — NVIDIA NeMo, where the
+weights come from, and the sherpa-onnx script that exported them to ONNX.
+
+**The attribution Apache-2.0 asks for is in the repo, and it is tested.**
+`public/voicelock/LICENSE` is the full licence text as NVIDIA publishes it with
+NeMo. `public/voicelock/NOTICE` carries NVIDIA's copyright line verbatim
+(`Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES`), records that the file
+is an **ONNX export of NVIDIA NeMo TitaNet-small** and that the export was
+Xiaomi Corp's work rather than this project's, and states that Word Bank
+redistributes it byte for byte having changed nothing. `model.json` declares
+the licence and points at both files.
+
+Section 4's four conditions map onto those files: 4(a) the notices are kept,
+4(b) the only modification in the chain is the ONNX conversion and it is
+attributed to whoever made it, 4(c) the licence text is included, and 4(d) has
+nothing to reproduce because NeMo ships no `NOTICE` of its own.
+
+**It is checked by the suite, not by memory.** Five tests read those files off
+disk and assert the licence text is complete, NVIDIA's copyright is present,
+the provenance is recorded, and the manifest does not point at files that are
+missing; `npm run voice:verify` checks the same thing alongside the hash. This
+is deliberate: a tidy-up that deleted `LICENSE` or `NOTICE` would leave the
+project distributing NVIDIA's work without the terms that allow it, and
+nothing else in the repo would notice. Four mutation tests confirm each check
+fails when the attribution is removed.
+
+`NOTICE` is written to be copied as-is, because the place this will next be
+needed is not the repo — it is an about screen, an app listing, or a
+schools-procurement questionnaire.
+
+**One caveat that survives, and it is not about NVIDIA's grant.** TitaNet's
+training mix includes VoxCeleb, which is itself distributed for research use
+only, while NVIDIA licenses the resulting weights under Apache-2.0 regardless.
+That is standard practice and the basis on which these models are used
+commercially; it is a question about the weights' lineage rather than about the
+licence on the file. It also applies to essentially every strong open speaker
+model, so it is not a reason to prefer a different one. If Word Bank is sold to
+schools it is worth a lawyer's glance — not because anything here is wrong, but
+because "we checked" is a better answer than "it looked fine". Apache-2.0 also
+grants no trademark rights, so the NOTICE says plainly that NVIDIA does not
+endorse this project and names NVIDIA, NeMo and TitaNet only to identify where
+the model came from.
+
+### Calibration was built before the gate, and the threshold is measured
+
+**Parent's decision:** *a mode that shows the similarity score for every
+attempt without gating anything, and a threshold I can adjust afterwards.*
+Calibration comes first in the card and in the build order, because a gate
+whose threshold was guessed is a gate that locks her out.
+
+Turning it on logs a score for every attempt and refuses nothing. Each score
+can be tagged **Her** or **Someone else**, and once there are two of hers and
+one of somebody else the card suggests a threshold: the midpoint between her
+lowest and the highest that was not her. **When those two overlap it says so
+and suggests nothing** — an average would paper over exactly the finding that
+matters most, which is that a nine-year-old against her own classmates may not
+separate cleanly at all.
+
+**The default is measured, not guessed.** Seven clips from three speakers, run
+through this exact model and runtime in a real browser, scored 0.689–0.736
+within a speaker and 0.109–0.370 across speakers: no overlap, a 0.319 gap,
+midpoint 0.53. `VOICE_THRESHOLD_DEFAULT` is 0.5 — deliberately just under that
+midpoint, because of the rule below. **Those were adult voices reading
+Mandarin**, so the number is a starting point and calibration on her own voice
+is what settles it.
+
+**One thing that measurement caught.** sherpa's extractor refuses clips shorter
+than one second by default, and a Practice clip is a single word of about that
+length. Left alone, the gate would have quietly never run in the mode she uses
+most, and nothing on screen would have said so. `VOICE_MIN_CLIP_SECONDS` is
+0.35, and a test pins that it stays under the shortest capture mode.
+
+### Every uncertainty lets her through
+
+**Parent's decision:** *being locked out of her own tool in front of a class is
+worse than picking up a classmate.* That is the rule the whole gate is built
+around, and it is not a preference — it decides every branch.
+
+So the gate allows, and says why, when: it is switched off; no voice has been
+enrolled; the model will not load or the clip will not decode; the stored
+voiceprint came from a different model; or calibration is running. It refuses
+only when it has a voiceprint, a working model, a score, and that score is
+below the threshold. Seven mutation tests exist for exactly this: each one
+turns a fail-open into a fail-closed, or removes a guard, and each one breaks
+a test.
+
+**Enrolment is never gated**, and it skips the upload entirely. `startCapture`
+and `bindMic` gained `localOnly`, which records a clip and hands it back
+without sending it anywhere or running the gates — gating enrolment on a
+voiceprint that does not exist yet would be circular, and her enrolment audio
+has even less business leaving the iPad than anything else.
+
+### Being refused says so, kindly, and hands her the way out
+
+**Parent's decision:** *she is nine and cannot read an error — say it plainly
+and kindly, and never fail silently.* A refusal reads **"I didn't hear your
+voice that time. Have another go."** The similarity score follows in small grey
+text, for the parent reading over her shoulder: a gate refusing at 0.71 when
+she enrolled at 0.74 is a threshold problem, and that is only diagnosable if
+the number is on screen.
+
+**The refusal floats, outside every tab**, like §16's fix panel and for the
+same reason: the gate can refuse in Practice, Sentences, Reading or an answer,
+and a screen that forgot to render it would refuse her in silence. That is the
+one failure this feature must not have, so the gate raises it itself rather
+than leaving it to whichever page she is on.
+
+**"Turn Voice Lock off" is on the refusal**, not buried in Word Bank — the way
+out is always one tap from being shut out. And a refusal never falls back to
+the browser's own recogniser: that fallback exists for a transcription service
+that cannot be reached, and if a refusal took it the clip would be transcribed
+anyway and the gate would be a decoration. A test pins that.
+
+### What it stores
+
+`voice_lock` is a new synced field on the family document: `enabled`,
+`calibrating`, `threshold`, the enrolled `print`, and a rolling log of the last
+40 scores. Purely additive — the differential test still pins the ten original
+fields in both directions. A document that has never seen it reads as off, with
+no voice saved, which is the parent's decision that **Voice Lock is off by
+default**. A document hand-edited into nonsense reads as off too, rather than
+throwing: mixed-dimension embeddings are discarded, an out-of-range threshold
+falls back to the default, and only `true` counts as on.
+
+Forgetting her voice switches the gate off with it, because the alternative is
+an armed gate with nothing to compare against.
+
+### What this does not settle
+
+Everything that matters most, which is why calibration exists:
+
+- **Whether it separates her from her classmates at all.** The measured gap was
+  between adults; children's voices are harder to tell apart, and classmates
+  are the specific hard case. If calibration reports an overlap, that is the
+  answer and the honest options are to raise the bar or to drop the feature —
+  not to pick a threshold that splits the difference.
+- **Whether 0.5 is anywhere near right for her.** Enrol, calibrate with a few
+  of her attempts and a few of someone else's, and read what it suggests.
+- **Whether the refusal reads as kind or as broken**, mid-lesson, with a
+  nine-year-old who has just been told the app did not hear her.
+- **Whether enrolment is a step she or the parent will actually complete** —
+  three recordings is more setup than anything else in this app asks for.
+- **Whether a 40 MB download on first use is tolerable on school wifi.** It
+  happens once and is cached, but the first time is the lesson it happens in.
