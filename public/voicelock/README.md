@@ -15,6 +15,8 @@ recording is compared in the browser and the audio is never uploaded.
 | Downloaded from | [sherpa-onnx release `speaker-recongition-models`](https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/nemo_en_titanet_small.onnx) (their spelling) |
 | Upstream | [NGC `nvidia/nemo/titanet_small`](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/titanet_small) |
 | Exported by | [k2-fsa/sherpa-onnx `scripts/nemo/speaker-verification`](https://github.com/k2-fsa/sherpa-onnx/tree/master/scripts/nemo/speaker-verification), Apache-2.0 |
+| Licence | **Apache-2.0** — commercial use permitted with attribution. `LICENSE` + `NOTICE` beside this file |
+| Changed here | **Nothing.** Redistributed byte for byte |
 
 The export script is a plain
 `EncDecSpeakerLabelModel.from_pretrained("titanet_small")` followed by an ONNX
@@ -24,33 +26,53 @@ readable. The file's own embedded metadata agrees with it: `framework=nemo`,
 
 `npm run voice:verify` re-checks the size and hash against `model.json`.
 
-## Licence — read this before shipping to a school
+## Licence — settled
 
-**The export script is Apache-2.0. The weights are NVIDIA's**, published on the
-NGC page linked above, and NVIDIA's NeMo speaker models are normally released
-**CC-BY-4.0, which permits commercial use with attribution.** That is the
-expectation this choice was made on, and it is *not* verified here: NGC and
-Hugging Face are both unreachable from the machine this was built on, so the
-licence line on that page was never read first-hand. **Open the NGC link and
-confirm it says CC-BY-4.0 before this goes anywhere commercial.**
+**Apache License 2.0. Commercial use is permitted, with attribution.** The
+parent read the licence first-hand and confirmed it; it had been flagged here
+as unverified because NGC and Hugging Face are both unreachable from the
+machine this was built on, and that flag is now withdrawn.
 
-One thing worth knowing even if it does. TitaNet was trained on a mix that
-includes VoxCeleb, and VoxCeleb is distributed for research use only. NVIDIA
-licenses the resulting weights under its own terms regardless, which is
-standard practice and the basis on which these models are widely used
-commercially — but it is a question about the weights' lineage rather than
-about NVIDIA's grant, and it applies to essentially every strong open speaker
-model, not just this one. If Word Bank becomes a product sold to schools, that
-is a question for a lawyer, not for this README.
+Both links in the chain are Apache-2.0: NVIDIA NeMo, which the weights come
+from, and the sherpa-onnx export script that converted them to ONNX. The
+licence is not a constraint on this project's own code — it applies to
+`speaker.onnx` only, and nothing in `src/` is derived from it.
+
+**What the licence asks for, and where this repo does it.** Apache-2.0 section
+4 attaches four conditions to redistributing the file, and all four are met in
+this directory:
+
+| | Condition | Where |
+|---|---|---|
+| 4(a) | Keep the copyright, patent, trademark and attribution notices | `NOTICE` carries NVIDIA's copyright line verbatim |
+| 4(b) | Say prominently if the files were changed | `NOTICE` — the ONNX conversion was Xiaomi's; **this project changed nothing**, and `npm run voice:verify` proves the file is byte-identical to the upstream release |
+| 4(c) | Include a copy of the licence | `LICENSE`, the full text, as published by NVIDIA with NeMo |
+| 4(d) | Reproduce the upstream `NOTICE` file, if there is one | NeMo ships no `NOTICE` file, so there is nothing to reproduce. This directory's own `NOTICE` is written to satisfy 4(a) and 4(b) |
+
+`NOTICE` is the file to read if attribution ever needs to be reproduced
+somewhere else — an about screen, a schools-procurement questionnaire, an app
+listing. It is written to be copied as-is.
+
+**Two things the licence does not cover, worth knowing anyway.** NVIDIA does
+not endorse this project, and the NOTICE says so — Apache-2.0 grants no
+trademark rights, so "NVIDIA", "NeMo" and "TitaNet" appear only to identify
+where the model came from. And TitaNet's training mix includes VoxCeleb, which
+is itself distributed for research use only, while NVIDIA licenses the
+resulting weights under Apache-2.0 regardless. That is standard practice and
+the basis on which these models are used commercially; it is a question about
+the weights' lineage rather than about NVIDIA's grant, and it applies to
+essentially every strong open speaker model. If Word Bank is sold to schools it
+is worth a lawyer's glance — not because anything here is wrong, but because
+"we checked" is a better answer than "it looked fine".
 
 **Why this model and not the others.** The same release offers
 `wespeaker_en_voxceleb_CAM++.onnx` (29 MB) and
-`3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx` (40 MB). Both are
-trained on VoxCeleb and neither carries a clear commercial grant over the
-weights, so the licence position is worse, not better, for the sake of ~11 MB.
-`nemo_en_titanet_large.onnx` is the same family and licence at 101 MB, which is
-two and a half times the download for accuracy this use does not need — the
-gap TitaNet-small already leaves between speakers is wide (below).
+`3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx` (40 MB). Neither
+carries a comparably clear commercial grant over the weights, so the licence
+position is worse for the sake of ~11 MB. `nemo_en_titanet_large.onnx` is the
+same family and the same licence at 101 MB — two and a half times the download
+for accuracy this use does not need, given the gap TitaNet-small already leaves
+between speakers (below).
 
 ## Does it work?
 

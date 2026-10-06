@@ -324,10 +324,17 @@ cannot see does not refuse a nine-year-old's homework.
 ### Checking the model
 
 `npm run voice:verify` confirms the committed model is the file it claims to
-be — size, SHA-256, and the metadata the runtime reads.
-`public/voicelock/README.md` has its provenance, the measured
-same-speaker/different-speaker scores the default threshold comes from, and
-**an open licence question to settle before this is ever sold to a school.**
+be — size, SHA-256, the metadata the runtime reads, and that its licence and
+attribution files are still beside it. `public/voicelock/README.md` has its
+provenance and the measured same-speaker/different-speaker scores the default
+threshold comes from.
+
+**Licence: Apache-2.0, commercial use permitted with attribution.** The model
+is NVIDIA NeMo TitaNet-small; `public/voicelock/LICENSE` and
+`public/voicelock/NOTICE` carry the full licence and the attribution it
+requires. If attribution has to appear somewhere else — an about screen, a
+schools-procurement form, an app listing — `NOTICE` is written to be copied
+as-is.
 
 ## Testing it by hand
 

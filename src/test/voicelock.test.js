@@ -340,3 +340,61 @@ describe('the numbers the gate runs on', () => {
     expect(VOICE_THRESHOLD_DEFAULT).toBeGreaterThan(0.37);
   });
 });
+
+describe('the model is redistributed with its licence', () => {
+  // Apache-2.0 section 4 is the condition on having this model in the repo at
+  // all: the licence text and the upstream copyright notice have to travel
+  // with the file. `npm run voice:verify` checks this too, but that is a
+  // script someone has to remember to run — this is in the suite that runs on
+  // every change, because a tidy-up that deleted either file would otherwise
+  // leave the project distributing NVIDIA's work without the terms that allow
+  // it, and nothing would say so.
+  const read = async (name) => {
+    const { readFile } = await import('node:fs/promises');
+    return readFile(new URL('../../public/voicelock/' + name, import.meta.url), 'utf8');
+  };
+
+  it('ships the full Apache 2.0 text', async () => {
+    const text = await read('LICENSE');
+    expect(text).toContain('Apache License');
+    expect(text).toContain('Version 2.0, January 2004');
+    // Not just the title block: the conditions themselves have to be there.
+    expect(text).toContain('4. Redistribution');
+    expect(text).toContain('END OF TERMS AND CONDITIONS');
+  });
+
+  it('keeps NVIDIA\u2019s copyright notice, which is what 4(a) asks for', async () => {
+    const notice = await read('NOTICE');
+    expect(notice).toContain('Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES');
+    expect(notice).toContain('Apache-2.0');
+  });
+
+  it('records the provenance: an ONNX export of NeMo TitaNet-small', async () => {
+    const notice = await read('NOTICE');
+    expect(notice).toMatch(/ONNX\s+export/);
+    expect(notice).toContain('TitaNet');
+    expect(notice).toContain('NeMo');
+    // And who did the converting, since it was not this project.
+    expect(notice).toContain('Xiaomi Corp');
+    expect(notice).toContain('sherpa-onnx');
+  });
+
+  it('says plainly that this project changed nothing', async () => {
+    // 4(b) only bites on files you modify. The claim that we modified nothing
+    // is load-bearing, so it is stated in NOTICE and pinned by the hash.
+    const notice = await read('NOTICE');
+    expect(notice).toContain('byte for byte');
+    const manifest = JSON.parse(await read('model.json'));
+    expect(manifest.modifiedByThisProject).toBe(false);
+    expect(notice).toContain(manifest.sha256);
+  });
+
+  it('declares the licence in the manifest, with the files it points to', async () => {
+    const manifest = JSON.parse(await read('model.json'));
+    expect(manifest.licence).toBe('Apache-2.0');
+    expect(manifest.copyright).toContain('NVIDIA CORPORATION');
+    // The manifest must not point at files that are not there.
+    await expect(read(manifest.licenceFile)).resolves.toBeTruthy();
+    await expect(read(manifest.noticeFile)).resolves.toBeTruthy();
+  });
+});

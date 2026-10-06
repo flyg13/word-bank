@@ -1192,20 +1192,55 @@ loaded on demand, so a family that never turns Voice Lock on downloads neither
 — the main bundle is unchanged. An e2e check drives a whole session and asserts
 that no request for either was made.
 
-**Licence: chosen on licence grounds, and not fully verified — read this.**
-TitaNet-small was picked over the smaller wespeaker CAM++ and 3D-Speaker models
-in the same release *because* of licensing: those are VoxCeleb-trained with no
-clear commercial grant over the weights, and this may become a product for
-schools. NVIDIA's NeMo speaker models are normally released **CC-BY-4.0, which
-permits commercial use with attribution** — but NGC and Hugging Face are both
-unreachable from the machine this was built on, so **that licence line was
-never read first-hand.** It needs one look at the NGC page before anything
-commercial ships. A caveat that applies either way, and to every strong open
-speaker model rather than this one: TitaNet's training mix includes VoxCeleb,
-which is distributed for research use only, and NVIDIA licenses the resulting
-weights under its own terms regardless. That is standard practice and the basis
-on which these models are widely used commercially; it is also a lawyer's
-question, not this document's.
+**Licence: settled — Apache-2.0, and commercial use is permitted.** TitaNet-small
+was picked over the smaller wespeaker CAM++ and 3D-Speaker models in the same
+release *because* of licensing, since this may become a product for schools.
+That choice is now confirmed rather than assumed: **the parent read the licence
+first-hand and it is Apache License 2.0, which permits commercial use with
+attribution.** It had been recorded here as unverified because NGC and Hugging
+Face are both unreachable from the machine this was built on; that caveat is
+withdrawn. Both links in the chain are Apache-2.0 — NVIDIA NeMo, where the
+weights come from, and the sherpa-onnx script that exported them to ONNX.
+
+**The attribution Apache-2.0 asks for is in the repo, and it is tested.**
+`public/voicelock/LICENSE` is the full licence text as NVIDIA publishes it with
+NeMo. `public/voicelock/NOTICE` carries NVIDIA's copyright line verbatim
+(`Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES`), records that the file
+is an **ONNX export of NVIDIA NeMo TitaNet-small** and that the export was
+Xiaomi Corp's work rather than this project's, and states that Word Bank
+redistributes it byte for byte having changed nothing. `model.json` declares
+the licence and points at both files.
+
+Section 4's four conditions map onto those files: 4(a) the notices are kept,
+4(b) the only modification in the chain is the ONNX conversion and it is
+attributed to whoever made it, 4(c) the licence text is included, and 4(d) has
+nothing to reproduce because NeMo ships no `NOTICE` of its own.
+
+**It is checked by the suite, not by memory.** Five tests read those files off
+disk and assert the licence text is complete, NVIDIA's copyright is present,
+the provenance is recorded, and the manifest does not point at files that are
+missing; `npm run voice:verify` checks the same thing alongside the hash. This
+is deliberate: a tidy-up that deleted `LICENSE` or `NOTICE` would leave the
+project distributing NVIDIA's work without the terms that allow it, and
+nothing else in the repo would notice. Four mutation tests confirm each check
+fails when the attribution is removed.
+
+`NOTICE` is written to be copied as-is, because the place this will next be
+needed is not the repo — it is an about screen, an app listing, or a
+schools-procurement questionnaire.
+
+**One caveat that survives, and it is not about NVIDIA's grant.** TitaNet's
+training mix includes VoxCeleb, which is itself distributed for research use
+only, while NVIDIA licenses the resulting weights under Apache-2.0 regardless.
+That is standard practice and the basis on which these models are used
+commercially; it is a question about the weights' lineage rather than about the
+licence on the file. It also applies to essentially every strong open speaker
+model, so it is not a reason to prefer a different one. If Word Bank is sold to
+schools it is worth a lawyer's glance — not because anything here is wrong, but
+because "we checked" is a better answer than "it looked fine". Apache-2.0 also
+grants no trademark rights, so the NOTICE says plainly that NVIDIA does not
+endorse this project and names NVIDIA, NeMo and TitaNet only to identify where
+the model came from.
 
 ### Calibration was built before the gate, and the threshold is measured
 
