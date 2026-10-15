@@ -150,6 +150,49 @@ function modelName() {
 
 // ---------- the page ----------
 
+/**
+ * Score one deliberately-recorded clip and log it, gating nothing.
+ *
+ * This is how a second person gets into the calibration set. It scores the
+ * clip exactly the way the gate would — same embedding, same `bestScore`
+ * against the same enrolment — but it only ever writes a row. It works
+ * whether or not calibration is switched on, because someone who has just
+ * tapped "Record a voice to score" has said what they want plainly enough.
+ */
+export async function scoreForCalibration(clip) {
+  const setting = voiceLock();
+  if (!setting.print) {
+    showCalibrateNote('Save her voice first, in step 1 — there is nothing to compare against yet.', 'warn');
+    return null;
+  }
+
+  let print;
+  try {
+    print = await embedClip(clip.blob);
+  } catch (e) {
+    showCalibrateNote('Could not read that recording (' + ((e && e.message) || 'failed') + '). Try again.', 'warn');
+    return null;
+  }
+
+  if (print.values.length !== setting.print.dim) {
+    showCalibrateNote('That was measured with a different model to her saved voice. Record her voice again in step 1.', 'warn');
+    return null;
+  }
+
+  const score = bestScore(print.values, setting.print.embeddings);
+  logScore({ score, where: 'calibrate' });
+  showCalibrateNote('Scored ' + score.toFixed(2) + '. Say below whether that was her or someone else.');
+  renderAll();
+  return score;
+}
+
+function showCalibrateNote(text, kind) {
+  const note = document.getElementById('voiceSuggestNote');
+  if (!note) return;
+  note.textContent = text;
+  note.className = 'phonic-note' + (kind === 'warn' ? ' warn' : '');
+}
+
 export function renderVoiceLock() {
   const card = document.getElementById('voiceLockCard');
   if (!card) return;
@@ -191,8 +234,13 @@ function renderCalibration(setting) {
   holder.innerHTML = '';
 
   if (!setting.log.length) {
+    // Say where a score comes from. The old wording promised that "every
+    // recording adds one" without saying which recordings counted, which read
+    // as a broken rule when nothing appeared.
     holder.innerHTML = '<span class="empty-note">No scores yet. ' +
-      'With Calibration on, every recording adds one.</span>';
+      'Tap <b>Record a voice to score</b> above \u2014 that works whether or not ' +
+      'the tickbox is on. With the tickbox on, her recordings in Practice, ' +
+      'Sentences and Reading are scored too.</span>';
   } else {
     setting.log.forEach((entry) => {
       const row = document.createElement('div');
@@ -340,8 +388,25 @@ export function initVoiceLock() {
     // The longest mode there is: enrolment wants ten unhurried seconds, and
     // being cut off after a sentence is exactly what makes a print too thin.
     mode: 'passage',
-    onResult: () => {},
+    // Without this, bindMic takes the transcript branch: onClip is never
+    // called, so nothing is ever enrolled however many times she records —
+    // and the clip is uploaded, which is exactly what this feature promises
+    // never happens to her enrolment audio.
+    localOnly: true,
     onClip: collectEnrolment
+  });
+
+  // Calibration needs voices other than hers, and nothing else on this page
+  // can record one. Without it the only way to add a score was to leave Word
+  // Bank, go to Practice and have someone else speak into her practice queue —
+  // which nothing told you to do, and which scores a stranger's attempt
+  // against her word list on the way past.
+  bindMic({
+    buttonId: 'voiceCalibrateMic',
+    labelId: 'voiceCalibrateMicLabel',
+    mode: 'sentence',
+    localOnly: true,
+    onClip: scoreForCalibration
   });
 
   onRender(renderVoiceLock);

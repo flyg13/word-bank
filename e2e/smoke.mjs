@@ -1676,6 +1676,22 @@ check('the gate cannot be switched on before her voice is saved',
   await page.locator('#voiceLockOn').isDisabled());
 
 // The refusal lives outside every tab, for the same reason the fix panel does.
+// The card must offer a way to record a voice, or calibration has no way to
+// hear anybody but her, and the parent has nowhere to tap. This was the
+// second half of the iPad bug.
+check('the calibration step offers its own mic, so a second person can be recorded',
+  (await page.locator('#voiceCalibrateMic').isVisible()) &&
+  (await page.locator('#voiceCalibrateMic').textContent()).includes('Record a voice to score'));
+
+// And the empty state has to say where a score comes from. It used to promise
+// that "every recording adds one" without saying which recordings counted.
+check('the empty score list says where a score comes from',
+  await page.evaluate(() => {
+    const t = document.getElementById('voiceScores').textContent;
+    return t.includes('Record a voice to score') && t.includes('Practice');
+  }),
+  (await page.locator('#voiceScores').textContent()).slice(0, 90));
+
 check('the refusal panel is fixed, outside the tabs, and hidden until it fires',
   await page.evaluate(() => {
     const box = document.getElementById('voiceRefusal');

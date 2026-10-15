@@ -343,11 +343,18 @@
       <div class="phonic-note" id="voiceEnrolNote"></div>
 
       <h3 class="setting-title">2. Calibrate</h3>
-      <p class="sub">Shows a score for every recording and blocks nothing. Record her a few times, then yourself, then another child, and say which was which &mdash; then the threshold comes from her real voice instead of a guess.</p>
+      <p class="sub">Work out the right threshold before switching the gate on. Use <b>Record a voice to score</b> below: record her a few times, then yourself or another child, and tag each score <b>Her</b> or <b>Someone else</b>. Two of hers and one of somebody else is enough for a suggestion. The tickbox additionally scores her ordinary recordings in Practice, Sentences and Reading, and still blocks nothing.</p>
       <label class="switch-row">
         <input type="checkbox" id="voiceLockCalibrate">
         <span>Show scores, block nothing</span>
       </label>
+      <div class="capture-row">
+        <button class="btn btn-outline" id="voiceCalibrateMic">
+          <svg viewBox="0 0 24 24" class="btn-mic" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+          Record a voice to score
+        </button>
+        <span class="capture-label" id="voiceCalibrateMicLabel">Tap to record</span>
+      </div>
       <div class="score-list" id="voiceScores"></div>
       <div class="phonic-note" id="voiceSuggestNote"></div>
       <div class="right-row"><button class="btn btn-ghost" id="voiceClearScores">Clear scores</button></div>

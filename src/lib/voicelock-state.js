@@ -38,11 +38,38 @@ function cleanEmbedding(values) {
   return nums.every(Number.isFinite) ? nums : null;
 }
 
+/**
+ * Read a print, in either shape, defensively.
+ *
+ * Stored flat, used as rows. Firestore has no nested arrays at all — an
+ * `embeddings: [[...], [...]]` write is refused outright with "Nested arrays
+ * are not supported" — so the enrolment goes to the document as one flat run
+ * of numbers plus the width to cut it at. That is a storage detail: everything
+ * above this function sees `embeddings` as rows, the way `bestScore` wants it.
+ *
+ * The old nested shape is still read, so a document written by hand, or by an
+ * export taken before this, still opens.
+ */
 function cleanPrint(print) {
   if (!print || typeof print !== 'object') return null;
-  const embeddings = (Array.isArray(print.embeddings) ? print.embeddings : [])
-    .map(cleanEmbedding)
-    .filter(Boolean);
+
+  let embeddings;
+  if (Array.isArray(print.flat)) {
+    const width = Number(print.dim);
+    if (!Number.isInteger(width) || width <= 0) return null;
+    const nums = print.flat.map(Number);
+    // A run that does not divide by the width means nothing can be cut out of
+    // it with any confidence, so it is treated as no print at all.
+    if (!nums.length || nums.length % width !== 0) return null;
+    if (!nums.every(Number.isFinite)) return null;
+    embeddings = [];
+    for (let i = 0; i < nums.length; i += width) embeddings.push(nums.slice(i, i + width));
+  } else {
+    embeddings = (Array.isArray(print.embeddings) ? print.embeddings : [])
+      .map(cleanEmbedding)
+      .filter(Boolean);
+  }
+
   if (!embeddings.length) return null;
   // Every embedding in one print must be the same length, or a comparison
   // silently means nothing. A mixed print is treated as no print at all.
@@ -54,6 +81,21 @@ function cleanPrint(print) {
     model: typeof print.model === 'string' ? print.model : '',
     enrolledAt: typeof print.enrolledAt === 'string' ? print.enrolledAt : '',
     seconds: Number.isFinite(Number(print.seconds)) ? Number(print.seconds) : 0
+  };
+}
+
+/** The same print, flattened for storage. See cleanPrint for why. */
+function storedPrint(print) {
+  if (!print) return null;
+  const flat = [];
+  for (const row of print.embeddings) for (const n of row) flat.push(n);
+  return {
+    flat,
+    dim: print.dim,
+    count: print.embeddings.length,
+    model: print.model,
+    enrolledAt: print.enrolledAt,
+    seconds: print.seconds
   };
 }
 
@@ -85,8 +127,13 @@ export function voiceLock() {
 }
 
 function write(next) {
-  state.voiceLock = next;
-  save('voice_lock', next);
+  // What goes to the document, and into state, is the stored shape — the same
+  // thing a snapshot will hand back. Keeping a richer object in memory than
+  // the one that syncs is how a field comes to work on the device that wrote
+  // it and nowhere else.
+  const stored = { ...next, print: storedPrint(next.print) };
+  state.voiceLock = stored;
+  save('voice_lock', stored);
   return next;
 }
 

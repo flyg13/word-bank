@@ -297,10 +297,14 @@ Word Bank → **Voice Lock**.
 1. **Save her voice.** Three recordings, a few seconds each, her talking
    normally. Nothing is sent anywhere. The gate cannot be switched on until
    this is done.
-2. **Calibrate — do this before turning the gate on.** It shows a similarity
-   score for every attempt and blocks nothing. Have her do a few words, then
-   have somebody else do a few, and tag each score **Her** or **Someone else**.
-   The card then suggests a threshold.
+2. **Calibrate — do this before turning the gate on.** Tap **Record a voice to
+   score** and record her a few times, then yourself or another child. Each
+   recording adds a score; tag each one **Her** or **Someone else**. Two of
+   hers and one of somebody else is enough for the card to suggest a
+   threshold. That button works whether or not the tickbox is on.
+   - The **Show scores, block nothing** tickbox is extra: it additionally
+     scores her ordinary recordings in Practice, Sentences and Reading. It
+     still blocks nothing.
    - If it says the scores **overlap**, that is a real result and it means the
      model cannot reliably tell her from whoever you tested with. Do not pick a
      number anyway — leave Voice Lock off and say so.

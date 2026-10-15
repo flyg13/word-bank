@@ -398,3 +398,239 @@ describe('the model is redistributed with its licence', () => {
     await expect(read(manifest.noticeFile)).resolves.toBeTruthy();
   });
 });
+
+describe('what gets written to Firestore', () => {
+  // The bug the iPad found: enrolment looked saved, then the gate could not be
+  // switched on and calibration logged nothing. Both because the write failed.
+  // The fake saver above accepts anything; Firestore does not, so these tests
+  // apply its actual rule.
+  //
+  // From @firebase/firestore, in the bundle the browser loads:
+  //   throw t.createError("Nested arrays are not supported")
+  const firestoreCheck = (value, path, inArray) => {
+    if (Array.isArray(value)) {
+      if (inArray) throw new Error('Nested arrays are not supported, at ' + path);
+      value.forEach((v, i) => firestoreCheck(v, path + '[' + i + ']', true));
+      return;
+    }
+    if (value && typeof value === 'object') {
+      for (const [k, v] of Object.entries(value)) firestoreCheck(v, path + '.' + k, false);
+    }
+  };
+
+  /** A saver that refuses what Firestore refuses. */
+  const strictSaver = (written) => async (key, value) => {
+    firestoreCheck(value, key, false);
+    written.push({ key, value });
+  };
+
+  it('stores an enrolment in a shape Firestore will accept', async () => {
+    const written = [];
+    store.setSaver(strictSaver(written));
+    await expect(enrol(10)).resolves.toBeTruthy();
+    expect(written.some((w) => w.key === 'voice_lock')).toBe(true);
+  });
+
+  it('survives the round trip back through a snapshot', async () => {
+    // This is the whole failure. The write is fire-and-forget, so local state
+    // looks right until the next snapshot replaces it with what the server
+    // actually holds. If the write was refused, that is nothing.
+    const written = [];
+    store.setSaver(strictSaver(written));
+    await enrol(10);
+
+    const stored = written.filter((w) => w.key === 'voice_lock').pop().value;
+    const fresh = {};
+    foldSnapshot(fresh, { voice_lock: stored });
+    state.voiceLock = fresh.voiceLock;
+
+    const after = vs.voiceLock();
+    expect(after.print).not.toBe(null);
+    expect(after.print.embeddings).toHaveLength(3);
+    expect(after.print.dim).toBe(192);
+  });
+
+  it('still recognises her after that round trip, and scores a stranger lower', async () => {
+    const written = [];
+    store.setSaver(strictSaver(written));
+    await enrol(10);
+    const stored = written.filter((w) => w.key === 'voice_lock').pop().value;
+    const fresh = {};
+    foldSnapshot(fresh, { voice_lock: stored });
+    state.voiceLock = fresh.voiceLock;
+
+    vs.updateVoiceLock({ enabled: true, threshold: 0.99 });
+    expect((await vl.judgeClip(clipOf(10))).ok).toBe(true);
+    expect((await vl.judgeClip(clipOf(200))).ok).toBe(false);
+  });
+
+  it('records a calibration score after the round trip', async () => {
+    // The reported symptom, stated as a test: with calibration on and her
+    // voice enrolled, a recording must add a score.
+    const written = [];
+    store.setSaver(strictSaver(written));
+    await enrol(10);
+    const stored = written.filter((w) => w.key === 'voice_lock').pop().value;
+    const fresh = {};
+    foldSnapshot(fresh, { voice_lock: stored });
+    state.voiceLock = fresh.voiceLock;
+
+    vs.updateVoiceLock({ calibrating: true });
+    const verdict = await vl.judgeClip(clipOf(200));
+    expect(verdict.why).toBe('calibrating');
+    expect(vs.voiceLock().log).toHaveLength(1);
+  });
+
+  it('keeps every later write Firestore-safe too, not just the enrolment', async () => {
+    const written = [];
+    await enrol(10);
+    store.setSaver(strictSaver(written));
+    expect(() => vs.logScore({ score: 0.7, where: 'attempt' })).not.toThrow();
+    expect(() => vs.tagScore(vs.voiceLock().log[0].at, 'her')).not.toThrow();
+    expect(() => vs.updateVoiceLock({ threshold: 0.6 })).not.toThrow();
+    // Each of those rewrites the whole field, print included.
+    for (const w of written) firestoreCheck(w.value, w.key, false);
+    expect(written.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('enrolling her voice actually enrols it', () => {
+  // The other half of the iPad bug. The enrolment mic was bound without
+  // `localOnly`, so bindMic took the transcript branch and never called
+  // `onClip` — nothing was ever enrolled, however many times she recorded.
+  // It also meant her enrolment audio was uploaded for transcription, which
+  // CLAUDE.md section 18 says plainly never happens.
+  const CARD = `
+    <div id="voiceLockCard">
+      <div id="voiceEnrolState"></div>
+      <button id="voiceEnrolMic"></button>
+      <span id="voiceEnrolMicLabel"></span>
+      <button id="voiceForget"></button>
+      <div id="voiceEnrolNote"></div>
+      <input type="checkbox" id="voiceLockCalibrate">
+      <div id="voiceScores"></div>
+      <div id="voiceSuggestNote"></div>
+      <button id="voiceClearScores"></button>
+      <button id="voiceCalibrateMic"></button>
+      <span id="voiceCalibrateMicLabel"></span>
+      <input type="checkbox" id="voiceLockOn">
+      <input type="range" id="voiceThreshold">
+      <div id="voiceThresholdNote"></div>
+    </div>
+    <div class="voice-refused" id="voiceRefusal"></div>`;
+
+  let uploads;
+  beforeEach(() => {
+    uploads = 0;
+    document.body.innerHTML = CARD;
+  });
+
+  /** Tap a mic, wait for the capture to settle. */
+  async function tap(id) {
+    document.getElementById(id).click();
+    await new Promise((r) => setTimeout(r, 0));
+    document.getElementById(id).click();
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+  }
+
+  it('scores a second person from the card, with the gate and tickbox both off', async () => {
+    // The parent could not find any way to record somebody else. This is it,
+    // and it deliberately does not need calibration switched on: tapping
+    // "Record a voice to score" says what you want plainly enough.
+    const { initVoiceLock, scoreForCalibration } = await import('../features/voicelock.js');
+    initVoiceLock();
+    await enrol(10);
+    vs.updateVoiceLock({ enabled: false, calibrating: false });
+
+    const score = await scoreForCalibration(clipOf(200));
+    expect(typeof score).toBe('number');
+    const log = vs.voiceLock().log;
+    expect(log).toHaveLength(1);
+    expect(log[0].where).toBe('calibrate');
+    // It scored, and it gated nothing.
+    expect(vs.voiceLock().enabled).toBe(false);
+  });
+
+  it('refuses to score before her voice is saved, and says why', async () => {
+    const { initVoiceLock, scoreForCalibration } = await import('../features/voicelock.js');
+    initVoiceLock();
+    state.voiceLock = null;
+    expect(await scoreForCalibration(clipOf(200))).toBe(null);
+    expect(vs.voiceLock().log).toHaveLength(0);
+    expect(document.getElementById('voiceSuggestNote').textContent).toContain('Save her voice first');
+  });
+
+  it('a card score and a gate score are the same number for the same voice', async () => {
+    // They must be, or the threshold tuned here would not be the threshold
+    // the gate applies.
+    const { initVoiceLock, scoreForCalibration } = await import('../features/voicelock.js');
+    initVoiceLock();
+    await enrol(10);
+    const fromCard = await scoreForCalibration(clipOf(200));
+    vs.updateVoiceLock({ calibrating: true });
+    const fromGate = await vl.judgeClip(clipOf(200));
+    expect(fromCard).toBeCloseTo(fromGate.score, 6);
+  });
+
+  it('will not score against a print from another model, and says so', async () => {
+    const { initVoiceLock, scoreForCalibration } = await import('../features/voicelock.js');
+    initVoiceLock();
+    await enrol(10, 192);
+    setVoiceEngine(standIn(128));
+    expect(await scoreForCalibration(clipOf(200))).toBe(null);
+    // A number comparing 128 values against 192 would be meaningless, and
+    // tuning a threshold on it would be worse than having no score.
+    expect(vs.voiceLock().log).toHaveLength(0);
+    expect(document.getElementById('voiceSuggestNote').textContent).toContain('different model');
+  });
+
+  it('records three clips without uploading any of them, and saves a print', async () => {
+    const transcribe = await import('../lib/transcribe.js');
+    const spy = vi.spyOn(transcribe, 'transcribeClip').mockImplementation(async () => {
+      uploads += 1;
+      return { text: 'should never happen', provider: 'x', model: 'y' };
+    });
+
+    const { initVoiceLock } = await import('../features/voicelock.js');
+    initVoiceLock();
+
+    for (let i = 0; i < 3; i += 1) await tap('voiceEnrolMic');
+
+    // The thing the parent could not get to happen.
+    expect(vs.voiceLock().print).not.toBe(null);
+    // And the promise that makes this feature acceptable in a school.
+    expect(uploads).toBe(0);
+    spy.mockRestore();
+  });
+});
+
+describe('a stored print that does not add up', () => {
+  it('is refused when the flat run does not divide by its width', () => {
+    // Belt and braces: a ragged run is caught by the equal-length rule even
+    // if the divisibility guard goes, but a print nothing can be cut out of
+    // must never come back as a usable one.
+    state.voiceLock = { print: { flat: [1, 2, 3, 4, 5], dim: 2 } };
+    expect(vs.voiceLock().print).toBe(null);
+  });
+
+  it('is refused when the width is missing or senseless', () => {
+    for (const dim of [0, -4, 1.5, 'wide', undefined]) {
+      state.voiceLock = { print: { flat: [1, 2, 3, 4], dim } };
+      expect(vs.voiceLock().print).toBe(null);
+    }
+  });
+
+  it('cuts a sound flat run back into the rows it went in as', () => {
+    state.voiceLock = { print: { flat: [1, 0, 0, 1, 0.5, 0.5], dim: 2 } };
+    const print = vs.voiceLock().print;
+    expect(print.embeddings).toEqual([[1, 0], [0, 1], [0.5, 0.5]]);
+    expect(print.dim).toBe(2);
+  });
+
+  it('still opens a print written in the old nested shape', () => {
+    // Nothing ever managed to store one, since Firestore refused the write,
+    // but a hand-made document or an old export should still open.
+    state.voiceLock = { print: { embeddings: [[1, 0], [0, 1]] } };
+    expect(vs.voiceLock().print.embeddings).toEqual([[1, 0], [0, 1]]);
+  });
+});

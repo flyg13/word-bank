@@ -1326,6 +1326,58 @@ falls back to the default, and only `true` counts as on.
 Forgetting her voice switches the gate off with it, because the alternative is
 an armed gate with nothing to compare against.
 
+### Three bugs the first iPad session found, and none of the tests did
+
+Reported as "calibration isn't recording scores", with two more symptoms
+alongside: the gate tickbox could not be ticked, and there was no way to
+record a second person. The first two had one cause.
+
+**1. Her enrolment was never saved, and it was uploaded.** `bindMic` takes a
+`localOnly` flag that makes a recording stop at the clip — no gates, no
+upload — and hands it to `onClip`. The enrolment mic was bound *without* it.
+So `bindMic` took its ordinary branch: it called `onResult` with a transcript
+and never called `onClip`, which meant `collectEnrolment` never ran and
+nothing was ever enrolled however many times she recorded. It also meant her
+enrolment audio went to the transcription service, which the top of this
+section says plainly never happens. One missing line, and it broke both the
+feature and the promise the feature is sold on.
+
+**2. Firestore refuses nested arrays, so the write would have failed anyway.**
+A print was stored as `embeddings: [[…], […], […]]`. Firestore rejects that
+outright — "Nested arrays are not supported" — so even once enrolment ran, the
+write threw and the field never reached the document. The print is now stored
+**flat**: one run of numbers plus the width to cut it at, reassembled into rows
+on read. Above `cleanPrint` nothing changes; the old nested shape is still
+read, so a hand-made document or an old export still opens.
+
+That is also why the gate could not be switched on. The tickbox is disabled
+until there is a print, and `judgeClip` returns `no-enrolment` before it
+computes any score — so one missing enrolment presented as two unrelated
+faults.
+
+**Why the tests missed both.** The suite's fake saver accepted whatever it was
+given, and real Firestore does not; and nothing drove enrolment end-to-end
+through `bindMic`. Both are now covered: a strict saver applies Firestore's own
+nested-array rule to every write, the enrolment round-trips through
+`foldSnapshot` the way a real device would, and a test taps the real mic three
+times and asserts a print lands *and* that nothing was uploaded.
+
+**3. Nowhere to record anybody else.** Calibration only ever scored clips that
+came through the gate during ordinary use, so the only way to score a second
+person was to leave Word Bank, go to Practice and have them speak into her
+practice queue — which nothing said, and which runs a stranger's attempt
+against her word list on the way past. Step 2 now has **Record a voice to
+score**: it scores a clip the same way the gate does, against the same
+enrolment, and only ever writes a row. It works whether or not the tickbox is
+on, because tapping it says what you want plainly enough. A test pins that a
+card score and a gate score are the same number for the same voice — they have
+to be, or the threshold tuned here would not be the one the gate applies.
+
+**The card also stated a rule it could not keep.** The empty list read "With
+calibration on, every recording adds one", which is what made this look like a
+bug rather than a missing control. It now names the control and says which
+recordings count.
+
 ### What this does not settle
 
 Everything that matters most, which is why calibration exists:
