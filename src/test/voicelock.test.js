@@ -584,6 +584,19 @@ describe('enrolling her voice actually enrols it', () => {
     expect(document.getElementById('voiceSuggestNote').textContent).toContain('different model');
   });
 
+  it('never counts past the number of recordings it asked for', async () => {
+    // Enrolment needs three recordings AND nine seconds in them. Short clips
+    // meet the count but not the seconds, and the note used to read
+    // "Recording 4 of 3 saved" while still asking for more.
+    const { initVoiceLock } = await import('../features/voicelock.js');
+    initVoiceLock();
+    for (let i = 0; i < 5; i += 1) {
+      await tap('voiceEnrolMic');
+      const note = document.getElementById('voiceEnrolNote').textContent;
+      expect(note).not.toMatch(/Recording [4-9] of 3/);
+    }
+  });
+
   it('records three clips without uploading any of them, and saves a print', async () => {
     const transcribe = await import('../lib/transcribe.js');
     const spy = vi.spyOn(transcribe, 'transcribeClip').mockImplementation(async () => {

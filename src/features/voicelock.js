@@ -137,8 +137,16 @@ async function collectEnrolment(clip) {
     enrolling = [];
     showEnrolNote('Done — her voice is saved. Turn Calibration on next, and see what the scores look like.');
   } else {
-    showEnrolNote('Recording ' + enrolling.length + ' of ' + VOICE_ENROL_CLIPS +
-      ' saved. Tap again and keep talking for about ' + VOICE_ENROL_TARGET_SECONDS + ' seconds.');
+    // Enrolment wants three recordings *and* enough speech in them. Short
+    // clips satisfy the count without the seconds, and the old wording then
+    // counted past the target — "Recording 4 of 3 saved" — while still asking
+    // for more. Say which of the two is still missing.
+    const short = VOICE_ENROL_MIN_SECONDS * VOICE_ENROL_CLIPS - enrolledSeconds();
+    showEnrolNote(enrolling.length >= VOICE_ENROL_CLIPS
+      ? 'Saved, but those were short \u2014 about ' + Math.ceil(short) +
+        ' more seconds of her talking. Tap again and let her keep going.'
+      : 'Recording ' + enrolling.length + ' of ' + VOICE_ENROL_CLIPS +
+        ' saved. Tap again and keep talking for about ' + VOICE_ENROL_TARGET_SECONDS + ' seconds.');
   }
   renderAll();
 }
