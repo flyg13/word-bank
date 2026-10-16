@@ -378,7 +378,14 @@ describe('schema parity: mastering a word', () => {
   // one word, so it repeats immediately and reaches mastery in three attempts.
   const LAST_WORD = 'yesterday';
   const initial = {
-    verified_words: PRACTICE_WORDS.filter((w) => w !== LAST_WORD)
+    verified_words: PRACTICE_WORDS.filter((w) => w !== LAST_WORD),
+    // Both apps are driven at three repeats, because this test is about the
+    // *shape* of what gets written, not about how many goes it takes. The port
+    // now defaults to two (§20) and the original is hard-wired to three, so
+    // without this they would master the word on different attempts and the
+    // comparison would be of two different moments rather than two schemas.
+    // The original ignores the field; the port reads it as a synced setting.
+    mastery_repeats: 3
   };
 
   const drive = async (doc) => {

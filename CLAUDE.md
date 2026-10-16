@@ -1508,3 +1508,113 @@ will say. An overlap is the honest answer and means the gate should stay off —
 not that the setup went wrong. Also unknown: whether ten seconds of talking is
 something a nine-year-old will sit through three times, and whether two mic
 buttons side by side read as a choice or as a puzzle.
+
+## 20. Four things from real use with Harlie (parent's decisions)
+
+Two of these are about the app asking more of her than it needs to; two are
+about it mistaking one kind of mistake for another.
+
+### Three repeats is now two, and it is a setting
+
+**The decision: two or three, in Word Bank, defaulting to two, synced.**
+
+Three was chosen when the browser's recogniser was the only one there was and
+a correct reading might well have been luck. §9 replaced it, and the API
+recogniser is far more accurate — so the third repeat is buying much less
+than it used to, and it was never free: *by the third attempt her tone is
+frustrated, which is a worse sample, not a better one.*
+
+`mastery_repeats` is a synced field beside `speech_rate` and the rest, read
+defensively — a value that is not two or three is ignored rather than obeyed,
+because a zero there would mark every word mastered on sight.
+
+**Changing it never invalidates progress, in either direction.** Mastery
+lives in `verified_words`, which only ever gets added to, so raising the
+setting back to three cannot un-master a word she has already finished with.
+Lowering it does the other half: `reconcileMastery()` promotes any word whose
+repeats already meet the new number, so nothing is left sitting in the queue
+showing a full row of dots, and the card says how many words that was.
+
+**One coupling that had to be cut first.** `MASTERY_THRESHOLD` was also being
+used as the `count` written on a hand-added correction — and that three is a
+*stored value in her live documents*, pinned by the differential test, not a
+tuning knob. The two had nothing to do with each other beyond sharing a
+number, so the bank's is now `MANUAL_BANK_COUNT` and the setting cannot move
+it. The differential test caught this immediately, which is exactly what it
+is for; it now drives both apps at three repeats, because that test is about
+the shape of what gets written and not about how many goes it takes.
+
+### She can hear the sentence, as many times as she needs
+
+**The problem, in the parent's words:** she substitutes a word — "likes" for
+"loves" — *because she can't reliably read it off the screen and is holding it
+in her head.*
+
+**The decision: a speaker on the sentence, usable before and during the
+attempt, with the same word highlighting used everywhere else.** The target is
+drawn as one span per word and read one utterance per word, so the word lit is
+the word being spoken — §15's reason: WebKit never fired boundary events
+reliably, so the only exact highlight is one utterance per word. It uses her
+configured voice and speed because `readAloud` does. Tapping again stops it
+rather than starting a second reading over the top. Sentences and Reading
+share it, because a passage has the same problem as a sentence.
+
+**One thing that split nearly broke.** The first version drew the spans with
+`toWords`, which strips punctuation — so the sentence on screen quietly lost
+its full stop. It is the thing she is trying to read. Both the spans and the
+utterances now come from one whitespace split, which keeps the text intact
+*and* keeps index *i* meaning word *i* in both.
+
+### A word she said perfectly well is not a mispronunciation
+
+**The decision:** when the word heard is a real word that simply is not the
+target, treat it as a memory slip rather than a speech error — don't bank it,
+don't count it against her, and mark it so it is obvious which happened.
+
+A substitution is now one of three things, in order: a **close** match to a
+sounded-out spelling the parent recorded (the strongest evidence there is that
+it was a mispronunciation, so it wins); a **slip**, when the heard word is one
+the app knows to be real; or a **mismatch**, which is what everything used to
+be. A slip is told apart from a mismatch by a different glyph (`↷` against
+`✗`), a dashed rule against a dotted one, and italic against upright — colour
+is the last signal, not the only one, and an e2e check reads the computed
+styles.
+
+**Why the app's own vocabulary and not a dictionary.** A general word list
+would call almost every recogniser output a real word — including the real
+words it produces when it mishears her. "Liquor" for "little" is this app's
+own worked example and it has to stay a mispronunciation. So `known-words.js`
+asks a narrower question: is this word in her practice list, the sentence
+corpus, the passage she is reading, the words she has mastered, or the words
+her bank corrects *to*? A word her bank corrects *from* is deliberately not
+counted — that is the misheard text, and counting it would turn every known
+mispronunciation into a slip.
+
+**It is a guess, and it says so.** Nothing here can hear her, so nothing here
+can know whether a word was well pronounced — only whether the word that came
+back exists in her world. A slip stays tappable, so a parent who *did* hear a
+mispronunciation can still bank it. And a slip stops the read counting, with
+a note saying why: going quiet about it would be the §19 mistake again, a rule
+the screen follows without stating.
+
+### And an attempt can be thrown away
+
+**The decision: a "Didn't mean that" control, so an attempt the parent could
+see was a memory slip scores nothing at all.**
+
+This is the reliable half of the pair above. The classification is a heuristic
+and the person in the room is not: when she recited the sentence from memory
+and got a word wrong, somebody who heard it outranks anything the app can
+work out. It is offered on **every** attempt, clean or not, and it undoes
+whatever that attempt scored — including taking back a clean read it had just
+been credited with. Tapping it twice takes nothing away twice.
+
+### What this does not settle
+
+Whether two repeats is enough to trust a word as mastered — that is a
+judgement only weeks of use can make, and the setting exists so it can be
+moved back without a code change. And whether the slip/mispronunciation line
+falls in the right place for her actual substitutions: the vocabulary is a
+proxy for "a word she can say", and the honest signal that it is wrong would
+be slips appearing on words she plainly mispronounced, or mispronunciations
+still being offered for banking when she simply said the wrong word.

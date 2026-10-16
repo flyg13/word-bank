@@ -319,7 +319,19 @@ check('speech supported banner hidden',
 await page.click('.tab[data-tab="practice"]');
 const target = (await page.locator('#targetWord').textContent()).trim();
 check('a practice word is showing', target.length > 0 && target !== '—', target);
-check('mastery dots rendered', (await page.locator('#repeatDots .repeat-dot').count()) === 3);
+// Two by default now, not three — the repeats are a setting (§20), and the
+// default came down because the third go was costing more than it bought.
+check('mastery dots match the repeats setting',
+  (await page.locator('#repeatDots .repeat-dot').count()) === 2);
+check('and Word Bank offers the other choice',
+  await page.evaluate(() => {
+    const holder = document.getElementById('masteryRepeats');
+    if (!holder) return false;
+    const buttons = Array.from(holder.querySelectorAll('button'));
+    return buttons.length === 2 &&
+      buttons.filter((b) => b.classList.contains('chosen')).length === 1 &&
+      buttons[0].classList.contains('chosen');
+  }));
 
 // The rough preview's presentation, checked without driving it: the app's
 // recogniser is captured at module load, so reaching in to fire an interim
@@ -1702,6 +1714,53 @@ check('the refusal panel is fixed, outside the tabs, and hidden until it fires',
     const css = getComputedStyle(box);
     return !inTab && css.position === 'fixed' && css.display === 'none';
   }));
+
+// ---- A memory slip, and the way out of an attempt (§20) ----
+await page.click('.tab[data-tab="sentences"]');
+while ((await page.locator('#targetSentence').textContent()).trim() !== 'The cat sat on the mat.') {
+  await page.click('#nextSentence');
+}
+
+// The sentence is drawn as words that can light up, and still reads as the
+// sentence — punctuation included, because that is what she is reading.
+check('the target sentence keeps its punctuation while being word-addressable',
+  (await page.locator('#targetSentence .rtok').count()) === 6 &&
+  (await page.locator('#targetSentence').textContent()).trim() === 'The cat sat on the mat.');
+
+// "likes" is a word she can say; saying it instead of "sat" is a memory slip,
+// not a mispronunciation, and must not be offered up as a correction.
+await readInto('sentenceOutput', 'sentenceMic', 'the cat likes on the mat');
+check('a real word in the wrong place reads as a slip, not a mispronunciation',
+  (await page.locator('#sentenceOutput .wtok.slip').count()) === 1 &&
+  (await page.locator('#sentenceOutput .wtok.slip').textContent()) === 'likes' &&
+  (await page.locator('#sentenceOutput .wtok.mismatch').count()) === 0);
+
+check('and the slip is told apart from a mispronunciation without colour',
+  await page.evaluate(() => {
+    const slip = document.querySelector('#sentenceOutput .wtok.slip');
+    if (!slip) return false;
+    const css = getComputedStyle(slip);
+    const glyph = getComputedStyle(slip, '::before').content;
+    // Its own glyph, a dashed rule where a mispronunciation gets a dotted
+    // one, and italic where that is upright.
+    return css.fontStyle === 'italic' &&
+      css.borderBottomStyle === 'dashed' &&
+      glyph.includes('\u21b7');
+  }));
+
+check('the slip says plainly that it was not added to her corrections',
+  (await page.locator('#sentenceOutput .read-note.slip').textContent())
+    .includes('not been added to her corrections'));
+
+// And the attempt can be thrown away entirely.
+const beforeDiscard = await page.locator('#cleanDots .repeat-dot.filled').count();
+await readInto('sentenceOutput', 'sentenceMic', 'the cat sat on the mat');
+check('a clean read counts',
+  (await page.locator('#cleanDots .repeat-dot.filled').count()) === beforeDiscard + 1);
+await page.click('#sentenceOutput .discard-attempt');
+check('and "Didn’t mean that" takes that credit straight back off',
+  (await page.locator('#cleanDots .repeat-dot.filled').count()) === beforeDiscard &&
+  (await page.locator('#sentenceOutput').textContent()).includes('discarded'));
 
 check('no uncaught application errors', errors.length === 0, errors.slice(0, 3).join(' ;; '));
 

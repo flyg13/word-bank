@@ -8,7 +8,8 @@
 import { SENTENCES } from '../data/sentences.js';
 import {
   DEFAULT_SPEECH_LANG, SPEECH_LANGS,
-  SPEECH_RATE_DEFAULT, SPEECH_RATE_MIN, SPEECH_RATE_MAX
+  SPEECH_RATE_DEFAULT, SPEECH_RATE_MIN, SPEECH_RATE_MAX,
+  MASTERY_REPEAT_CHOICES, MASTERY_REPEATS_DEFAULT
 } from '../config.js';
 import { parsePassage } from './text.js';
 
@@ -40,6 +41,7 @@ export function foldSnapshot(state, data) {
   state.phonicBank = data.phonic_bank || {};
   state.speechLang = validLang(data.speech_lang);
   state.speechRate = validRate(data.speech_rate);
+  state.masteryRepeats = validRepeats(data.mastery_repeats);
   // A voice name, matched against what this device actually has installed when
   // it is used. A name from another device that is not here simply does not
   // match, and the browser's default reads instead.
@@ -58,6 +60,19 @@ function validRate(value) {
   const rate = Number(value);
   return Number.isFinite(rate) && rate >= SPEECH_RATE_MIN && rate <= SPEECH_RATE_MAX
     ? rate : SPEECH_RATE_DEFAULT;
+}
+
+/**
+ * How many clean repeats make a word mastered: two or three, nothing else.
+ *
+ * A document that has never carried the field reads as the default rather
+ * than as zero, and a hand-edited nonsense value is ignored rather than
+ * obeyed — the same discipline every other stored setting gets. A zero here
+ * would mark every word mastered on sight.
+ */
+function validRepeats(value) {
+  const n = Number(value);
+  return MASTERY_REPEAT_CHOICES.includes(n) ? n : MASTERY_REPEATS_DEFAULT;
 }
 
 /** Fall back rather than hand the recognizer something it will reject. */
@@ -79,6 +94,7 @@ export const SYNCED_FIELDS = [
   'session_log',
   'sheets',
   'speech_lang',
+  'mastery_repeats',
   'speech_rate',
   'speech_voice',
   'verified_words',

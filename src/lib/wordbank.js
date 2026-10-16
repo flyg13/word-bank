@@ -1,4 +1,4 @@
-import { MASTERY_THRESHOLD } from '../config.js';
+import { MANUAL_BANK_COUNT } from '../config.js';
 import { normalize } from './text.js';
 import { state } from './store.js';
 
@@ -21,7 +21,7 @@ export function getBankEntry(key) {
   const value = state.wordBank[key];
   if (!value) return null;
   if (typeof value === 'string') {
-    return { correct: value, count: MASTERY_THRESHOLD, active: true };
+    return { correct: value, count: MANUAL_BANK_COUNT, active: true };
   }
   return value;
 }

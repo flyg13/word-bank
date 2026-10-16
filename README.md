@@ -279,6 +279,44 @@ inside the Australian regions; `global.` routes anywhere), never a bare
 `anthropic.` one. The defaults are Sydney and the AU profile of the versioned
 Sonnet 4.5 ID.
 
+## Practice, Sentences and Reading
+
+### How many goes make a word hers
+
+Word Bank → **How many goes make it hers**: two or three, synced with her
+other settings, **two by default**. Three dated from when the browser's
+recogniser was the only one and a correct reading might be luck; the API
+recogniser (above) is far more accurate, and the third go mostly just means
+saying the same word again when she is already bored of it.
+
+Changing it never costs her anything. Lowering it promotes any word that
+already has that many clean goes — the card says how many — and raising it
+back never un-masters a word she has already finished with.
+
+### Hearing the sentence
+
+Both Sentences and Reading have a speaker on the target. Tap it and the line
+is read out in her configured voice and speed, lighting each word as it is
+spoken. Tap again to stop, and tap as many times as she wants — before the
+attempt or part way through it. She substitutes words because she cannot
+reliably read the line off the screen and is holding it in her head, so
+hearing it is the fix.
+
+### Memory slips, and throwing an attempt away
+
+When she says a real word that simply is not the target — "likes" for "loves"
+— that is a memory slip, not a speech error. It is marked differently from a
+mispronunciation (`↷`, a dashed underline, italic — not just a colour), it is
+**not** offered up as a correction to her bank, and a note says so rather than
+the read just quietly failing to count.
+
+That is a guess: the app cannot hear her, only read what the recogniser
+produced. So two things are true. Tapping a slip still banks it, for when you
+*did* hear a mispronunciation. And every attempt — clean or not — carries
+**Didn't mean that**, which throws it away entirely, including taking back a
+clean read it was just credited with. When you were in the room, you outrank
+the app.
+
 ## Voice Lock (off by default)
 
 In a classroom the iPad is not only hers, and another child speaking near it

@@ -1,6 +1,7 @@
 import {
-  MASTERY_THRESHOLD, SPEECH_LANGS,
-  SPEECH_RATE_DEFAULT, SPEECH_RATE_MIN, SPEECH_RATE_MAX, SPEECH_RATE_STEP
+  MANUAL_BANK_COUNT, SPEECH_LANGS,
+  SPEECH_RATE_DEFAULT, SPEECH_RATE_MIN, SPEECH_RATE_MAX, SPEECH_RATE_STEP,
+  MASTERY_REPEAT_CHOICES, MASTERY_REPEATS_DEFAULT
 } from '../config.js';
 import { speak, voicesForLang, isUpgradedVoice, onVoicesReady } from '../lib/speech.js';
 import { normalize, parsePassage } from '../lib/text.js';
@@ -21,7 +22,7 @@ import { readCorrectionLog, clearCorrectionLog } from '../lib/correction-log.js'
 import { getStoredFamilyCode, saveFamilyCode } from '../lib/family-code.js';
 import { CORRECTION_LOG_LIMIT } from '../config.js';
 import { bindMic } from './mic.js';
-import { buildQueue, attemptKey } from './practice.js';
+import { buildQueue, attemptKey, reconcileMastery } from './practice.js';
 
 // ---------- Correction list ----------
 
@@ -139,7 +140,7 @@ export function renderAttemptLog() {
     addBtn.onclick = () => {
       state.wordBank[normalize(entry.heard)] = {
         correct: entry.target,
-        count: MASTERY_THRESHOLD,
+        count: MANUAL_BANK_COUNT,
         active: true
       };
       save('word_bank', state.wordBank);
@@ -189,6 +190,54 @@ function showWarning(id, description) {
 }
 
 /** Describe whatever is currently in the spelling box. */
+/**
+ * The repeats setting: two or three, as a pair of buttons rather than a
+ * slider, because there are exactly two answers. See CLAUDE.md §20.
+ */
+function renderMasteryRepeats() {
+  const holder = document.getElementById('masteryRepeats');
+  if (!holder) return;
+  const current = state.masteryRepeats || MASTERY_REPEATS_DEFAULT;
+  holder.innerHTML = '';
+
+  MASTERY_REPEAT_CHOICES.forEach((n) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('role', 'radio');
+    button.setAttribute('aria-checked', String(n === current));
+    button.className = 'btn btn-outline repeat-choice' + (n === current ? ' chosen' : '');
+    button.textContent = n + ' goes';
+    button.addEventListener('click', () => setMasteryRepeats(n));
+    holder.appendChild(button);
+  });
+
+  const note = document.getElementById('masteryRepeatsNote');
+  if (note && !note.dataset.sticky) {
+    note.textContent = 'A word is hers after ' + current + ' clean readings.';
+  }
+}
+
+function setMasteryRepeats(n) {
+  if (!MASTERY_REPEAT_CHOICES.includes(n)) return;
+  state.masteryRepeats = n;
+  save('mastery_repeats', n);
+
+  // Lowering it must honour repeats she has already earned, rather than
+  // leaving a word in the queue showing a full row of dots. Nothing is ever
+  // taken back the other way — mastery lives in verified_words.
+  const promoted = reconcileMastery();
+  const note = document.getElementById('masteryRepeatsNote');
+  if (note) {
+    note.dataset.sticky = promoted.length ? '1' : '';
+    note.textContent = promoted.length
+      ? 'A word is hers after ' + n + ' clean readings. ' + promoted.length +
+        (promoted.length === 1 ? ' word she had already read' : ' words she had already read') +
+        ' that many times just became hers.'
+      : 'A word is hers after ' + n + ' clean readings.';
+  }
+  renderAll();
+}
+
 function describeTypedSpelling() {
   const spelling = document.getElementById('phonicSpelling').value.trim();
   if (!spelling) return showNote('phonicAddNote', '');
@@ -484,7 +533,7 @@ export function initBank({ reload = () => window.location.reload() } = {}) {
     if (!raw || !correct) return;
     state.wordBank[normalize(raw)] = {
       correct,
-      count: MASTERY_THRESHOLD,
+      count: MANUAL_BANK_COUNT,
       active: true
     };
     save('word_bank', state.wordBank);
@@ -603,6 +652,7 @@ export function initBank({ reload = () => window.location.reload() } = {}) {
   onRender(renderBankList);
   onRender(renderAttemptLog);
   onRender(renderPhonicList);
+  onRender(renderMasteryRepeats);
   onRender(renderSpeechLang);
   onRender(renderSpeechRate);
   onRender(renderSpeechVoice);
