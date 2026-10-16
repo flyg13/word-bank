@@ -103,7 +103,7 @@ function setAccuracyNotice(code) {
  * @param {{
  *   buttonId: string,
  *   labelId?: string,
- *   mode?: 'word'|'sentence'|'passage'|'freeform',
+ *   mode?: 'word'|'sentence'|'passage'|'freeform'|'enrol',
  *   expected?: () => string,
  *   canListen?: () => boolean,
  *   onBlocked?: () => void,
@@ -111,6 +111,7 @@ function setAccuracyNotice(code) {
  *   onInterim?: (text: string|null) => void,
  *   localOnly?: boolean,
  *   onClip?: (clip: object) => void,
+ *   onTick?: (elapsedMs: number) => void,
  *   onResult?: (text: string) => void
  * }} options
  *
@@ -121,6 +122,10 @@ function setAccuracyNotice(code) {
  * `onWorking` fires when the recording ends and the clip starts being turned
  * into text, for a screen that wants to say so somewhere other than the mic.
  *
+ * `onTick` is called about every 100ms while recording, with how long it has
+ * been running. Voice Lock enrolment counts seconds out loud with it; without
+ * it there is no way to tell from the screen whether enough has been said.
+ *
  * `onInterim` receives a rough preview of what she is saying, while she says
  * it, from the browser's own recogniser running alongside the recording; it is
  * called with null when there is no longer a preview to show. A device with no
@@ -129,7 +134,7 @@ function setAccuracyNotice(code) {
 export function bindMic({
   buttonId, labelId, mode = 'word', expected = () => '',
   canListen = () => true, onBlocked, onWorking, onInterim, onResult,
-  localOnly = false, onClip
+  localOnly = false, onClip, onTick
 }) {
   const button = document.getElementById(buttonId);
   const label = labelId ? document.getElementById(labelId) : null;
@@ -285,7 +290,7 @@ export function bindMic({
     let capture;
     try {
       capture = await startCapture({
-        mode, expected: expected(), onSending: enterWorking, localOnly
+        mode, expected: expected(), onSending: enterWorking, localOnly, onTick
       });
     } catch (e) {
       finishIdle();

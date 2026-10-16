@@ -1667,30 +1667,32 @@ check('off by default, Voice Lock downloads neither its model nor its runtime',
 await page.click('.tab[data-tab="bank"]');
 check('Word Bank offers Voice Lock, off, with no voice saved',
   (await page.locator('#voiceLockCard').isVisible()) &&
-  (await page.locator('#voiceLockOn').isChecked()) === false &&
-  (await page.locator('#voiceLockCalibrate').isChecked()) === false);
+  (await page.locator('#voiceLockOn').isChecked()) === false);
 
-// The gate cannot be armed before a voice exists — a gate with nothing to
-// compare against could only ever refuse her.
-check('the gate cannot be switched on before her voice is saved',
-  await page.locator('#voiceLockOn').isDisabled());
+// The two tickboxes are gone. Calibration is a sequence you start, work
+// through and finish — the parent had to ask twice what the old pair meant.
+check('calibration is a step to start, not a mode to leave switched on',
+  (await page.locator('#voiceCalStart').isVisible()) &&
+  (await page.locator('#voiceCalRunning').isVisible()) === false &&
+  (await page.locator('#voiceCalDone').isVisible()) === false &&
+  (await page.locator('#voiceLockCalibrate').count()) === 0);
 
-// The refusal lives outside every tab, for the same reason the fix panel does.
-// The card must offer a way to record a voice, or calibration has no way to
-// hear anybody but her, and the parent has nowhere to tap. This was the
-// second half of the iPad bug.
-check('the calibration step offers its own mic, so a second person can be recorded',
-  (await page.locator('#voiceCalibrateMic').isVisible()) &&
-  (await page.locator('#voiceCalibrateMic').textContent()).includes('Record a voice to score'));
+// The gate cannot be armed before a voice exists AND a session has measured
+// where the line goes.
+check('the gate waits for both her voice and a finished calibration',
+  (await page.locator('#voiceLockOn').isDisabled()) &&
+  (await page.locator('#voiceCalStart').isDisabled()) &&
+  (await page.locator('#voiceThresholdNote').textContent()).includes('step 1'));
 
-// And the empty state has to say where a score comes from. It used to promise
-// that "every recording adds one" without saying which recordings counted.
-check('the empty score list says where a score comes from',
+// Why anyone would leave it off. Without that the only available reading is
+// "more safety is better", which is wrong at home.
+check('the gate says plainly why you would leave it off',
   await page.evaluate(() => {
-    const t = document.getElementById('voiceScores').textContent;
-    return t.includes('Record a voice to score') && t.includes('Practice');
-  }),
-  (await page.locator('#voiceScores').textContent()).slice(0, 90));
+    const card = document.getElementById('voiceLockCard');
+    const t = card ? card.textContent : '';
+    return /off at home/i.test(t) && /classroom/i.test(t) &&
+           /nobody else talking/i.test(t);
+  }));
 
 check('the refusal panel is fixed, outside the tabs, and hidden until it fires',
   await page.evaluate(() => {

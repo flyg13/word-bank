@@ -1395,3 +1395,116 @@ Everything that matters most, which is why calibration exists:
   three recordings is more setup than anything else in this app asks for.
 - **Whether a 40 MB download on first use is tolerable on school wifi.** It
   happens once and is cached, but the first time is the lesson it happens in.
+
+## 19. Four things setting Voice Lock up on the iPad found (parent's decisions)
+
+§18's calibration was designed from the outside and it showed. All four of
+these are the card failing to say what it is doing, or asking the parent to
+hold something in their head that the app should have held for them.
+
+### The enrolment recording gave no sense of time
+
+**The problem, in the parent's words:** it asks for about ten seconds, but
+there is no timer, no countdown and no automatic stop — and a recording that is
+slightly too short silently does not count. *I had to time it on my phone.*
+
+**The decision: count the seconds on screen, and stop when there is enough.**
+
+- A live counter while recording: seconds elapsed, seconds to go, and a tick
+  the moment the recording is long enough to be usable at all.
+- **The recording ends itself at the target.** `CAPTURE_MODES.enrol` is a new
+  mode whose *ceiling is the target* — ten seconds — rather than a safety net
+  several times longer than the expected recording, which is what every other
+  mode's `maxMs` is. Its trailing pause is deliberately long (4s): she is
+  talking freely about nothing in particular and will stop to think, and
+  cutting a thinking pause short is exactly what produced recordings too short
+  to count.
+- The counter rides a new `onTick` seam through `recorder.js` → `capture.js` →
+  `bindMic`, firing on the 100ms poll that was already running. A counter that
+  throws can never break a recording.
+
+**And a recording that cannot be used now says so, by name.** The old rule
+wanted three clips *and* nine seconds between them, so a short clip was counted
+towards one and not the other: the card could sit on "3 of 3" and still ask for
+more, with nothing saying that the recording just made was the problem. Each
+recording is now kept or refused on its own — under `VOICE_ENROL_MIN_SECONDS`
+it is refused, the note says how long it actually was and that it has not been
+counted, and the count does not move.
+
+### Calibration looked capped at three recordings
+
+**It never was, and that is worth recording because the real cause is a
+pattern worth not repeating.** `scoreForCalibration` wrote "Scored 0.72…" to
+`#voiceSuggestNote` and then called `renderAll()`, which immediately overwrote
+that same element with the standing advice. So from the first recording
+onwards there was no acknowledgement of any individual recording — the note
+just sat there saying the same thing. Recording again changed nothing visible,
+which reads exactly like being blocked.
+
+**The decision: record as many as I like, of as many people as I like.** The
+per-recording line now has an element of its own, separate from the verdict.
+`VOICE_LOG_LIMIT` goes from 40 to 200, because a cap reachable in one sitting
+is the same complaint in a different place, and the card says plainly when the
+oldest start dropping off. It stays bounded: the whole list is rewritten on
+every change and the family document must not grow without limit.
+
+### Two tickboxes nobody could read
+
+**The problem:** *I've had to ask twice what they mean.* "Show scores, block
+nothing" and "Only accept Harlie's voice" sat next to each other as a pair of
+unexplained switches, and the first described a mode rather than a task.
+
+**The decision: calibration is a step I start, work through and finish — not a
+mode I leave switched on.** The card is now three numbered steps, with step 2
+holding three states and exactly one of them visible at a time:
+
+- **Idle** — what calibration is for and a **Start calibration** button.
+- **Running** — one sentence at the top saying what to do next, recomputed on
+  every change; two mics, **Record Harlie** and **Record someone else**; the
+  scores in two groups under the name they belong to; and the verdict.
+- **Done** — when it was calibrated and what threshold it arrived at.
+
+**Who is chosen before recording, not tagged afterwards.** This is the part
+that makes the rest work. Tagging a list of bare numbers after the fact was
+unfollowable by the third row, and it is why the scores could not be grouped.
+Picking the button is picking the person.
+
+**The verdict shows both ranges and names the outcome.** Harlie's low–high and
+everyone else's low–high, then one of three sentences: they do not overlap and
+here is the number; they overlap by this much, which is a real finding about
+this model and these voices rather than a setup mistake; or not enough yet and
+here is the minimum. **Finishing is allowed on an overlap**, because the parent
+may well want the finding recorded and the gate left off.
+
+**Finishing fills the threshold in and opens the gate.** `calibratedAt` is a
+new stored field, and the gate switch is disabled until there is both a print
+and a finished session — a threshold nobody measured is a threshold that locks
+her out in front of a class. Starting a session clears the previous one's
+scores, and cancelling keeps nothing, because scores are only meaningful
+against the print they were measured from and half a session is not evidence.
+Forgetting her voice now throws the calibration away with it, for the same
+reason.
+
+**One behaviour deliberately removed.** While a session is open the gate no
+longer logs a score for her ordinary recordings in Practice. Those arrive
+untagged, so they would belong to neither group and could only muddy the two
+ranges the session exists to produce. The gate still stands down while
+calibrating; it just does not file anything.
+
+### Nothing said why you would ever turn the gate off
+
+**The decision: say it where the setting is.** At home there is nobody else
+talking, so the gate has nothing to catch and can only get in her way — every
+recording it mistakes for someone else is one she has to do again. It is for a
+classroom, where the iPad is not only hers. Without that, the only available
+reading of a safety switch is "more is better", which is wrong here. Default
+stays off, and an e2e check reads the card for that sentence.
+
+### What this does not settle
+
+The same thing §18 ends on, now actually reachable: **whether her voice and a
+classmate's separate at all.** The flow exists to answer it and the verdict
+will say. An overlap is the honest answer and means the gate should stay off —
+not that the setup went wrong. Also unknown: whether ten seconds of talking is
+something a nine-year-old will sit through three times, and whether two mic
+buttons side by side read as a choice or as a puzzle.

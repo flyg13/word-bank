@@ -39,7 +39,8 @@ function pickFormat() {
 /**
  * Start recording.
  *
- * @param {{silenceMs:number, maxMs:number, onLevel?:(rms:number)=>void}} options
+ * @param {{silenceMs:number, maxMs:number, onLevel?:(rms:number)=>void,
+ *          onTick?:(elapsedMs:number, heardSpeech:boolean)=>void}} options
  * @returns {Promise<{
  *   done: Promise<{blob:Blob, mimeType:string, durationMs:number, reason:string}>,
  *   stop: (reason?: string) => void
@@ -47,7 +48,7 @@ function pickFormat() {
  *   Resolves once the microphone is live, so the caller can show "Recording"
  *   only when it is true. Rejects if permission is refused.
  */
-export async function startRecording({ silenceMs, maxMs, onLevel }) {
+export async function startRecording({ silenceMs, maxMs, onLevel, onTick }) {
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
   });
@@ -80,6 +81,14 @@ export async function startRecording({ silenceMs, maxMs, onLevel }) {
       quietSince = null;
     } else if (quietSince === null) {
       quietSince = now;
+    }
+
+    // How long this recording has been running, every 100ms. Enrolment needs
+    // it to count seconds out loud: without it the parent has no idea whether
+    // they have talked for long enough and times it on a phone instead.
+    if (onTick) {
+      try { onTick(now - startedAt, heardSpeech); }
+      catch (e) { /* a counter must never break a recording */ }
     }
 
     if (heardSpeech && quietSince !== null && now - quietSince >= silenceMs) {

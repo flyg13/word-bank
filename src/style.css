@@ -663,6 +663,45 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
 
 /* What she sees when the gate refuses. Kind, plain, and never without the way
    out beside it: being locked out in front of a class is the worse failure. */
+/* The enrolment countdown. Big enough to read from arm's length on an iPad
+   while she is talking, because that is the whole point of it. The tick is a
+   second signal beside the colour, so "long enough" survives greyscale. */
+.enrol-timer{
+  margin:10px 0 0; padding:10px 14px; border-radius:var(--radius);
+  background:var(--paper); border:1px solid var(--line);
+  font-variant-numeric:tabular-nums; font-size:1.15rem; font-weight:700;
+  color:var(--ink);
+}
+.enrol-timer.enough{ border-color:var(--moss, #3d6b4a); color:var(--moss, #3d6b4a); }
+.enrol-timer[hidden]{ display:none; }
+
+/* Calibration: a sequence, so the one sentence saying what to do next is the
+   most prominent thing in the step. */
+.cal-step{
+  margin:4px 0 12px; font-size:1.05rem; font-weight:700; color:var(--ink);
+}
+.score-groups{ display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; }
+.score-group{
+  flex:1; min-width:150px; background:var(--paper);
+  border:1px solid var(--line); border-radius:var(--radius); padding:10px 12px;
+}
+.score-group-title{
+  margin:0 0 8px; font-size:.8rem; text-transform:uppercase;
+  letter-spacing:.06em; color:var(--muted, #6b6259);
+}
+.cal-verdict{ margin-top:12px; }
+.cal-ranges{
+  font-variant-numeric:tabular-nums; font-weight:700; margin-bottom:6px;
+  white-space:pre-wrap;
+}
+/* Three outcomes, told apart by a rule and a weight as well as a colour. */
+.cal-ok, .cal-warn, .cal-wait{
+  padding:8px 0 8px 12px; border-left:4px solid var(--line); font-size:.95rem;
+}
+.cal-ok{ border-left-color:var(--moss, #3d6b4a); }
+.cal-warn{ border-left-color:var(--rose, #b4534a); font-weight:700; }
+.cal-wait{ border-left-style:dashed; color:var(--muted, #6b6259); }
+
 /* Voice Lock's refusal. A sheet at the bottom, like the fix panel, because it
    can appear over any page. Red is not the only signal: it carries its own
    words and its own way out, and it is role="alert" so a reader announces it. */

@@ -5,10 +5,15 @@
 // tested without a browser, a model or a microphone.
 //
 //   enabled      the gate itself. Off unless a classroom switched it on.
-//   calibrating  show the score for every attempt and gate nothing.
+//   calibrating  a calibration session is open: a thing you start, work
+//                through and finish, not a mode left switched on.
+//   calibratedAt when one was last finished. The gate cannot be switched on
+//                before that, because a threshold nobody measured is a
+//                threshold that locks her out.
 //   threshold    how alike is alike enough.
 //   print        her enrolment: several embeddings and what made them.
-//   log          recent scores, for setting the threshold from real voices.
+//   log          scores from the calibration session, each already attributed
+//                to her or to someone else when it was recorded.
 
 import {
   VOICE_THRESHOLD_DEFAULT, VOICE_THRESHOLD_MIN, VOICE_THRESHOLD_MAX, VOICE_LOG_LIMIT
@@ -19,6 +24,7 @@ export function blankVoiceLock() {
   return {
     enabled: false,
     calibrating: false,
+    calibratedAt: '',
     threshold: VOICE_THRESHOLD_DEFAULT,
     print: null,
     log: []
@@ -119,6 +125,7 @@ export function voiceLock() {
   return {
     enabled: raw.enabled === true,
     calibrating: raw.calibrating === true,
+    calibratedAt: typeof raw.calibratedAt === 'string' ? raw.calibratedAt : '',
     threshold: validThreshold(raw.threshold),
     print: cleanPrint(raw.print),
     log: (Array.isArray(raw.log) ? raw.log : [])
@@ -158,7 +165,38 @@ export function clearEnrolment() {
   // Turning the gate off with it: a gate with nothing to compare against can
   // only refuse, and refusing her in front of a class is the failure that
   // matters most.
-  return updateVoiceLock({ print: null, enabled: false });
+  //
+  // The calibration goes too. Every score is a comparison against the print
+  // that has just been thrown away, so keeping the numbers would mean
+  // offering a threshold measured against a voice the app no longer holds.
+  return updateVoiceLock({
+    print: null, enabled: false, calibrating: false, calibratedAt: '', log: []
+  });
+}
+
+/**
+ * Open a calibration session.
+ *
+ * It starts empty. Scores are only meaningful against the print they were
+ * measured from, and a session that inherited the last one's numbers would
+ * quietly mix two sets of readings into one range.
+ */
+export function startCalibration() {
+  return updateVoiceLock({ calibrating: true, log: [] });
+}
+
+/** Finish one, adopting the threshold it arrived at. */
+export function finishCalibration(threshold) {
+  return updateVoiceLock({
+    calibrating: false,
+    calibratedAt: new Date().toISOString(),
+    threshold: validThreshold(threshold)
+  });
+}
+
+/** Abandon one. Nothing is kept: half a session is not evidence. */
+export function cancelCalibration() {
+  return updateVoiceLock({ calibrating: false, log: [] });
 }
 
 /** Note a score. Newest first, capped — this is tuning data, not history. */
@@ -196,15 +234,23 @@ export function clearLog() {
 export function suggestThreshold(log = voiceLock().log) {
   const hers = log.filter((e) => e.who === 'her').map((e) => e.score);
   const others = log.filter((e) => e.who === 'other').map((e) => e.score);
+  const span = (xs) => (xs.length
+    ? { low: Number(Math.min(...xs).toFixed(2)), high: Number(Math.max(...xs).toFixed(2)) }
+    : null);
+  // The two ranges are shown whether or not a threshold can be suggested yet:
+  // seeing them fill in is how the parent knows the session is going anywhere.
+  const ranges = { herRange: span(hers), otherRange: span(others) };
   if (hers.length < 2 || others.length < 1) {
-    return { ok: false, reason: 'not-enough', hers: hers.length, others: others.length };
+    return {
+      ok: false, reason: 'not-enough', hers: hers.length, others: others.length, ...ranges
+    };
   }
   const lowestHer = Math.min(...hers);
   const highestOther = Math.max(...others);
   if (lowestHer <= highestOther) {
     return {
       ok: false, reason: 'overlap', hers: hers.length, others: others.length,
-      overlap: Number((highestOther - lowestHer).toFixed(3))
+      overlap: Number((highestOther - lowestHer).toFixed(3)), ...ranges
     };
   }
   return {
@@ -212,6 +258,7 @@ export function suggestThreshold(log = voiceLock().log) {
     value: Number(((lowestHer + highestOther) / 2).toFixed(2)),
     hers: hers.length,
     others: others.length,
-    margin: Number((lowestHer - highestOther).toFixed(3))
+    margin: Number((lowestHer - highestOther).toFixed(3)),
+    ...ranges
   };
 }

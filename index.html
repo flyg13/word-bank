@@ -328,38 +328,66 @@
     <!-- VOICE LOCK: the classroom gate. Off unless switched on. -->
     <div class="card" id="voiceLockCard">
       <h2 class="section-title">Voice Lock</h2>
-      <p class="sub">For a classroom. Checks that a recording is Harlie and not the child next to her, on the iPad &mdash; no audio is sent anywhere for this. Leave it off at home.</p>
+      <p class="sub">For a classroom. Checks that a recording is Harlie and not the child next to her, on the iPad &mdash; no audio is sent anywhere for this.</p>
 
       <h3 class="setting-title">1. Save her voice</h3>
       <div class="phonic-note" id="voiceEnrolState"></div>
       <div class="capture-row">
-        <button class="btn btn-outline" id="voiceEnrolMic">
-          <svg viewBox="0 0 24 24" class="btn-mic" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+        <button class="btn btn-outline" id="voiceEnrolMic"><svg viewBox="0 0 24 24" class="btn-mic" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
           Record her talking
         </button>
         <span class="capture-label" id="voiceEnrolMicLabel">Tap to record</span>
         <button class="btn btn-link" id="voiceForget">Forget her voice</button>
       </div>
+      <!-- The countdown. Tells her how long she has been talking and stops on
+           its own at the target, so nobody has to time it on a phone. -->
+      <div class="enrol-timer" id="voiceEnrolTimer" role="status" aria-live="off" hidden></div>
       <div class="phonic-note" id="voiceEnrolNote"></div>
 
       <h3 class="setting-title">2. Calibrate</h3>
-      <p class="sub">Work out the right threshold before switching the gate on. Use <b>Record a voice to score</b> below: record her a few times, then yourself or another child, and tag each score <b>Her</b> or <b>Someone else</b>. Two of hers and one of somebody else is enough for a suggestion. The tickbox additionally scores her ordinary recordings in Practice, Sentences and Reading, and still blocks nothing.</p>
-      <label class="switch-row">
-        <input type="checkbox" id="voiceLockCalibrate">
-        <span>Show scores, block nothing</span>
-      </label>
-      <div class="capture-row">
-        <button class="btn btn-outline" id="voiceCalibrateMic">
-          <svg viewBox="0 0 24 24" class="btn-mic" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
-          Record a voice to score
-        </button>
-        <span class="capture-label" id="voiceCalibrateMicLabel">Tap to record</span>
+      <div id="voiceCalIdle">
+        <p class="sub">Before the gate can be switched on, the app has to learn how far apart Harlie&rsquo;s voice and other voices actually score. You record her a few times, then anyone else a few times, and it works out where the line goes. It takes a couple of minutes and blocks nothing while you do it.</p>
+        <button class="btn btn-outline" id="voiceCalStart">Start calibration</button>
       </div>
-      <div class="score-list" id="voiceScores"></div>
-      <div class="phonic-note" id="voiceSuggestNote"></div>
-      <div class="right-row"><button class="btn btn-ghost" id="voiceClearScores">Clear scores</button></div>
 
-      <h3 class="setting-title">3. Turn the gate on</h3>
+      <div id="voiceCalRunning" hidden>
+        <!-- What to do next, in one sentence, recomputed on every change. -->
+        <p class="cal-step" id="voiceCalStep"></p>
+        <div class="capture-row">
+          <button class="btn btn-outline" id="voiceCalHerMic"><svg viewBox="0 0 24 24" class="btn-mic" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+            Record Harlie
+          </button>
+          <span class="capture-label" id="voiceCalHerLabel">Tap to record</span>
+        </div>
+        <div class="capture-row">
+          <button class="btn btn-outline" id="voiceCalOtherMic"><svg viewBox="0 0 24 24" class="btn-mic" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+            Record someone else
+          </button>
+          <span class="capture-label" id="voiceCalOtherLabel">Tap to record</span>
+        </div>
+        <div class="phonic-note" id="voiceCalNote"></div>
+
+        <div class="score-groups">
+          <div class="score-group" id="voiceCalHerGroup"></div>
+          <div class="score-group" id="voiceCalOtherGroup"></div>
+        </div>
+
+        <div class="cal-verdict" id="voiceCalVerdict"></div>
+        <div class="right-row">
+          <button class="btn btn-link" id="voiceCalCancel">Cancel</button>
+          <button class="btn btn-outline" id="voiceCalFinish">Finish calibration</button>
+        </div>
+      </div>
+
+      <div id="voiceCalDone" hidden>
+        <div class="phonic-note" id="voiceCalDoneNote"></div>
+        <button class="btn btn-link" id="voiceCalAgain">Calibrate again</button>
+      </div>
+
+      <h3 class="setting-title">3. The gate</h3>
+      <!-- Why anyone would leave this off. Without it the only reading is
+           "more safety is better", which is wrong here. -->
+      <p class="sub">Leave this off at home. There is nobody else talking, so the gate has nothing to catch and can only get in her way &mdash; every recording it mistakes for someone else is one she has to do again. It is for a classroom, where the iPad is not only hers.</p>
       <label class="switch-row">
         <input type="checkbox" id="voiceLockOn">
         <span>Only accept Harlie&rsquo;s voice</span>

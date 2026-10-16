@@ -19,6 +19,8 @@ navigator.mediaDevices = { getUserMedia: async () => ({ getTracks: () => [{ stop
 // speaker, and the engine turns that into a vector. Meaningless acoustically,
 // exact for testing every decision around it.
 let decodeFails = false;
+// Long enough to count by default; flipped on to make a clip too short.
+let shortClips = false;
 window.AudioContext = class {
   decodeAudioData(buf) {
     if (decodeFails) return Promise.reject(new Error('bad-audio'));
@@ -27,7 +29,7 @@ window.AudioContext = class {
     data.fill(who / 255);
     return Promise.resolve({
       numberOfChannels: 1, length: data.length, sampleRate: 16000,
-      duration: 4, getChannelData: () => data
+      duration: shortClips ? 1.2 : 11, getChannelData: () => data
     });
   }
   close() {}
@@ -44,7 +46,8 @@ const vs = await import('../lib/voicelock-state.js');
 const vl = await import('../features/voicelock.js');
 const { SYNCED_FIELDS, foldSnapshot } = await import('../lib/snapshot.js');
 const { VOICE_LOG_LIMIT, VOICE_THRESHOLD_DEFAULT, VOICE_MIN_CLIP_SECONDS,
-        CAPTURE_MODES } = await import('../config.js');
+        CAPTURE_MODES, VOICE_ENROL_TARGET_SECONDS, VOICE_ENROL_MIN_SECONDS,
+        VOICE_ENROL_CLIPS } = await import('../config.js');
 
 let engineCalls;
 /** Identity-in, vector-out: the same speaker always gives the same vector. */
@@ -65,6 +68,8 @@ let saved;
 beforeEach(() => {
   engineCalls = 0;
   decodeFails = false;
+  shortClips = false;
+  vl.resetEnrolment();
   saved = [];
   state.voiceLock = null;
   store.setSaver(async (key, value) => { saved.push({ key, value }); });
@@ -161,14 +166,24 @@ describe('the gate', () => {
     expect(verdict.why).toBe('model-changed');
   });
 
-  it('never refuses while calibrating, and records the score instead', async () => {
+  it('never refuses while a calibration session is open', async () => {
     await enrol(10);
     vs.updateVoiceLock({ enabled: true, calibrating: true, threshold: 0.99 });
     const verdict = await vl.judgeClip(clipOf(200));
     expect(verdict.ok).toBe(true);
     expect(verdict.why).toBe('calibrating');
-    expect(vs.voiceLock().log).toHaveLength(1);
-    expect(vs.voiceLock().log[0].score).toBeCloseTo(verdict.score, 6);
+  });
+
+  it('and does not quietly file her ordinary recordings into the session', async () => {
+    // Calibration used to log every gated clip. It is now a set of recordings
+    // the parent made on purpose, having said who each one was; an untagged
+    // score from her Practice would belong to neither group and would only
+    // muddy the two ranges the whole session exists to produce.
+    await enrol(10);
+    vs.updateVoiceLock({ enabled: true, calibrating: true, threshold: 0.99 });
+    await vl.judgeClip(clipOf(200));
+    await vl.judgeClip(clipOf(10));
+    expect(vs.voiceLock().log).toHaveLength(0);
   });
 
   it('logs a refusal too, so a gate that fires too often is visible', async () => {
@@ -475,10 +490,12 @@ describe('what gets written to Firestore', () => {
     foldSnapshot(fresh, { voice_lock: stored });
     state.voiceLock = fresh.voiceLock;
 
-    vs.updateVoiceLock({ calibrating: true });
-    const verdict = await vl.judgeClip(clipOf(200));
-    expect(verdict.why).toBe('calibrating');
+    vs.startCalibration();
+    document.body.innerHTML = '<div id="voiceCalNote"></div>';
+    const score = await vl.scoreForCalibration(clipOf(200), 'other');
+    expect(typeof score).toBe('number');
     expect(vs.voiceLock().log).toHaveLength(1);
+    expect(vs.voiceLock().log[0].who).toBe('other');
   });
 
   it('keeps every later write Firestore-safe too, not just the enrolment', async () => {
@@ -506,13 +523,21 @@ describe('enrolling her voice actually enrols it', () => {
       <button id="voiceEnrolMic"></button>
       <span id="voiceEnrolMicLabel"></span>
       <button id="voiceForget"></button>
+      <div id="voiceEnrolTimer" hidden></div>
       <div id="voiceEnrolNote"></div>
-      <input type="checkbox" id="voiceLockCalibrate">
-      <div id="voiceScores"></div>
-      <div id="voiceSuggestNote"></div>
-      <button id="voiceClearScores"></button>
-      <button id="voiceCalibrateMic"></button>
-      <span id="voiceCalibrateMicLabel"></span>
+      <div id="voiceCalIdle"><button id="voiceCalStart"></button></div>
+      <div id="voiceCalRunning" hidden>
+        <p id="voiceCalStep"></p>
+        <button id="voiceCalHerMic"></button><span id="voiceCalHerLabel"></span>
+        <button id="voiceCalOtherMic"></button><span id="voiceCalOtherLabel"></span>
+        <div id="voiceCalNote"></div>
+        <div id="voiceCalHerGroup"></div><div id="voiceCalOtherGroup"></div>
+        <div id="voiceCalVerdict"></div>
+        <button id="voiceCalCancel"></button><button id="voiceCalFinish"></button>
+      </div>
+      <div id="voiceCalDone" hidden>
+        <div id="voiceCalDoneNote"></div><button id="voiceCalAgain"></button>
+      </div>
       <input type="checkbox" id="voiceLockOn">
       <input type="range" id="voiceThreshold">
       <div id="voiceThresholdNote"></div>
@@ -533,31 +558,52 @@ describe('enrolling her voice actually enrols it', () => {
     for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
   }
 
-  it('scores a second person from the card, with the gate and tickbox both off', async () => {
-    // The parent could not find any way to record somebody else. This is it,
-    // and it deliberately does not need calibration switched on: tapping
-    // "Record a voice to score" says what you want plainly enough.
+  it('files a recording under whoever it was, chosen before recording', async () => {
+    // Who is decided by which button was tapped, not tagged afterwards. By
+    // the third row of bare numbers there was no way to remember which was
+    // which.
     const { initVoiceLock, scoreForCalibration } = await import('../features/voicelock.js');
     initVoiceLock();
     await enrol(10);
-    vs.updateVoiceLock({ enabled: false, calibrating: false });
+    vs.startCalibration();
 
-    const score = await scoreForCalibration(clipOf(200));
-    expect(typeof score).toBe('number');
+    expect(typeof await scoreForCalibration(clipOf(10), 'her')).toBe('number');
+    expect(typeof await scoreForCalibration(clipOf(200), 'other')).toBe('number');
     const log = vs.voiceLock().log;
-    expect(log).toHaveLength(1);
-    expect(log[0].where).toBe('calibrate');
+    expect(log.map((e) => e.who).sort()).toEqual(['her', 'other']);
+    expect(log.every((e) => e.where === 'calibrate')).toBe(true);
     // It scored, and it gated nothing.
     expect(vs.voiceLock().enabled).toBe(false);
+  });
+
+  it('lets the parent record as many as they like, of as many people as they like', async () => {
+    // Reported as "capped at three". Nothing was capped — but every
+    // confirmation was overwritten by the standing advice the instant the
+    // card re-rendered, so recording again looked like it did nothing.
+    const { initVoiceLock, scoreForCalibration } = await import('../features/voicelock.js');
+    initVoiceLock();
+    await enrol(10);
+    vs.startCalibration();
+
+    for (let i = 0; i < 5; i += 1) await scoreForCalibration(clipOf(10), 'her');
+    // Five different other people, not one.
+    for (let i = 0; i < 5; i += 1) await scoreForCalibration(clipOf(40 + i * 30), 'other');
+
+    const log = vs.voiceLock().log;
+    expect(log).toHaveLength(10);
+    expect(log.filter((e) => e.who === 'her')).toHaveLength(5);
+    expect(log.filter((e) => e.who === 'other')).toHaveLength(5);
+    // And the per-recording line still says what just happened.
+    expect(document.getElementById('voiceCalNote').textContent).toContain('Recorded');
   });
 
   it('refuses to score before her voice is saved, and says why', async () => {
     const { initVoiceLock, scoreForCalibration } = await import('../features/voicelock.js');
     initVoiceLock();
     state.voiceLock = null;
-    expect(await scoreForCalibration(clipOf(200))).toBe(null);
+    expect(await scoreForCalibration(clipOf(200), 'her')).toBe(null);
     expect(vs.voiceLock().log).toHaveLength(0);
-    expect(document.getElementById('voiceSuggestNote').textContent).toContain('Save her voice first');
+    expect(document.getElementById('voiceCalNote').textContent).toContain('Save her voice first');
   });
 
   it('a card score and a gate score are the same number for the same voice', async () => {
@@ -566,7 +612,7 @@ describe('enrolling her voice actually enrols it', () => {
     const { initVoiceLock, scoreForCalibration } = await import('../features/voicelock.js');
     initVoiceLock();
     await enrol(10);
-    const fromCard = await scoreForCalibration(clipOf(200));
+    const fromCard = await scoreForCalibration(clipOf(200), 'other');
     vs.updateVoiceLock({ calibrating: true });
     const fromGate = await vl.judgeClip(clipOf(200));
     expect(fromCard).toBeCloseTo(fromGate.score, 6);
@@ -577,11 +623,11 @@ describe('enrolling her voice actually enrols it', () => {
     initVoiceLock();
     await enrol(10, 192);
     setVoiceEngine(standIn(128));
-    expect(await scoreForCalibration(clipOf(200))).toBe(null);
+    expect(await scoreForCalibration(clipOf(200), 'her')).toBe(null);
     // A number comparing 128 values against 192 would be meaningless, and
     // tuning a threshold on it would be worse than having no score.
     expect(vs.voiceLock().log).toHaveLength(0);
-    expect(document.getElementById('voiceSuggestNote').textContent).toContain('different model');
+    expect(document.getElementById('voiceCalNote').textContent).toContain('different model');
   });
 
   it('never counts past the number of recordings it asked for', async () => {
@@ -645,5 +691,263 @@ describe('a stored print that does not add up', () => {
     // but a hand-made document or an old export should still open.
     state.voiceLock = { print: { embeddings: [[1, 0], [0, 1]] } };
     expect(vs.voiceLock().print.embeddings).toEqual([[1, 0], [0, 1]]);
+  });
+});
+
+describe('the enrolment recording says how long it has been going', () => {
+  // The parent timed the first enrolment on their phone. The card asked for
+  // "about ten seconds" and then showed nothing: no elapsed time, no target,
+  // and no stop.
+  it('stops itself at the target rather than running on', () => {
+    // The ceiling IS the target here, unlike every other mode where it is a
+    // safety net several times longer than the expected recording.
+    expect(CAPTURE_MODES.enrol.maxMs).toBe(VOICE_ENROL_TARGET_SECONDS * 1000);
+  });
+
+  it('waits long enough through a thinking pause to get there', () => {
+    // She is talking freely about nothing in particular and will stop to
+    // think. Cut that short and the recording is too short to count, which
+    // is the silent failure being fixed.
+    expect(CAPTURE_MODES.enrol.silenceMs).toBeGreaterThan(CAPTURE_MODES.sentence.silenceMs);
+    expect(CAPTURE_MODES.enrol.silenceMs).toBeLessThan(CAPTURE_MODES.enrol.maxMs);
+  });
+
+  it('counts the seconds up on screen while recording', async () => {
+    document.body.innerHTML = '<div id="voiceEnrolTimer" hidden></div>';
+    const { showEnrolTimer } = await import('../features/voicelock.js');
+    const box = document.getElementById('voiceEnrolTimer');
+
+    showEnrolTimer(1000);
+    expect(box.hidden).toBe(false);
+    expect(box.textContent).toContain('1s');
+    // Below the minimum, it does not yet claim to be usable.
+    expect(box.textContent).not.toContain('long enough');
+
+    showEnrolTimer(VOICE_ENROL_MIN_SECONDS * 1000);
+    expect(box.textContent).toContain('long enough');
+    expect(box.className).toContain('enough');
+  });
+});
+
+describe('a recording too short to use says so', () => {
+  const FIXTURE = '<div id="voiceEnrolNote"></div><div id="voiceEnrolTimer" hidden></div>';
+
+  it('is refused by name, and is not half-counted', async () => {
+    // The old rule wanted three clips AND nine seconds between them, so a
+    // short clip was counted towards one and not the other: the card could
+    // sit on "3 of 3" and still ask for more, with nothing saying which
+    // recording was the problem.
+    document.body.innerHTML = FIXTURE;
+    const { collectEnrolment } = await import('../features/voicelock.js');
+
+    shortClips = true;
+    await collectEnrolment(clipOf(10));
+    shortClips = false;
+
+    const note = document.getElementById('voiceEnrolNote').textContent;
+    expect(note).toContain('seconds');
+    expect(note).toMatch(/not been counted|at least/);
+    expect(vs.voiceLock().print).toBe(null);
+  });
+
+  it('and a full-length one is counted and said so', async () => {
+    document.body.innerHTML = FIXTURE;
+    const { collectEnrolment } = await import('../features/voicelock.js');
+    await collectEnrolment(clipOf(10));
+    expect(document.getElementById('voiceEnrolNote').textContent)
+      .toContain('1 of ' + VOICE_ENROL_CLIPS);
+  });
+});
+
+describe('calibration is a session, not a mode left switched on', () => {
+  const mount = () => {
+    document.body.innerHTML = `
+      <div id="voiceLockCard">
+        <div id="voiceEnrolState"></div><button id="voiceEnrolMic"></button>
+        <span id="voiceEnrolMicLabel"></span><button id="voiceForget"></button>
+        <div id="voiceEnrolTimer" hidden></div><div id="voiceEnrolNote"></div>
+        <div id="voiceCalIdle"><button id="voiceCalStart"></button></div>
+        <div id="voiceCalRunning" hidden>
+          <p id="voiceCalStep"></p>
+          <button id="voiceCalHerMic"></button><span id="voiceCalHerLabel"></span>
+          <button id="voiceCalOtherMic"></button><span id="voiceCalOtherLabel"></span>
+          <div id="voiceCalNote"></div>
+          <div id="voiceCalHerGroup"></div><div id="voiceCalOtherGroup"></div>
+          <div id="voiceCalVerdict"></div>
+          <button id="voiceCalCancel"></button><button id="voiceCalFinish"></button>
+        </div>
+        <div id="voiceCalDone" hidden>
+          <div id="voiceCalDoneNote"></div><button id="voiceCalAgain"></button>
+        </div>
+        <input type="checkbox" id="voiceLockOn">
+        <input type="range" id="voiceThreshold"><div id="voiceThresholdNote"></div>
+      </div><div class="voice-refused" id="voiceRefusal"></div>`;
+  };
+  const vis = (id) => !document.getElementById(id).hidden;
+
+  it('walks idle to running to done, one visible at a time', async () => {
+    mount();
+    const { initVoiceLock, renderVoiceLock, scoreForCalibration } =
+      await import('../features/voicelock.js');
+    initVoiceLock();
+    await enrol(10);
+
+    renderVoiceLock();
+    expect([vis('voiceCalIdle'), vis('voiceCalRunning'), vis('voiceCalDone')])
+      .toEqual([true, false, false]);
+
+    document.getElementById('voiceCalStart').click();
+    expect([vis('voiceCalIdle'), vis('voiceCalRunning'), vis('voiceCalDone')])
+      .toEqual([false, true, false]);
+
+    await scoreForCalibration(clipOf(10), 'her');
+    await scoreForCalibration(clipOf(10), 'her');
+    await scoreForCalibration(clipOf(200), 'other');
+    document.getElementById('voiceCalFinish').click();
+    expect([vis('voiceCalIdle'), vis('voiceCalRunning'), vis('voiceCalDone')])
+      .toEqual([false, false, true]);
+  });
+
+  it('tells you what to do next at each point', async () => {
+    mount();
+    const { initVoiceLock, scoreForCalibration } = await import('../features/voicelock.js');
+    initVoiceLock();
+    await enrol(10);
+    document.getElementById('voiceCalStart').click();
+    const step = () => document.getElementById('voiceCalStep').textContent;
+
+    expect(step()).toContain('Record Harlie');
+    await scoreForCalibration(clipOf(10), 'her');
+    await scoreForCalibration(clipOf(10), 'her');
+    expect(step()).toContain('somebody else');
+    await scoreForCalibration(clipOf(200), 'other');
+    expect(step()).toMatch(/Enough|finish/i);
+  });
+
+  it('shows the scores grouped by who they belong to', async () => {
+    mount();
+    const { initVoiceLock, scoreForCalibration } = await import('../features/voicelock.js');
+    initVoiceLock();
+    await enrol(10);
+    document.getElementById('voiceCalStart').click();
+    await scoreForCalibration(clipOf(10), 'her');
+    await scoreForCalibration(clipOf(10), 'her');
+    await scoreForCalibration(clipOf(200), 'other');
+
+    expect(document.getElementById('voiceCalHerGroup').textContent).toContain('Harlie · 2');
+    expect(document.getElementById('voiceCalOtherGroup').textContent).toContain('Someone else · 1');
+  });
+
+  it('shows both ranges and says plainly whether they overlap', async () => {
+    mount();
+    const { initVoiceLock, scoreForCalibration } = await import('../features/voicelock.js');
+    initVoiceLock();
+    await enrol(10);
+    document.getElementById('voiceCalStart').click();
+    await scoreForCalibration(clipOf(10), 'her');
+    await scoreForCalibration(clipOf(10), 'her');
+    await scoreForCalibration(clipOf(200), 'other');
+
+    const verdict = document.getElementById('voiceCalVerdict').textContent;
+    expect(verdict).toContain('Harlie');
+    expect(verdict).toContain('Others');
+    // These two voices separate, so it should say so and name a number.
+    expect(verdict).toMatch(/do not overlap/);
+  });
+
+  it('calls an overlap an overlap rather than inventing a threshold', async () => {
+    mount();
+    const { initVoiceLock, renderVoiceLock } = await import('../features/voicelock.js');
+    initVoiceLock();
+    await enrol(10);
+    vs.startCalibration();
+    // Hand-built so the two genuinely overlap.
+    vs.logScore({ score: 0.70, where: 'calibrate', who: 'her' });
+    vs.logScore({ score: 0.60, where: 'calibrate', who: 'her' });
+    vs.logScore({ score: 0.75, where: 'calibrate', who: 'other' });
+    renderVoiceLock();
+    expect(document.getElementById('voiceCalVerdict').textContent).toContain('overlap');
+    // And finishing on an overlap is still allowed — the parent may want the
+    // finding recorded and the gate left off.
+    expect(document.getElementById('voiceCalFinish').disabled).toBe(false);
+  });
+
+  it('finishing fills the threshold in and opens the gate setting', async () => {
+    mount();
+    const { initVoiceLock, scoreForCalibration, renderVoiceLock } =
+      await import('../features/voicelock.js');
+    initVoiceLock();
+    await enrol(10);
+    renderVoiceLock();
+
+    // Before calibrating, the gate cannot be switched on at all.
+    expect(document.getElementById('voiceLockOn').disabled).toBe(true);
+
+    document.getElementById('voiceCalStart').click();
+    await scoreForCalibration(clipOf(10), 'her');
+    await scoreForCalibration(clipOf(10), 'her');
+    await scoreForCalibration(clipOf(200), 'other');
+    const suggested = vs.suggestThreshold(vs.voiceLock().log).value;
+    document.getElementById('voiceCalFinish').click();
+
+    expect(document.getElementById('voiceLockOn').disabled).toBe(false);
+    expect(vs.voiceLock().threshold).toBeCloseTo(suggested, 6);
+    expect(vs.voiceLock().calibratedAt).not.toBe('');
+  });
+
+  it('cancelling keeps nothing, because half a session is not evidence', async () => {
+    mount();
+    const { initVoiceLock, scoreForCalibration } = await import('../features/voicelock.js');
+    initVoiceLock();
+    await enrol(10);
+    document.getElementById('voiceCalStart').click();
+    await scoreForCalibration(clipOf(10), 'her');
+    document.getElementById('voiceCalCancel').click();
+
+    expect(vs.voiceLock().calibrating).toBe(false);
+    expect(vs.voiceLock().log).toHaveLength(0);
+    expect(vs.voiceLock().calibratedAt).toBe('');
+  });
+
+  it('forgetting her voice throws the calibration away with it', async () => {
+    mount();
+    const { initVoiceLock, scoreForCalibration } = await import('../features/voicelock.js');
+    initVoiceLock();
+    await enrol(10);
+    document.getElementById('voiceCalStart').click();
+    await scoreForCalibration(clipOf(10), 'her');
+    await scoreForCalibration(clipOf(10), 'her');
+    await scoreForCalibration(clipOf(200), 'other');
+    document.getElementById('voiceCalFinish').click();
+    vs.updateVoiceLock({ enabled: true });
+
+    // Every score was a comparison against the print being thrown away.
+    window.confirm = () => true;
+    document.getElementById('voiceForget').click();
+    const after = vs.voiceLock();
+    expect(after.print).toBe(null);
+    expect(after.enabled).toBe(false);
+    expect(after.calibratedAt).toBe('');
+    expect(after.log).toHaveLength(0);
+  });
+
+  it('the gate stays a single switch that turns off at any time', async () => {
+    mount();
+    const { initVoiceLock, scoreForCalibration } = await import('../features/voicelock.js');
+    initVoiceLock();
+    await enrol(10);
+    document.getElementById('voiceCalStart').click();
+    await scoreForCalibration(clipOf(10), 'her');
+    await scoreForCalibration(clipOf(10), 'her');
+    await scoreForCalibration(clipOf(200), 'other');
+    document.getElementById('voiceCalFinish').click();
+
+    const gate = document.getElementById('voiceLockOn');
+    gate.checked = true;
+    gate.dispatchEvent(new Event('change'));
+    expect(vs.voiceLock().enabled).toBe(true);
+    gate.checked = false;
+    gate.dispatchEvent(new Event('change'));
+    expect(vs.voiceLock().enabled).toBe(false);
   });
 });

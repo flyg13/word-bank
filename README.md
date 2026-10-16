@@ -74,6 +74,7 @@ is not a number between 300 and 120000 is ignored and the default is used.
 | `VITE_SILENCE_MS_WORD` | `600` | Practice. One word, with nothing to pause inside, said a dozen times in a row |
 | `VITE_SILENCE_MS_SENTENCE` | `2000` | Sentences. Longer, because being cut off costs her the whole sentence again |
 | `VITE_SILENCE_MS_PASSAGE` | `2500` | Reading Passage. Longest: a passage has real pauses in it |
+| `VITE_SILENCE_MS_ENROL` | `4000` | Voice Lock enrolment. Longest of all: she is talking freely and will stop to think, and a pause cut short is a recording too short to count. This mode also stops itself at 10s, which is the target rather than a safety net |
 | `VITE_NO_SPEECH_MS` | `6000` | How long it waits if she taps and then says nothing at all |
 
 Raise one if she is being cut off mid-sentence; lower it if the app feels like
@@ -292,23 +293,42 @@ used, so leaving it off costs nothing.
 
 ### Setting it up, in the order the card is in
 
-Word Bank → **Voice Lock**.
+Word Bank → **Voice Lock**. Three numbered steps, in order.
 
-1. **Save her voice.** Three recordings, a few seconds each, her talking
-   normally. Nothing is sent anywhere. The gate cannot be switched on until
-   this is done.
-2. **Calibrate — do this before turning the gate on.** Tap **Record a voice to
-   score** and record her a few times, then yourself or another child. Each
-   recording adds a score; tag each one **Her** or **Someone else**. Two of
-   hers and one of somebody else is enough for the card to suggest a
-   threshold. That button works whether or not the tickbox is on.
-   - The **Show scores, block nothing** tickbox is extra: it additionally
-     scores her ordinary recordings in Practice, Sentences and Reading. It
-     still blocks nothing.
-   - If it says the scores **overlap**, that is a real result and it means the
-     model cannot reliably tell her from whoever you tested with. Do not pick a
-     number anyway — leave Voice Lock off and say so.
-3. **Turn the gate on**, and set the threshold. Higher is stricter.
+**1. Save her voice.** Tap **Record her talking** and let her talk about
+anything. The counter shows the seconds going up, ticks when the recording is
+long enough to be usable, and **the recording stops itself at ten seconds** —
+there is nothing to time. Three recordings. A recording that came out too
+short says so and is not counted, so the count never moves without the screen
+saying why.
+
+**2. Calibrate.** This is a session: you start it, work through it, and finish
+it. Nothing is blocked while you do.
+
+   - Tap **Start calibration**.
+   - The line at the top always says what to do next. First it asks for
+     Harlie: tap **Record Harlie** and have her say a sentence. Two or three
+     times.
+   - Then **Record someone else** — you will do, another child is better, and
+     you can record as many different people as you like. Which button you tap
+     is how the app knows who it was, so there is nothing to tag afterwards.
+   - The scores appear in two groups under the name they belong to, and the
+     verdict underneath shows both ranges and says one of three things:
+     they do not overlap and here is the threshold; **they overlap by this
+     much**, which means the model cannot reliably tell her from whoever you
+     tested with; or not enough recordings yet.
+   - **Finish calibration.** The threshold it worked out is filled in for you.
+
+   If it says the scores overlap, that is a real result, not a setup problem.
+   Finish anyway if you want it recorded — and leave the gate off.
+
+**3. The gate.** Only available once her voice is saved *and* a calibration is
+finished, because a threshold nobody measured is one that locks her out. One
+switch: **Only accept Harlie's voice**. Turn it off whenever you like.
+
+**Leave it off at home.** There is nobody else talking, so the gate has nothing
+to catch and can only get in her way — every recording it mistakes for someone
+else is one she has to do again. It is for a classroom.
 
 ### If it misfires
 

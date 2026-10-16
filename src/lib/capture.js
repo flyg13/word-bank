@@ -63,7 +63,7 @@ async function passesGates(clip) {
  * arrives on the returned `result` promise.
  *
  * @param {{mode?: string, expected?: string, onSending?: () => void,
- *          localOnly?: boolean}} options
+ *          localOnly?: boolean, onTick?: (elapsedMs:number) => void}} options
  *   mode selects the silence and length limits from CAPTURE_MODES.
  *   expected is what she was asked to say, used only as a vocabulary hint.
  *   localOnly records and stops there: no clip gates, no upload, no transcript.
@@ -78,14 +78,16 @@ async function passesGates(clip) {
  *   text: string, clip: object, provider: string, model: string
  * }>}>}
  */
-export async function startCapture({ mode = 'word', expected = '', onSending, localOnly = false } = {}) {
+export async function startCapture({
+  mode = 'word', expected = '', onSending, localOnly = false, onTick
+} = {}) {
   if (!mediaRecordingSupported()) throw new CaptureError('no-recorder');
 
   const limits = CAPTURE_MODES[mode] || CAPTURE_MODES.word;
 
   let recording;
   try {
-    recording = await startRecording(limits);
+    recording = await startRecording({ ...limits, onTick });
   } catch (e) {
     // getUserMedia's own names, mapped to the same vocabulary the browser
     // recogniser uses, so the mic label needs one set of explanations.

@@ -83,6 +83,16 @@ export const TRANSCRIBE_TIMEOUT_MS = 15000;
 // The numbers below are defaults. Each mode's pause can be overridden from
 // Netlify without a code change — see `envMs` and the README — because the
 // right value is a thing only the iPad, mid-session, can settle.
+// How much of her voice makes a usable print. Speaker embeddings get steadily
+// better with more audio and stop improving somewhere around ten seconds; below
+// about three there is not enough to characterise a voice at all.
+//
+// Declared up here because the enrol capture mode's ceiling is the target: the
+// recording stops itself the moment it has enough, so nobody has to time it on
+// their phone. See CLAUDE.md §19.
+export const VOICE_ENROL_MIN_SECONDS = 3;
+export const VOICE_ENROL_TARGET_SECONDS = 10;
+
 const DEFAULT_SILENCE_MS = {
   // One word, with nothing inside it to pause for. 1200ms was still long
   // enough to read as the app having frozen — the same complaint §13 answered
@@ -97,6 +107,9 @@ const DEFAULT_SILENCE_MS = {
   // Reading a passage has real pauses in it. Lowering this would cut her off
   // mid-read, which is the failure that matters here.
   passage: 2500,
+  // Voice Lock enrolment: she is talking freely and will pause to think, and
+  // a pause cut short is a recording too short to count.
+  enrol: 4000,
   // Speech-To-Text. Was 3500, which read as the app having frozen — the
   // parent's report from real use. What makes 1500 safe is that recordings
   // now add to the end rather than replacing (CLAUDE.md §12): a pause cut
@@ -140,6 +153,16 @@ export const CAPTURE_MODES = {
   freeform: {
     silenceMs: envMs('VITE_SILENCE_MS_FREEFORM', DEFAULT_SILENCE_MS.freeform),
     maxMs: 60000
+  },
+  // Voice Lock enrolment. The ceiling is the target rather than a safety net:
+  // ten seconds is exactly what a print wants, so the recording ends itself at
+  // ten and the parent is not left guessing when to tap. The pause is long
+  // because she is talking freely about nothing in particular and will stop to
+  // think — being cut off at a thinking pause is what made recordings too
+  // short to count.
+  enrol: {
+    silenceMs: envMs('VITE_SILENCE_MS_ENROL', DEFAULT_SILENCE_MS.enrol),
+    maxMs: VOICE_ENROL_TARGET_SECONDS * 1000
   }
 };
 
@@ -189,20 +212,18 @@ export const VOICE_THRESHOLD_MIN = 0.1;
 export const VOICE_THRESHOLD_MAX = 0.95;
 export const VOICE_THRESHOLD_STEP = 0.01;
 
-// How much of her voice makes a usable print. Speaker embeddings get steadily
-// better with more audio and stop improving somewhere around ten seconds; below
-// about three there is not enough to characterise a voice at all.
-export const VOICE_ENROL_MIN_SECONDS = 3;
-export const VOICE_ENROL_TARGET_SECONDS = 10;
-
 // Several recordings rather than one, averaged at comparison time. One
 // recording captures one mood, one distance from the microphone and one head
 // cold; three spread that out.
 export const VOICE_ENROL_CLIPS = 3;
 
-// Scores kept while calibrating. Enough to see a distribution, few enough that
-// the family document does not grow: this is tuning data, not history.
-export const VOICE_LOG_LIMIT = 40;
+// Scores kept from calibrating. Raised from 40: the parent asked to be able to
+// record as many voices as they like, and a cap they can reach in one sitting
+// is the same complaint in a different place. It is still bounded, because the
+// whole list is rewritten on every change and the family document must not
+// grow without limit — but 200 short rows is a long session's worth, and the
+// card says plainly when the oldest start dropping off.
+export const VOICE_LOG_LIMIT = 200;
 
 // ---------- Her worksheets ----------
 
