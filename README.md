@@ -74,6 +74,7 @@ is not a number between 300 and 120000 is ignored and the default is used.
 | `VITE_SILENCE_MS_WORD` | `600` | Practice. One word, with nothing to pause inside, said a dozen times in a row |
 | `VITE_SILENCE_MS_SENTENCE` | `2000` | Sentences. Longer, because being cut off costs her the whole sentence again |
 | `VITE_SILENCE_MS_PASSAGE` | `2500` | Reading Passage. Longest: a passage has real pauses in it |
+| `VITE_SILENCE_MS_ENROL` | `4000` | Voice Lock enrolment. Longest of all: she is talking freely and will stop to think, and a pause cut short is a recording too short to count. This mode also stops itself at 10s, which is the target rather than a safety net |
 | `VITE_NO_SPEECH_MS` | `6000` | How long it waits if she taps and then says nothing at all |
 
 Raise one if she is being cut off mid-sentence; lower it if the app feels like
@@ -277,6 +278,87 @@ inference, so the model ID is an inference-profile ID (`au.` keeps routing
 inside the Australian regions; `global.` routes anywhere), never a bare
 `anthropic.` one. The defaults are Sydney and the AU profile of the versioned
 Sonnet 4.5 ID.
+
+## Voice Lock (off by default)
+
+In a classroom the iPad is not only hers, and another child speaking near it
+gets scored, banked and written into her homework. Voice Lock refuses a clip
+that is not her voice.
+
+**It runs on the iPad.** The recording is compared in the browser against a
+saved voiceprint. No audio is uploaded and nothing is fetched at run time —
+the model is committed to this repo at `public/voicelock/speaker.onnx`. It and
+the 12 MB runtime are only downloaded the first time Voice Lock is actually
+used, so leaving it off costs nothing.
+
+### Setting it up, in the order the card is in
+
+Word Bank → **Voice Lock**. Three numbered steps, in order.
+
+**1. Save her voice.** Tap **Record her talking** and let her talk about
+anything. The counter shows the seconds going up, ticks when the recording is
+long enough to be usable, and **the recording stops itself at ten seconds** —
+there is nothing to time. Three recordings. A recording that came out too
+short says so and is not counted, so the count never moves without the screen
+saying why.
+
+**2. Calibrate.** This is a session: you start it, work through it, and finish
+it. Nothing is blocked while you do.
+
+   - Tap **Start calibration**.
+   - The line at the top always says what to do next. First it asks for
+     Harlie: tap **Record Harlie** and have her say a sentence. Two or three
+     times.
+   - Then **Record someone else** — you will do, another child is better, and
+     you can record as many different people as you like. Which button you tap
+     is how the app knows who it was, so there is nothing to tag afterwards.
+   - The scores appear in two groups under the name they belong to, and the
+     verdict underneath shows both ranges and says one of three things:
+     they do not overlap and here is the threshold; **they overlap by this
+     much**, which means the model cannot reliably tell her from whoever you
+     tested with; or not enough recordings yet.
+   - **Finish calibration.** The threshold it worked out is filled in for you.
+
+   If it says the scores overlap, that is a real result, not a setup problem.
+   Finish anyway if you want it recorded — and leave the gate off.
+
+**3. The gate.** Only available once her voice is saved *and* a calibration is
+finished, because a threshold nobody measured is one that locks her out. One
+switch: **Only accept Harlie's voice**. Turn it off whenever you like.
+
+**Leave it off at home.** There is nobody else talking, so the gate has nothing
+to catch and can only get in her way — every recording it mistakes for someone
+else is one she has to do again. It is for a classroom.
+
+### If it misfires
+
+**Every refusal carries a "Turn Voice Lock off" button.** Being shut out of her
+own tool in front of a class is worse than the gate picking up a classmate, so
+the way out is always one tap away, on the refusal itself.
+
+The refusal reads *"I didn't hear your voice that time. Have another go."* with
+the score in small grey text after it. That number is the diagnostic: if she is
+being refused at 0.71 and enrolled around 0.74, the threshold is too high —
+lower it in Word Bank. If a classmate is getting through, raise it.
+
+**It always errs towards letting her in.** If the model will not load, the clip
+will not decode, or no voice has been saved, the clip goes through. A gate that
+cannot see does not refuse a nine-year-old's homework.
+
+### Checking the model
+
+`npm run voice:verify` confirms the committed model is the file it claims to
+be — size, SHA-256, the metadata the runtime reads, and that its licence and
+attribution files are still beside it. `public/voicelock/README.md` has its
+provenance and the measured same-speaker/different-speaker scores the default
+threshold comes from.
+
+**Licence: Apache-2.0, commercial use permitted with attribution.** The model
+is NVIDIA NeMo TitaNet-small; `public/voicelock/LICENSE` and
+`public/voicelock/NOTICE` carry the full licence and the attribution it
+requires. If attribution has to appear somewhere else — an about screen, a
+schools-procurement form, an app listing — `NOTICE` is written to be copied
+as-is.
 
 ## Testing it by hand
 

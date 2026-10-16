@@ -639,6 +639,85 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
 .rate-slider{ flex:1; min-width:190px; height:44px; accent-color:var(--gold-text); }
 .rate-slider:focus{ outline:2px solid var(--gold); }
 
+/* ---------- Voice Lock ---------- */
+.switch-row{ display:flex; align-items:center; gap:11px; margin:10px 0; cursor:pointer; font-size:17px; }
+.switch-row input{ width:24px; height:24px; accent-color:var(--checked); flex:none; }
+.switch-row input:disabled + span{ color:var(--muted); }
+
+/* Calibration scores. A plain list on purpose: the parent is reading for where
+   the numbers fall, and a chart of forty points would say less than the
+   numbers themselves. Tagging is what makes them mean anything. */
+.score-list{ margin-top:10px; font-size:16px; }
+.score-row{
+  display:flex; align-items:center; gap:10px; padding:6px 0;
+  border-top:1px solid var(--card-line); flex-wrap:wrap;
+}
+.score-row:first-child{ border-top:none; }
+.score-value{ font-family:var(--font-read); font-size:18px; min-width:66px; }
+.score-when{ color:var(--muted); flex:1; }
+.score-tag.chosen{ color:var(--ink); font-weight:700; text-decoration:none; }
+/* Tagged rows carry a rule as well as a tint, so the grouping survives
+   greyscale like every other state in this app. */
+.score-row.tagged-her{ background:var(--gold-wash); box-shadow:inset 3px 0 0 0 var(--checked); }
+.score-row.tagged-other{ background:var(--paper); box-shadow:inset 3px 0 0 0 var(--quiet); }
+
+/* What she sees when the gate refuses. Kind, plain, and never without the way
+   out beside it: being locked out in front of a class is the worse failure. */
+/* The enrolment countdown. Big enough to read from arm's length on an iPad
+   while she is talking, because that is the whole point of it. The tick is a
+   second signal beside the colour, so "long enough" survives greyscale. */
+.enrol-timer{
+  margin:10px 0 0; padding:10px 14px; border-radius:var(--radius);
+  background:var(--paper); border:1px solid var(--line);
+  font-variant-numeric:tabular-nums; font-size:1.15rem; font-weight:700;
+  color:var(--ink);
+}
+.enrol-timer.enough{ border-color:var(--moss, #3d6b4a); color:var(--moss, #3d6b4a); }
+.enrol-timer[hidden]{ display:none; }
+
+/* Calibration: a sequence, so the one sentence saying what to do next is the
+   most prominent thing in the step. */
+.cal-step{
+  margin:4px 0 12px; font-size:1.05rem; font-weight:700; color:var(--ink);
+}
+.score-groups{ display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; }
+.score-group{
+  flex:1; min-width:150px; background:var(--paper);
+  border:1px solid var(--line); border-radius:var(--radius); padding:10px 12px;
+}
+.score-group-title{
+  margin:0 0 8px; font-size:.8rem; text-transform:uppercase;
+  letter-spacing:.06em; color:var(--muted, #6b6259);
+}
+.cal-verdict{ margin-top:12px; }
+.cal-ranges{
+  font-variant-numeric:tabular-nums; font-weight:700; margin-bottom:6px;
+  white-space:pre-wrap;
+}
+/* Three outcomes, told apart by a rule and a weight as well as a colour. */
+.cal-ok, .cal-warn, .cal-wait{
+  padding:8px 0 8px 12px; border-left:4px solid var(--line); font-size:.95rem;
+}
+.cal-ok{ border-left-color:var(--moss, #3d6b4a); }
+.cal-warn{ border-left-color:var(--rose, #b4534a); font-weight:700; }
+.cal-wait{ border-left-style:dashed; color:var(--muted, #6b6259); }
+
+/* Voice Lock's refusal. A sheet at the bottom, like the fix panel, because it
+   can appear over any page. Red is not the only signal: it carries its own
+   words and its own way out, and it is role="alert" so a reader announces it. */
+.voice-refused{
+  display:none; position:fixed; left:50%; transform:translateX(-50%);
+  bottom:14px; z-index:45; width:min(520px, calc(100vw - 28px));
+  background:var(--white); border:1px solid var(--rose, #b4534a);
+  border-left:5px solid var(--rose, #b4534a);
+  border-radius:var(--radius); padding:14px 16px; text-align:left;
+  box-shadow:0 8px 28px rgba(36,31,27,.22);
+}
+.voice-refused.show{ display:block; }
+.voice-refused b{ display:block; font-size:1.05rem; }
+.voice-refused .voice-off{ margin-top:10px; }
+.voice-refused b{ flex:1; min-width:220px; }
+
 @media (prefers-reduced-motion: reduce){
   *, *::before, *::after{ animation-duration:.001ms !important; animation-iteration-count:1 !important;
                           transition-duration:.001ms !important; }

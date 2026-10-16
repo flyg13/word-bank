@@ -162,7 +162,7 @@ This is a small, self-contained feature — good second build after phonetic mat
 Already scoped in earlier conversation; summarizing for this document so Claude Code has the full picture without needing the chat history:
 
 - **Why not Picovoice Eagle:** trial access was declined ("reserved for opportunities with a defined commercial use case"); paid tier is the only path, and licensing risk grows if this ever serves other families.
-- **Path forward: sherpa-onnx** (Apache 2.0, open source, no per-user licensing). It has a working speaker-embedding model (`embedding.onnx`, confirmed to exist in their repo) used inside their speaker-diarization WASM demo — but there's no pre-built browser package the way Eagle had. **This requires compiling their C++ source to WebAssembly using Emscripten.** That compilation step needs to happen in a real dev environment with the ability to test the output in an actual browser — this is squarely a Claude Code task, not something to attempt blind.
+- **Path forward: sherpa-onnx** (Apache 2.0, open source, no per-user licensing). It has a working speaker-embedding model (`embedding.onnx`, confirmed to exist in their repo) used inside their speaker-diarization WASM demo — but there's no pre-built browser package the way Eagle had. ~~**This requires compiling their C++ source to WebAssembly using Emscripten.**~~ **Wrong, as of September 2026 — see §18.** `@sherpaw/speaker-identification` publishes sherpa-onnx's speaker-embedding runtime to npm as a prebuilt WASM bundle. No Emscripten, no C++ build step; Vite bundles it as an ordinary asset. The hardest and most uncertain part of this feature turned out not to exist, which is why Voice Lock arrived earlier than its place in the roadmap.
 - Once compiled, the integration pattern is conceptually the same as the Eagle build that already exists in this codebase's history: enroll (record her voice, extract an embedding, store it), then gate every recognizer call behind a live similarity check against that stored embedding.
 - **Sequencing reason for building this last:** it's the highest-uncertainty, highest-effort piece, and the other two features are lower-risk wins that directly help Harlie sooner. Get the foundation (Vite restructure) and the two quick wins shipped and tested first, then tackle the harder infrastructure with that momentum.
 
@@ -243,9 +243,14 @@ it — not to build more on top of it.
    build once matching is trusted.
 4. **Illustrated reading passages / story library** (§6) — needs the content
    corpus from §2 to exist first.
-5. **Voice Lock via sherpa-onnx** (§5) — biggest lift and highest uncertainty.
-   Deliberately last: it is infrastructure, not accuracy, and none of the above
-   depends on it.
+5. ~~**Voice Lock via sherpa-onnx** (§5)~~ — **built early, September 2026, see
+   §18.** It was sequenced last because §5 believed it needed an Emscripten
+   build of sherpa-onnx's C++. It does not — the runtime ships prebuilt on npm
+   — so the "biggest lift and highest uncertainty" was neither. It remains
+   infrastructure rather than accuracy, and nothing above it depended on it, so
+   building it early cost the evaluation nothing. Off by default; whether it
+   separates her from her classmates is itself unanswered and calibration mode
+   exists to answer it.
 
 Reading and stories, staleness, and Voice Lock all sit below the line. None of
 them should start before the two questions above have answers.
@@ -1132,3 +1137,374 @@ place to make it is the iPad — if she is being clipped mid-word,
 `VITE_SILENCE_MS_WORD` is the dial and the README says so. The two-microphones
 risk §15 named applies here too, and Practice is where it would show up
 soonest, because it is the mode she uses most.
+
+## 18. Voice Lock — the classroom gate (parent's decisions)
+
+**The problem.** In a classroom the iPad is not only hers. Another child speaks
+near it and the app treats that as her: it scores it in Practice, banks it as a
+pronunciation, writes it into her homework. Every accuracy feature in this
+document assumes the voice it hears is Harlie's, and in the one place the app
+is most used, that assumption is not safe.
+
+**The decision.** Transcribe only her voice. Reject a clip that is somebody
+else, or several voices at once.
+
+### It runs on the iPad, and no audio leaves it
+
+**Parent's decision, and the reason to accept a harder build:** *audio of other
+children must never leave the device — that is a meaningful privacy difference
+in a school.* So verification is in the browser. Nothing is uploaded, nothing
+is fetched at run time, and the answer a school gets is not "we delete it
+promptly", it is "it never arrived".
+
+**The build turned out to be much easier than §5 assumed, and §5 is now wrong.**
+That section said this needed sherpa-onnx's C++ compiled to WebAssembly with
+Emscripten, and sequenced Voice Lock last because of it. It does not:
+`@sherpaw/speaker-identification` ships that runtime prebuilt on npm, Vite
+bundles the `.wasm` as an ordinary asset, and the whole toolchain is still npm
+and nothing else. The reason this feature is arriving out of order is that its
+stated risk evaporated on contact.
+
+**Microphone contention was the risk worth checking, and there is none.** §15
+and §17 flagged that the recorder and the interim recogniser already compete
+for the microphone on iPadOS, and that Voice Lock would be a third. It is not:
+`addClipGate` runs on a finished `Blob`, after recording has stopped and before
+anything is sent. Voice Lock never opens the microphone. The two-consumer risk
+from §15 is unchanged — neither better nor worse.
+
+### The model is committed to the repo
+
+**Parent's decision, Route 1, and the reasoning recorded as given:** the build
+pipeline currently depends on npm and nothing else, and every external service
+in this project has cost days when it behaved unexpectedly. A self-contained
+app is worth a large file in git, and it gives a cleaner privacy answer for
+schools: nothing is fetched, no audio leaves the device.
+
+`public/voicelock/speaker.onnx` is NVIDIA NeMo **TitaNet-small**, 40,257,283
+bytes, sha256 `ad4a1802…a789e`, taken from the sherpa-onnx
+`speaker-recongition-models` release (their spelling) which exports it straight
+from NVIDIA's published model. `public/voicelock/model.json` pins the size,
+hash and the metadata sherpa reads; `npm run voice:verify` checks the file
+against it. `public/voicelock/README.md` carries the provenance chain.
+
+**It costs nothing until it is used.** The model and the 12 MB runtime are both
+loaded on demand, so a family that never turns Voice Lock on downloads neither
+— the main bundle is unchanged. An e2e check drives a whole session and asserts
+that no request for either was made.
+
+**Licence: settled — Apache-2.0, and commercial use is permitted.** TitaNet-small
+was picked over the smaller wespeaker CAM++ and 3D-Speaker models in the same
+release *because* of licensing, since this may become a product for schools.
+That choice is now confirmed rather than assumed: **the parent read the licence
+first-hand and it is Apache License 2.0, which permits commercial use with
+attribution.** It had been recorded here as unverified because NGC and Hugging
+Face are both unreachable from the machine this was built on; that caveat is
+withdrawn. Both links in the chain are Apache-2.0 — NVIDIA NeMo, where the
+weights come from, and the sherpa-onnx script that exported them to ONNX.
+
+**The attribution Apache-2.0 asks for is in the repo, and it is tested.**
+`public/voicelock/LICENSE` is the full licence text as NVIDIA publishes it with
+NeMo. `public/voicelock/NOTICE` carries NVIDIA's copyright line verbatim
+(`Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES`), records that the file
+is an **ONNX export of NVIDIA NeMo TitaNet-small** and that the export was
+Xiaomi Corp's work rather than this project's, and states that Word Bank
+redistributes it byte for byte having changed nothing. `model.json` declares
+the licence and points at both files.
+
+Section 4's four conditions map onto those files: 4(a) the notices are kept,
+4(b) the only modification in the chain is the ONNX conversion and it is
+attributed to whoever made it, 4(c) the licence text is included, and 4(d) has
+nothing to reproduce because NeMo ships no `NOTICE` of its own.
+
+**It is checked by the suite, not by memory.** Five tests read those files off
+disk and assert the licence text is complete, NVIDIA's copyright is present,
+the provenance is recorded, and the manifest does not point at files that are
+missing; `npm run voice:verify` checks the same thing alongside the hash. This
+is deliberate: a tidy-up that deleted `LICENSE` or `NOTICE` would leave the
+project distributing NVIDIA's work without the terms that allow it, and
+nothing else in the repo would notice. Four mutation tests confirm each check
+fails when the attribution is removed.
+
+`NOTICE` is written to be copied as-is, because the place this will next be
+needed is not the repo — it is an about screen, an app listing, or a
+schools-procurement questionnaire.
+
+**One caveat that survives, and it is not about NVIDIA's grant.** TitaNet's
+training mix includes VoxCeleb, which is itself distributed for research use
+only, while NVIDIA licenses the resulting weights under Apache-2.0 regardless.
+That is standard practice and the basis on which these models are used
+commercially; it is a question about the weights' lineage rather than about the
+licence on the file. It also applies to essentially every strong open speaker
+model, so it is not a reason to prefer a different one. If Word Bank is sold to
+schools it is worth a lawyer's glance — not because anything here is wrong, but
+because "we checked" is a better answer than "it looked fine". Apache-2.0 also
+grants no trademark rights, so the NOTICE says plainly that NVIDIA does not
+endorse this project and names NVIDIA, NeMo and TitaNet only to identify where
+the model came from.
+
+### Calibration was built before the gate, and the threshold is measured
+
+**Parent's decision:** *a mode that shows the similarity score for every
+attempt without gating anything, and a threshold I can adjust afterwards.*
+Calibration comes first in the card and in the build order, because a gate
+whose threshold was guessed is a gate that locks her out.
+
+Turning it on logs a score for every attempt and refuses nothing. Each score
+can be tagged **Her** or **Someone else**, and once there are two of hers and
+one of somebody else the card suggests a threshold: the midpoint between her
+lowest and the highest that was not her. **When those two overlap it says so
+and suggests nothing** — an average would paper over exactly the finding that
+matters most, which is that a nine-year-old against her own classmates may not
+separate cleanly at all.
+
+**The default is measured, not guessed.** Seven clips from three speakers, run
+through this exact model and runtime in a real browser, scored 0.689–0.736
+within a speaker and 0.109–0.370 across speakers: no overlap, a 0.319 gap,
+midpoint 0.53. `VOICE_THRESHOLD_DEFAULT` is 0.5 — deliberately just under that
+midpoint, because of the rule below. **Those were adult voices reading
+Mandarin**, so the number is a starting point and calibration on her own voice
+is what settles it.
+
+**One thing that measurement caught.** sherpa's extractor refuses clips shorter
+than one second by default, and a Practice clip is a single word of about that
+length. Left alone, the gate would have quietly never run in the mode she uses
+most, and nothing on screen would have said so. `VOICE_MIN_CLIP_SECONDS` is
+0.35, and a test pins that it stays under the shortest capture mode.
+
+### Every uncertainty lets her through
+
+**Parent's decision:** *being locked out of her own tool in front of a class is
+worse than picking up a classmate.* That is the rule the whole gate is built
+around, and it is not a preference — it decides every branch.
+
+So the gate allows, and says why, when: it is switched off; no voice has been
+enrolled; the model will not load or the clip will not decode; the stored
+voiceprint came from a different model; or calibration is running. It refuses
+only when it has a voiceprint, a working model, a score, and that score is
+below the threshold. Seven mutation tests exist for exactly this: each one
+turns a fail-open into a fail-closed, or removes a guard, and each one breaks
+a test.
+
+**Enrolment is never gated**, and it skips the upload entirely. `startCapture`
+and `bindMic` gained `localOnly`, which records a clip and hands it back
+without sending it anywhere or running the gates — gating enrolment on a
+voiceprint that does not exist yet would be circular, and her enrolment audio
+has even less business leaving the iPad than anything else.
+
+### Being refused says so, kindly, and hands her the way out
+
+**Parent's decision:** *she is nine and cannot read an error — say it plainly
+and kindly, and never fail silently.* A refusal reads **"I didn't hear your
+voice that time. Have another go."** The similarity score follows in small grey
+text, for the parent reading over her shoulder: a gate refusing at 0.71 when
+she enrolled at 0.74 is a threshold problem, and that is only diagnosable if
+the number is on screen.
+
+**The refusal floats, outside every tab**, like §16's fix panel and for the
+same reason: the gate can refuse in Practice, Sentences, Reading or an answer,
+and a screen that forgot to render it would refuse her in silence. That is the
+one failure this feature must not have, so the gate raises it itself rather
+than leaving it to whichever page she is on.
+
+**"Turn Voice Lock off" is on the refusal**, not buried in Word Bank — the way
+out is always one tap from being shut out. And a refusal never falls back to
+the browser's own recogniser: that fallback exists for a transcription service
+that cannot be reached, and if a refusal took it the clip would be transcribed
+anyway and the gate would be a decoration. A test pins that.
+
+### What it stores
+
+`voice_lock` is a new synced field on the family document: `enabled`,
+`calibrating`, `threshold`, the enrolled `print`, and a rolling log of the last
+40 scores. Purely additive — the differential test still pins the ten original
+fields in both directions. A document that has never seen it reads as off, with
+no voice saved, which is the parent's decision that **Voice Lock is off by
+default**. A document hand-edited into nonsense reads as off too, rather than
+throwing: mixed-dimension embeddings are discarded, an out-of-range threshold
+falls back to the default, and only `true` counts as on.
+
+Forgetting her voice switches the gate off with it, because the alternative is
+an armed gate with nothing to compare against.
+
+### Three bugs the first iPad session found, and none of the tests did
+
+Reported as "calibration isn't recording scores", with two more symptoms
+alongside: the gate tickbox could not be ticked, and there was no way to
+record a second person. The first two had one cause.
+
+**1. Her enrolment was never saved, and it was uploaded.** `bindMic` takes a
+`localOnly` flag that makes a recording stop at the clip — no gates, no
+upload — and hands it to `onClip`. The enrolment mic was bound *without* it.
+So `bindMic` took its ordinary branch: it called `onResult` with a transcript
+and never called `onClip`, which meant `collectEnrolment` never ran and
+nothing was ever enrolled however many times she recorded. It also meant her
+enrolment audio went to the transcription service, which the top of this
+section says plainly never happens. One missing line, and it broke both the
+feature and the promise the feature is sold on.
+
+**2. Firestore refuses nested arrays, so the write would have failed anyway.**
+A print was stored as `embeddings: [[…], […], […]]`. Firestore rejects that
+outright — "Nested arrays are not supported" — so even once enrolment ran, the
+write threw and the field never reached the document. The print is now stored
+**flat**: one run of numbers plus the width to cut it at, reassembled into rows
+on read. Above `cleanPrint` nothing changes; the old nested shape is still
+read, so a hand-made document or an old export still opens.
+
+That is also why the gate could not be switched on. The tickbox is disabled
+until there is a print, and `judgeClip` returns `no-enrolment` before it
+computes any score — so one missing enrolment presented as two unrelated
+faults.
+
+**Why the tests missed both.** The suite's fake saver accepted whatever it was
+given, and real Firestore does not; and nothing drove enrolment end-to-end
+through `bindMic`. Both are now covered: a strict saver applies Firestore's own
+nested-array rule to every write, the enrolment round-trips through
+`foldSnapshot` the way a real device would, and a test taps the real mic three
+times and asserts a print lands *and* that nothing was uploaded.
+
+**3. Nowhere to record anybody else.** Calibration only ever scored clips that
+came through the gate during ordinary use, so the only way to score a second
+person was to leave Word Bank, go to Practice and have them speak into her
+practice queue — which nothing said, and which runs a stranger's attempt
+against her word list on the way past. Step 2 now has **Record a voice to
+score**: it scores a clip the same way the gate does, against the same
+enrolment, and only ever writes a row. It works whether or not the tickbox is
+on, because tapping it says what you want plainly enough. A test pins that a
+card score and a gate score are the same number for the same voice — they have
+to be, or the threshold tuned here would not be the one the gate applies.
+
+**The card also stated a rule it could not keep.** The empty list read "With
+calibration on, every recording adds one", which is what made this look like a
+bug rather than a missing control. It now names the control and says which
+recordings count.
+
+### What this does not settle
+
+Everything that matters most, which is why calibration exists:
+
+- **Whether it separates her from her classmates at all.** The measured gap was
+  between adults; children's voices are harder to tell apart, and classmates
+  are the specific hard case. If calibration reports an overlap, that is the
+  answer and the honest options are to raise the bar or to drop the feature —
+  not to pick a threshold that splits the difference.
+- **Whether 0.5 is anywhere near right for her.** Enrol, calibrate with a few
+  of her attempts and a few of someone else's, and read what it suggests.
+- **Whether the refusal reads as kind or as broken**, mid-lesson, with a
+  nine-year-old who has just been told the app did not hear her.
+- **Whether enrolment is a step she or the parent will actually complete** —
+  three recordings is more setup than anything else in this app asks for.
+- **Whether a 40 MB download on first use is tolerable on school wifi.** It
+  happens once and is cached, but the first time is the lesson it happens in.
+
+## 19. Four things setting Voice Lock up on the iPad found (parent's decisions)
+
+§18's calibration was designed from the outside and it showed. All four of
+these are the card failing to say what it is doing, or asking the parent to
+hold something in their head that the app should have held for them.
+
+### The enrolment recording gave no sense of time
+
+**The problem, in the parent's words:** it asks for about ten seconds, but
+there is no timer, no countdown and no automatic stop — and a recording that is
+slightly too short silently does not count. *I had to time it on my phone.*
+
+**The decision: count the seconds on screen, and stop when there is enough.**
+
+- A live counter while recording: seconds elapsed, seconds to go, and a tick
+  the moment the recording is long enough to be usable at all.
+- **The recording ends itself at the target.** `CAPTURE_MODES.enrol` is a new
+  mode whose *ceiling is the target* — ten seconds — rather than a safety net
+  several times longer than the expected recording, which is what every other
+  mode's `maxMs` is. Its trailing pause is deliberately long (4s): she is
+  talking freely about nothing in particular and will stop to think, and
+  cutting a thinking pause short is exactly what produced recordings too short
+  to count.
+- The counter rides a new `onTick` seam through `recorder.js` → `capture.js` →
+  `bindMic`, firing on the 100ms poll that was already running. A counter that
+  throws can never break a recording.
+
+**And a recording that cannot be used now says so, by name.** The old rule
+wanted three clips *and* nine seconds between them, so a short clip was counted
+towards one and not the other: the card could sit on "3 of 3" and still ask for
+more, with nothing saying that the recording just made was the problem. Each
+recording is now kept or refused on its own — under `VOICE_ENROL_MIN_SECONDS`
+it is refused, the note says how long it actually was and that it has not been
+counted, and the count does not move.
+
+### Calibration looked capped at three recordings
+
+**It never was, and that is worth recording because the real cause is a
+pattern worth not repeating.** `scoreForCalibration` wrote "Scored 0.72…" to
+`#voiceSuggestNote` and then called `renderAll()`, which immediately overwrote
+that same element with the standing advice. So from the first recording
+onwards there was no acknowledgement of any individual recording — the note
+just sat there saying the same thing. Recording again changed nothing visible,
+which reads exactly like being blocked.
+
+**The decision: record as many as I like, of as many people as I like.** The
+per-recording line now has an element of its own, separate from the verdict.
+`VOICE_LOG_LIMIT` goes from 40 to 200, because a cap reachable in one sitting
+is the same complaint in a different place, and the card says plainly when the
+oldest start dropping off. It stays bounded: the whole list is rewritten on
+every change and the family document must not grow without limit.
+
+### Two tickboxes nobody could read
+
+**The problem:** *I've had to ask twice what they mean.* "Show scores, block
+nothing" and "Only accept Harlie's voice" sat next to each other as a pair of
+unexplained switches, and the first described a mode rather than a task.
+
+**The decision: calibration is a step I start, work through and finish — not a
+mode I leave switched on.** The card is now three numbered steps, with step 2
+holding three states and exactly one of them visible at a time:
+
+- **Idle** — what calibration is for and a **Start calibration** button.
+- **Running** — one sentence at the top saying what to do next, recomputed on
+  every change; two mics, **Record Harlie** and **Record someone else**; the
+  scores in two groups under the name they belong to; and the verdict.
+- **Done** — when it was calibrated and what threshold it arrived at.
+
+**Who is chosen before recording, not tagged afterwards.** This is the part
+that makes the rest work. Tagging a list of bare numbers after the fact was
+unfollowable by the third row, and it is why the scores could not be grouped.
+Picking the button is picking the person.
+
+**The verdict shows both ranges and names the outcome.** Harlie's low–high and
+everyone else's low–high, then one of three sentences: they do not overlap and
+here is the number; they overlap by this much, which is a real finding about
+this model and these voices rather than a setup mistake; or not enough yet and
+here is the minimum. **Finishing is allowed on an overlap**, because the parent
+may well want the finding recorded and the gate left off.
+
+**Finishing fills the threshold in and opens the gate.** `calibratedAt` is a
+new stored field, and the gate switch is disabled until there is both a print
+and a finished session — a threshold nobody measured is a threshold that locks
+her out in front of a class. Starting a session clears the previous one's
+scores, and cancelling keeps nothing, because scores are only meaningful
+against the print they were measured from and half a session is not evidence.
+Forgetting her voice now throws the calibration away with it, for the same
+reason.
+
+**One behaviour deliberately removed.** While a session is open the gate no
+longer logs a score for her ordinary recordings in Practice. Those arrive
+untagged, so they would belong to neither group and could only muddy the two
+ranges the session exists to produce. The gate still stands down while
+calibrating; it just does not file anything.
+
+### Nothing said why you would ever turn the gate off
+
+**The decision: say it where the setting is.** At home there is nobody else
+talking, so the gate has nothing to catch and can only get in her way — every
+recording it mistakes for someone else is one she has to do again. It is for a
+classroom, where the iPad is not only hers. Without that, the only available
+reading of a safety switch is "more is better", which is wrong here. Default
+stays off, and an e2e check reads the card for that sentence.
+
+### What this does not settle
+
+The same thing §18 ends on, now actually reachable: **whether her voice and a
+classmate's separate at all.** The flow exists to answer it and the verdict
+will say. An overlap is the honest answer and means the gate should stay off —
+not that the setup went wrong. Also unknown: whether ten seconds of talking is
+something a nine-year-old will sit through three times, and whether two mic
+buttons side by side read as a choice or as a puzzle.

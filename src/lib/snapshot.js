@@ -46,6 +46,11 @@ export function foldSnapshot(state, data) {
   state.speechVoice = typeof data.speech_voice === 'string' ? data.speech_voice : '';
   state.contextLog = Array.isArray(data.context_log) ? data.context_log : [];
   state.sheets = Array.isArray(data.sheets) ? data.sheets : [];
+  // Voice Lock. Null rather than a default object, so "never set up" and
+  // "set up and switched off" stay tellable apart; lib/voicelock-state.js
+  // reads it defensively either way.
+  state.voiceLock = data.voice_lock && typeof data.voice_lock === 'object'
+    ? data.voice_lock : null;
 }
 
 /** A rate outside the slider's own range is a document to ignore, not obey. */
@@ -77,5 +82,6 @@ export const SYNCED_FIELDS = [
   'speech_rate',
   'speech_voice',
   'verified_words',
+  'voice_lock',
   'word_bank'
 ];

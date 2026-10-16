@@ -53,6 +53,11 @@ await page.route(
   (route) => route.abort()
 );
 
+// Every URL the page asks for, so Voice Lock's "nothing is fetched unless you
+// turn it on" can be checked rather than asserted.
+const requested = [];
+page.on('request', (r) => requested.push(r.url()));
+
 // An aborted request surfaces as net::ERR_FAILED rather than ERR_CONNECTION.
 const IGNORE = /firebase|firestore|googleapis|net::ERR_|ERR_CONNECTION|favicon/i;
 const errors = [];
@@ -1649,6 +1654,55 @@ check('a new code is stored the way the entry screen stores it, and the app rest
   (await page.evaluate(() => document.getElementById('entryScreen').hidden)) &&
   (await page.locator('#familyCodeCurrent').textContent()) === '\u201csmoke-test-two\u201d',
   await page.locator('#familyCodeCurrent').textContent());
+// ---- Voice Lock ----
+// The whole session so far — Practice, Speech-To-Text, the bank — has run
+// without Voice Lock being switched on. Nothing it needs should have been
+// downloaded, and no clip should have been judged. This is the claim a school
+// is actually being given, so it is checked against the network rather than
+// taken on trust.
+const voiceFetches = requested.filter((u) => /speaker\.onnx|speaker-embedding.*\.wasm/.test(u));
+check('off by default, Voice Lock downloads neither its model nor its runtime',
+  voiceFetches.length === 0, voiceFetches.join(' ;; '));
+
+await page.click('.tab[data-tab="bank"]');
+check('Word Bank offers Voice Lock, off, with no voice saved',
+  (await page.locator('#voiceLockCard').isVisible()) &&
+  (await page.locator('#voiceLockOn').isChecked()) === false);
+
+// The two tickboxes are gone. Calibration is a sequence you start, work
+// through and finish — the parent had to ask twice what the old pair meant.
+check('calibration is a step to start, not a mode to leave switched on',
+  (await page.locator('#voiceCalStart').isVisible()) &&
+  (await page.locator('#voiceCalRunning').isVisible()) === false &&
+  (await page.locator('#voiceCalDone').isVisible()) === false &&
+  (await page.locator('#voiceLockCalibrate').count()) === 0);
+
+// The gate cannot be armed before a voice exists AND a session has measured
+// where the line goes.
+check('the gate waits for both her voice and a finished calibration',
+  (await page.locator('#voiceLockOn').isDisabled()) &&
+  (await page.locator('#voiceCalStart').isDisabled()) &&
+  (await page.locator('#voiceThresholdNote').textContent()).includes('step 1'));
+
+// Why anyone would leave it off. Without that the only available reading is
+// "more safety is better", which is wrong at home.
+check('the gate says plainly why you would leave it off',
+  await page.evaluate(() => {
+    const card = document.getElementById('voiceLockCard');
+    const t = card ? card.textContent : '';
+    return /off at home/i.test(t) && /classroom/i.test(t) &&
+           /nobody else talking/i.test(t);
+  }));
+
+check('the refusal panel is fixed, outside the tabs, and hidden until it fires',
+  await page.evaluate(() => {
+    const box = document.getElementById('voiceRefusal');
+    if (!box) return false;
+    const inTab = box.closest('.tab-panel') !== null;
+    const css = getComputedStyle(box);
+    return !inTab && css.position === 'fixed' && css.display === 'none';
+  }));
+
 check('no uncaught application errors', errors.length === 0, errors.slice(0, 3).join(' ;; '));
 
 if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT, fullPage: true });
