@@ -1,17 +1,23 @@
 import { state, save, onRender } from '../lib/store.js';
 import { parsePassage } from '../lib/text.js';
-import { speak } from '../lib/speech.js';
 import { bindMic } from './mic.js';
 import {
   renderCleanDots,
+  renderTargetWords,
+  bindSpeaker,
   clearReadOutput,
   renderReadResult,
-  appendCleanNote
+  appendCleanNote,
+  appendSlipNote,
+  appendDiscard
 } from './reading-engine.js';
 
 // Set while the parent is pasting a replacement passage, so a background
 // Firestore snapshot doesn't close the editor mid-paste.
 let editingPassage = false;
+
+// What the last attempt changed, so "Didn't mean that" can put it back.
+let lastAttempt = null;
 
 function currentLine() {
   return state.readingSentences[state.readingIndex] || '';
@@ -27,7 +33,7 @@ export function renderReading() {
   document.getElementById('readingPracticeCard').style.display = showSetup ? 'none' : 'block';
   if (!hasPassage()) return;
 
-  document.getElementById('readingTargetSentence').textContent = currentLine();
+  renderTargetWords('readingTargetSentence', currentLine());
   document.getElementById('readingCounter').textContent =
     state.readingIndex + 1 + ' / ' + state.readingSentences.length;
   renderCleanDots('readingCleanDots', state.readingProgress[state.readingIndex] || 0);
@@ -38,19 +44,39 @@ function goTo(index) {
   if (!total) return;
   state.readingIndex = (index + total) % total;
   save('reading_index', state.readingIndex);
+  lastAttempt = null;
   clearReadOutput('readingOutput');
   renderReading();
 }
 
-function handleReadingResult(heard) {
-  const clean = renderReadResult('readingOutput', currentLine(), heard);
-  if (!clean) return;
-
-  const index = state.readingIndex;
-  state.readingProgress[index] = (state.readingProgress[index] || 0) + 1;
+/** Undo whatever the last attempt scored. Safe to call twice. */
+function discardLastAttempt() {
+  if (!lastAttempt) return;
+  const { index, counted } = lastAttempt;
+  lastAttempt = null;
+  if (!counted) return;
+  state.readingProgress[index] = Math.max(0, (state.readingProgress[index] || 1) - 1);
   save('reading_progress', state.readingProgress);
-  appendCleanNote('readingOutput', state.readingProgress[index]);
-  renderCleanDots('readingCleanDots', state.readingProgress[index]);
+  renderCleanDots('readingCleanDots', state.readingProgress[index] || 0);
+}
+
+export function handleReadingResult(heard) {
+  const index = state.readingIndex;
+  const { clean, slips } = renderReadResult('readingOutput', currentLine(), heard);
+  lastAttempt = { index, counted: clean };
+
+  if (clean) {
+    state.readingProgress[index] = (state.readingProgress[index] || 0) + 1;
+    save('reading_progress', state.readingProgress);
+    appendCleanNote('readingOutput', state.readingProgress[index]);
+    renderCleanDots('readingCleanDots', state.readingProgress[index]);
+  } else if (slips) {
+    appendSlipNote('readingOutput', slips);
+  }
+
+  // A passage has the same problem as a sentence: she is holding a line in
+  // her head, and the parent is the one who heard what she meant.
+  appendDiscard('readingOutput', discardLastAttempt);
 }
 
 export function initReading() {
@@ -75,9 +101,10 @@ export function initReading() {
     renderReading();
   });
 
-  document.getElementById('speakReadingBtn').addEventListener('click', () => {
-    const line = currentLine();
-    if (line) speak(line);
+  bindSpeaker({
+    buttonId: 'speakReadingBtn',
+    targetId: 'readingTargetSentence',
+    getText: currentLine
   });
   document
     .getElementById('prevReading')

@@ -14,7 +14,23 @@ export const FIREBASE_CONFIG = {
 // ---------- Tuning ----------
 
 // Clean repetitions of a word before it counts as mastered.
-export const MASTERY_THRESHOLD = 3;
+//
+// A setting rather than a constant, and the default came down from three to
+// two. Three was chosen when the browser's recogniser was the only one there
+// was and a correct reading might well have been luck; the API recogniser
+// (§9) is far more accurate, so the third repeat is buying much less than it
+// used to. It costs something real: by the third go she is bored of the word,
+// and a bored reading is a worse sample, not a better one. See CLAUDE.md §20.
+// The count a hand-added correction is written with. Three, because that is
+// what the original single-file app wrote, and the differential test pins it:
+// it is a stored value in live documents, not a tuning knob. It happens to
+// have been the old practice-repeat number too, which is why it was the same
+// constant — but the two have nothing to do with each other, and tying them
+// together would have changed her data the moment the setting below moved.
+export const MANUAL_BANK_COUNT = 3;
+
+export const MASTERY_REPEAT_CHOICES = [2, 3];
+export const MASTERY_REPEATS_DEFAULT = 2;
 // How many words later an unmastered word gets requeued (spaced repetition).
 export const REQUEUE_GAP = 4;
 // Clean reads of a sentence/passage line before it counts as mastered.

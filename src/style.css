@@ -403,6 +403,17 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
 .wtok.extra::before{ content:'+ '; font-style:normal; }
 .wtok.suggest{ color:var(--gold-text); border-bottom:2px dotted var(--gold); }
 .wtok.suggest::before{ content:'≈ '; font-weight:700; }
+/* A word she said perfectly well that simply was not the one on the screen —
+   "likes" for "loves" — which is a memory slip, not a speech error. It has to
+   be told apart from .mismatch at a glance, because the whole point is which
+   of the two happened. Three signals, all surviving greyscale: a different
+   glyph (↷ against ✗), a dashed rule against a dotted one, and italic against
+   upright. The muted colour is the last signal, not the only one. */
+.wtok.slip{
+  color:var(--muted); border-bottom:2px dashed var(--muted); font-style:italic;
+}
+.wtok.slip::before{ content:'\21b7 '; font-weight:700; font-style:normal; }
+
 /* A word Claude rewrote after reading the sentence. Marked more strongly than
    anything else here — a solid rule and an arrow — because it is the one change
    nobody asked for, and one tap puts it back. The arrow carries the meaning in
@@ -753,3 +764,23 @@ textarea{ min-height:80px; resize:vertical; line-height:1.5; }
 .entry-error{ color:var(--mic-idle); font-size:16px; margin:9px 0 0; text-align:left; min-height:0; }
 .entry-error:empty{ display:none; }
 .entry-meta{ color:var(--muted); font-size:16px; line-height:1.55; margin:18px 0 0; }
+
+/* The repeats setting: two answers, so two buttons rather than a slider.
+   The chosen one is told apart by a fill and a weight, not colour alone. */
+.repeat-choice{ min-width:96px; }
+.repeat-choice.chosen{
+  background:var(--ink); color:var(--white); border-color:var(--ink); font-weight:700;
+}
+
+/* The target sentence, as words that can light up while it is read out. */
+.rtok{ border-radius:3px; padding:0 1px; }
+.rtok.saying{
+  background:var(--gold-lit); box-shadow:0 2px 0 0 var(--gold-text); color:var(--ink);
+}
+/* The speaker, while it is talking: tapping again stops it. */
+.speaking{ background:var(--gold-wash); }
+
+/* A slip note, and the way out of a whole attempt. */
+.read-note.slip{ color:var(--muted); font-style:italic; }
+.discard-row{ margin-top:6px; }
+.discard-attempt{ color:var(--muted); }

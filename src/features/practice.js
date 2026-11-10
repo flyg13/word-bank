@@ -1,4 +1,4 @@
-import { MASTERY_THRESHOLD, REQUEUE_GAP, ATTEMPT_LOG_LIMIT } from '../config.js';
+import { REQUEUE_GAP, ATTEMPT_LOG_LIMIT, MASTERY_REPEATS_DEFAULT } from '../config.js';
 import { PRACTICE_WORDS } from '../data/practice-words.js';
 import { normalize, shuffle } from '../lib/text.js';
 import { state, save, onRender, renderAll } from '../lib/store.js';
@@ -103,13 +103,56 @@ function logAttempt(target, heard) {
   return save('attempt_log', state.attemptLog);
 }
 
+/**
+ * How many clean repeats make a word mastered, right now.
+ *
+ * Read through a function rather than captured at import: it is a synced
+ * setting, so it can change under this module from the Word Bank tab or from
+ * another device mid-session. See CLAUDE.md §20.
+ */
+function repeatsNeeded() {
+  return state.masteryRepeats || MASTERY_REPEATS_DEFAULT;
+}
+
+/**
+ * Honour repeats she has already earned when the setting comes down.
+ *
+ * Lowering the number must not leave a word sitting in the queue showing a
+ * full row of dots. Nothing is ever taken away going the other way: mastery
+ * lives in `verifiedWords`, which this only adds to, so raising the setting
+ * back up cannot un-master a word she has already finished with.
+ *
+ * @returns {string[]} the words promoted, for the page to report
+ */
+export function reconcileMastery() {
+  const need = repeatsNeeded();
+  const already = new Set(state.verifiedWords.map(normalize));
+  const promoted = [];
+
+  Object.keys(state.confirmCounts).forEach((key) => {
+    if (already.has(key) || (state.confirmCounts[key] || 0) < need) return;
+    const word = state.practiceQueue.find((w) => normalize(w) === key) || key;
+    state.verifiedWords.push(word);
+    already.add(key);
+    promoted.push(word);
+  });
+
+  if (!promoted.length) return promoted;
+  // The queue is derived, never stored — it is rebuilt from `verifiedWords`
+  // on load — so this drops the promoted words from the live one and writes
+  // only the field that actually syncs.
+  state.practiceQueue = state.practiceQueue.filter((w) => !already.has(normalize(w)));
+  save('verified_words', state.verifiedWords);
+  return promoted;
+}
+
 // ---------- Rendering ----------
 
 function renderRepeatDots(word) {
   const count = state.confirmCounts[normalize(word)] || 0;
   const el = document.getElementById('repeatDots');
   el.innerHTML = '';
-  for (let i = 0; i < MASTERY_THRESHOLD; i++) {
+  for (let i = 0; i < repeatsNeeded(); i++) {
     const dot = document.createElement('div');
     dot.className = 'repeat-dot' + (i < count ? ' filled' : '');
     el.appendChild(dot);
@@ -188,7 +231,7 @@ function registerConfirm(word) {
   countAttempt();
 
   let justMastered = false;
-  if (state.confirmCounts[key] >= MASTERY_THRESHOLD) {
+  if (state.confirmCounts[key] >= repeatsNeeded()) {
     if (!state.verifiedWords.map(normalize).includes(key)) {
       state.verifiedWords.push(word);
       justMastered = true;
